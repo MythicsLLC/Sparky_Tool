@@ -1,0 +1,9 @@
+.app { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+header h1 { font-size: 1.8rem; color: #0055aa; }
+.run-button { padding: 0.6rem 1.4rem; background: #0055aa; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+.run-button:disabled { background: #aaa; cursor: not-allowed; }
+.spinner { padding: 1rem; color: #666; font-style: italic; }
+.error-banner { background: #ffeaea; border: 1px solid #f88; padding: 1rem; border-radius: 6px; color: #c00; margin-bottom: 1rem; }
+section { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+section h2 { margin-bottom: 1rem; color: #333; }
