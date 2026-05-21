@@ -6,8 +6,12 @@ services:
     env_file: .env
 
   frontend:
-    build: ./frontend
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
     ports:
       - "3000:3000"
+    command: sh -c "npm ci && npm run dev -- --host"
     depends_on:
       - backend
