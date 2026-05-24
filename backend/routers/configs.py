@@ -7,6 +7,9 @@ from auth import get_current_user
 from database import get_db
 from models import User, UserConfig, AuditEvent
 from encrypt import encrypt, decrypt
+from logger import get_logger
+
+log = get_logger("configs")
 
 router = APIRouter(prefix="/api/v2/configs", tags=["configs"])
 
@@ -54,6 +57,7 @@ def _serialize(config: UserConfig) -> dict:
 @router.get("/")
 def list_configs(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     configs = db.query(UserConfig).filter(UserConfig.user_id == user.id).all()
+    log.debug("list_configs  user=%s  count=%d", user.id[:8], len(configs))
     return [_serialize(c) for c in configs]
 
 
@@ -84,6 +88,7 @@ def create_config(
     db.add(AuditEvent(user_id=user.id, event_type="config_created", detail={"name": body.name}))
     db.commit()
     db.refresh(config)
+    log.info("Config created  id=%d  name=%r  user=%s", config.id, body.name, user.id[:8])
     return _serialize(config)
 
 
@@ -97,7 +102,9 @@ def get_config(
         UserConfig.id == config_id, UserConfig.user_id == user.id
     ).first()
     if not config:
+        log.warning("get_config 404  id=%d  user=%s", config_id, user.id[:8])
         raise HTTPException(404, "Configuration not found")
+    log.debug("get_config  id=%d  user=%s", config_id, user.id[:8])
     return _serialize(config)
 
 
@@ -112,6 +119,7 @@ def update_config(
         UserConfig.id == config_id, UserConfig.user_id == user.id
     ).first()
     if not config:
+        log.warning("update_config 404  id=%d  user=%s", config_id, user.id[:8])
         raise HTTPException(404, "Configuration not found")
 
     config.name               = body.name
@@ -128,7 +136,6 @@ def update_config(
     config.sftp_remote_path   = body.sftp_remote_path
     config.updated_at         = datetime.now(timezone.utc)
 
-    # Only update encrypted fields if a new value is provided
     if body.ps_password and body.ps_password != "***":
         config.ps_password_enc = encrypt(body.ps_password)
     if body.sftp_password and body.sftp_password != "***":
@@ -137,6 +144,7 @@ def update_config(
     db.add(AuditEvent(user_id=user.id, event_type="config_updated", detail={"config_id": config_id}))
     db.commit()
     db.refresh(config)
+    log.info("Config updated  id=%d  name=%r  user=%s", config_id, body.name, user.id[:8])
     return _serialize(config)
 
 
@@ -150,8 +158,10 @@ def delete_config(
         UserConfig.id == config_id, UserConfig.user_id == user.id
     ).first()
     if not config:
+        log.warning("delete_config 404  id=%d  user=%s", config_id, user.id[:8])
         raise HTTPException(404, "Configuration not found")
     db.delete(config)
     db.add(AuditEvent(user_id=user.id, event_type="config_deleted", detail={"config_id": config_id}))
     db.commit()
+    log.info("Config deleted  id=%d  user=%s", config_id, user.id[:8])
     return {"deleted": True}

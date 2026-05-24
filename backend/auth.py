@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 from config import get_settings
 from database import get_db
 from models import User
+from logger import get_logger
+
+log = get_logger("auth")
 
 security = HTTPBearer(auto_error=False)
 
@@ -36,9 +39,11 @@ def _verify_token(token: str) -> dict:
         jwks = _get_jwks()
         key = next((k for k in jwks["keys"] if k.get("kid") == kid), None)
         if not key:
+            log.warning("JWT rejected — signing key kid=%s not in JWKS", kid)
             raise HTTPException(401, "Token signing key not found in JWKS")
         return jwt.decode(token, key, algorithms=["RS256"], options={"verify_aud": False})
     except JWTError as exc:
+        log.warning("JWT validation failed: %s", exc)
         raise HTTPException(401, f"Invalid token: {exc}")
 
 
@@ -47,6 +52,7 @@ def _fetch_clerk_user(user_id: str) -> dict:
     settings = get_settings()
     secret = os.environ.get("CLERK_API_SECRET", "") or settings.clerk_api_secret
     if not secret:
+        log.debug("CLERK_API_SECRET not set — skipping Clerk API user fetch")
         return {}
     try:
         resp = httpx.get(
@@ -55,9 +61,11 @@ def _fetch_clerk_user(user_id: str) -> dict:
             timeout=10,
         )
         if resp.status_code == 200:
+            log.debug("Clerk API returned profile for user %s", user_id)
             return resp.json()
-    except Exception:
-        pass
+        log.warning("Clerk API returned HTTP %s for user %s", resp.status_code, user_id)
+    except Exception as exc:
+        log.warning("Clerk API fetch failed for user %s: %s", user_id, exc)
     return {}
 
 
@@ -118,6 +126,9 @@ def get_current_user(
 
     # Upsert: INSERT … ON CONFLICT (id) DO UPDATE last_seen_at.
     # This is atomic and handles concurrent first-logins without a race condition.
+    existing = db.query(User).filter(User.id == user_id).first()
+    is_new = existing is None
+
     stmt = (
         pg_insert(User)
         .values(
@@ -141,6 +152,12 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(500, "User record missing after upsert")
+
+    if is_new:
+        log.info("New user registered: %s (%s)", user.email, user_id)
+    else:
+        log.debug("User login: %s (%s)", user.email, user_id)
+
     return user
 
 

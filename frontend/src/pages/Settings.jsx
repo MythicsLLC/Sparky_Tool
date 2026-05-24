@@ -182,11 +182,15 @@ export default function Settings() {
     setSaving(true)
     setError(null)
     setSuccess(false)
+    // Trim all string fields before sending so leading/trailing whitespace never persists
+    const trimmed = Object.fromEntries(
+      Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    )
     try {
       if (selectedConfigId) {
-        await updateConfig(selectedConfigId, form, token)
+        await updateConfig(selectedConfigId, trimmed, token)
       } else {
-        const response = await createConfig(form, token)
+        const response = await createConfig(trimmed, token)
         setSelectedConfigId(response.data.id)
         setConfigs((prev) => [response.data, ...prev])
       }

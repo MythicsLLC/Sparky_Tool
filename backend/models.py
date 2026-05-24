@@ -49,18 +49,21 @@ class RunLog(Base):
         Index("idx_run_logs_user_id", "user_id"),
         Index("idx_run_logs_started", "started_at"),
     )
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    user_id      = Column(String, ForeignKey("users.id"), nullable=False)
-    config_id    = Column(Integer, ForeignKey("user_configs.id", ondelete="SET NULL"))
-    config_name  = Column(String, default="")
-    status       = Column(String, nullable=False)
-    instance_id  = Column(String, default="")
-    report_id    = Column(String, default="")
-    row_count    = Column(Integer)
-    error_detail = Column(Text)
-    duration_ms  = Column(Integer)
-    started_at   = Column(TIMESTAMP(timezone=True), default=_now)
-    completed_at = Column(TIMESTAMP(timezone=True))
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(String, ForeignKey("users.id"), nullable=False)
+    config_id       = Column(Integer, ForeignKey("user_configs.id", ondelete="SET NULL"))
+    config_name     = Column(String, default="")
+    ps_process_name = Column(String, default="")
+    status          = Column(String, nullable=False)
+    instance_id     = Column(String, default="")
+    report_id       = Column(String, default="")
+    sftp_skipped    = Column(Boolean, default=False)
+    skip_reason     = Column(Text, default="")
+    row_count       = Column(Integer)
+    error_detail    = Column(Text)
+    duration_ms     = Column(Integer)
+    started_at      = Column(TIMESTAMP(timezone=True), default=_now)
+    completed_at    = Column(TIMESTAMP(timezone=True))
 
 
 class AuditEvent(Base):

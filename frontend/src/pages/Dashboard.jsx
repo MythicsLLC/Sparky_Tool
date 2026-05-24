@@ -216,44 +216,75 @@ export default function Dashboard() {
 
       {lastResult && (
         <Box sx={{ display: 'grid', gap: 6 }}>
+          {/* PS tracking cards — always shown */}
           <Box>
-            <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Latest result details</Typography>
+            <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>
+              PeopleSoft Process Tracking
+            </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
-                <Card sx={{ p: 3, bgcolor: '#111316' }}>
-                  <Typography sx={{ color: '#7a7060', mb: 1 }}>Instance</Typography>
-                  <Typography sx={{ color: '#ede8d0', fontWeight: 700 }}>{lastResult.instance_id || 'N/A'}</Typography>
+                <Card sx={{ p: 3, bgcolor: '#111316', borderColor: 'rgba(201,168,76,0.08)' }}>
+                  <Typography sx={{ color: '#7a7060', fontSize: '0.7rem', letterSpacing: '0.12em', textTransform: 'uppercase', mb: 1 }}>Instance ID</Typography>
+                  <Typography sx={{ color: '#c9a84c', fontWeight: 700, fontFamily: '"JetBrains Mono", monospace' }}>
+                    {lastResult.instance_id || <span style={{ color: '#3a3428' }}>—</span>}
+                  </Typography>
                 </Card>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Card sx={{ p: 3, bgcolor: '#111316' }}>
-                  <Typography sx={{ color: '#7a7060', mb: 1 }}>Report ID</Typography>
-                  <Typography sx={{ color: '#ede8d0', fontWeight: 700 }}>{lastResult.report_id || 'N/A'}</Typography>
+                <Card sx={{ p: 3, bgcolor: '#111316', borderColor: 'rgba(201,168,76,0.08)' }}>
+                  <Typography sx={{ color: '#7a7060', fontSize: '0.7rem', letterSpacing: '0.12em', textTransform: 'uppercase', mb: 1 }}>Report ID</Typography>
+                  <Typography sx={{ color: '#c9a84c', fontWeight: 700, fontFamily: '"JetBrains Mono", monospace' }}>
+                    {lastResult.report_id || <span style={{ color: '#3a3428' }}>—</span>}
+                  </Typography>
                 </Card>
               </Grid>
               <Grid item xs={12} md={4}>
-                <Card sx={{ p: 3, bgcolor: '#111316' }}>
-                  <Typography sx={{ color: '#7a7060', mb: 1 }}>Row count</Typography>
-                  <Typography sx={{ color: '#ede8d0', fontWeight: 700 }}>{lastResult.row_count || 'N/A'}</Typography>
+                <Card sx={{ p: 3, bgcolor: '#111316', borderColor: 'rgba(201,168,76,0.08)' }}>
+                  <Typography sx={{ color: '#7a7060', fontSize: '0.7rem', letterSpacing: '0.12em', textTransform: 'uppercase', mb: 1 }}>Rows Processed</Typography>
+                  <Typography sx={{ color: '#ede8d0', fontWeight: 700 }}>
+                    {lastResult.row_count != null ? lastResult.row_count.toLocaleString() : '—'}
+                  </Typography>
                 </Card>
               </Grid>
             </Grid>
           </Box>
 
-          <section>
-            <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Visual summary</Typography>
-            <KPICards kpis={lastResult.kpis} />
-          </section>
+          {/* SFTP-skipped notice — shown instead of charts/table */}
+          {lastResult.sftp_skipped ? (
+            <Alert
+              severity="info"
+              sx={{
+                bgcolor: 'rgba(100,149,180,0.08)',
+                border: '1px solid rgba(100,149,180,0.2)',
+                color: '#8ab4cc',
+                '& .MuiAlert-icon': { color: '#6495b4' },
+              }}
+            >
+              <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '0.88rem' }}>
+                Process completed — no CSV data available
+              </Typography>
+              <Typography sx={{ fontSize: '0.82rem' }}>
+                {lastResult.message}
+              </Typography>
+            </Alert>
+          ) : (
+            <>
+              <section>
+                <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Visual summary</Typography>
+                <KPICards kpis={lastResult.kpis} />
+              </section>
 
-          <section>
-            <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Trend charts</Typography>
-            <Charts kpis={lastResult.kpis} />
-          </section>
+              <section>
+                <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Trend charts</Typography>
+                <Charts kpis={lastResult.kpis} />
+              </section>
 
-          <section>
-            <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Row data</Typography>
-            <DataTable rows={lastResult.rows} columns={lastResult.columns} />
-          </section>
+              <section>
+                <Typography sx={{ color: '#c9a84c', fontSize: '0.88rem', fontWeight: 700, mb: 2 }}>Row data</Typography>
+                <DataTable rows={lastResult.rows} columns={lastResult.columns} />
+              </section>
+            </>
+          )}
         </Box>
       )}
 

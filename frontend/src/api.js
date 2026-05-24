@@ -5,6 +5,26 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Called once from AuthContext when Clerk's getToken() is available.
+// The interceptor then silently refreshes the JWT before every request,
+// so components never need to worry about token expiry.
+let _getToken = null
+export function setTokenGetter(fn) {
+  _getToken = fn
+}
+
+client.interceptors.request.use(async (config) => {
+  if (_getToken) {
+    try {
+      const token = await _getToken()
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    } catch {
+      // If Clerk can't produce a token, proceed unauthenticated — backend returns 401.
+    }
+  }
+  return config
+})
+
 const auth = (token) => (token ? { Authorization: `Bearer ${token}` } : {})
 
 // Health

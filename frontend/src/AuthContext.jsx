@@ -1,6 +1,6 @@
 ﻿import { createContext, useContext, useEffect, useState } from 'react'
 import { useAuth as useClerkAuth, useClerk } from '@clerk/clerk-react'
-import { getMe, patchMe } from './api'
+import { getMe, patchMe, setTokenGetter } from './api'
 
 const AuthContext = createContext(null)
 
@@ -11,6 +11,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Register Clerk's getToken with the Axios interceptor so every request
+  // automatically carries a fresh JWT — no component ever holds a stale token.
+  useEffect(() => {
+    setTokenGetter(isSignedIn ? getToken : null)
+  }, [isSignedIn, getToken])
 
   useEffect(() => {
     if (!isLoaded) return

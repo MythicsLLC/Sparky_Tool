@@ -4,6 +4,9 @@ import importlib.util
 import os
 
 from config import get_settings
+from logger import get_logger
+
+log = get_logger("db")
 
 _engine = None
 _SessionLocal = None
@@ -32,6 +35,23 @@ def _resolve_postgres_driver(url: str) -> str:
     return url
 
 
+def _migrate_columns(engine) -> None:
+    """Add columns introduced after initial deployment (idempotent — safe to run on every startup)."""
+    stmts = [
+        "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS ps_process_name VARCHAR DEFAULT ''",
+        "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS sftp_skipped BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS skip_reason TEXT DEFAULT ''",
+    ]
+    try:
+        with engine.connect() as conn:
+            for stmt in stmts:
+                conn.execute(text(stmt))
+            conn.commit()
+        log.info("Schema migrations applied")
+    except Exception as exc:
+        log.warning("Schema migration failed (non-fatal): %s", exc)
+
+
 def _init():
     global _engine, _SessionLocal
     if _engine is not None:
@@ -47,6 +67,7 @@ def _init():
     # Neon requires SSL; pass it explicitly so it works even if stripped from URL
     connect_args = {"sslmode": "require"} if "neon.tech" in url else {}
 
+    log.info("Connecting to database (driver: %s)", url.split("://")[0])
     _engine = create_engine(
         url,
         connect_args=connect_args,
@@ -63,6 +84,10 @@ def _init():
     for table in Base.metadata.tables.values():
         for index in table.indexes:
             index.create(_engine, checkfirst=True)
+
+    _migrate_columns(_engine)
+
+    log.info("Database ready — tables: %s", ", ".join(Base.metadata.tables.keys()))
 
 
 def get_db() -> Session:
@@ -85,5 +110,6 @@ def health_check() -> bool:
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True
-    except Exception:
+    except Exception as exc:
+        log.error("DB health check failed: %s", exc)
         return False
