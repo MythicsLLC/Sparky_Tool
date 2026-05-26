@@ -1,0 +1,43 @@
+# Render Infrastructure-as-Code
+# Docs: https://render.com/docs/infrastructure-as-code
+#
+# This file is picked up automatically when you connect this repo to Render.
+# It prevents Render from auto-detecting the wrong framework (e.g. Django/gunicorn).
+
+services:
+  - type: web
+    name: sparky-tool-backend
+    runtime: python
+    # Build and start commands run relative to rootDir
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Render injects PORT; uvicorn must bind 0.0.0.0 so the reverse proxy can reach it
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # Keep one instance alive (free tier: spins down after 15 min of inactivity)
+    plan: free
+
+    envVars:
+      # ── Database ─────────────────────────────────────────────────────────────
+      # PostgreSQL / Neon connection string.
+      # Set this in Render dashboard → Environment → Add Environment Variable.
+      - key: DATABASE_URL
+        sync: false
+
+      # ── Clerk authentication ─────────────────────────────────────────────────
+      - key: CLERK_JWKS_URL
+        sync: false
+      - key: CLERK_API_KEY
+        sync: false
+      - key: CLERK_API_SECRET
+        sync: false
+
+      # ── Encryption ───────────────────────────────────────────────────────────
+      # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - key: ENCRYPTION_KEY
+        sync: false
+
+      # ── CORS ─────────────────────────────────────────────────────────────────
+      # Set to your Vercel frontend URL, e.g. https://sparky-tool.vercel.app
+      # Multiple origins: comma-separated
+      - key: CORS_ORIGINS
+        sync: false
