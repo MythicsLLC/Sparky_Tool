@@ -184,23 +184,52 @@ export default function StartupScreen({ onReady }) {
       {/* All central content sits above the canvas */}
       <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-        {/* Mythics logo — brand header */}
+        {/* Brand header — Mythics logo + Sparky Tool side by side */}
         <Box sx={{
-          mb: 3,
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 3,
+          mb: 4,
           '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
           animation: 'fadeIn 0.8s ease 0s both',
         }}>
           <MythicsLogo width={110} />
-        </Box>
 
-        {/* Separator */}
-        <Box sx={{
-          width: 160,
-          height: '1px',
-          background: `linear-gradient(90deg, transparent, ${accent}33, transparent)`,
-          mb: 4,
-          animation: 'fadeIn 0.8s ease 0.1s both',
-        }} />
+          {/* Vertical divider */}
+          <Box sx={{
+            width: '1px',
+            height: 48,
+            background: `linear-gradient(180deg, transparent, ${accent}55, transparent)`,
+            flexShrink: 0,
+          }} />
+
+          {/* Sparky Tool wordmark */}
+          <Box sx={{ textAlign: 'left' }}>
+            <Typography sx={{
+              fontFamily: '"Cormorant Garamond", serif',
+              fontSize: '1.9rem',
+              fontWeight: 700,
+              letterSpacing: '0.18em',
+              color: 'text.primary',
+              textTransform: 'uppercase',
+              lineHeight: 1.1,
+            }}>
+              Sparky <Box component="span" sx={{ color: accent }}>Tool</Box>
+            </Typography>
+            <Typography sx={{
+              fontFamily: '"Raleway", sans-serif',
+              fontSize: '0.52rem',
+              fontWeight: 400,
+              letterSpacing: '0.38em',
+              color: 'text.disabled',
+              textTransform: 'uppercase',
+              mt: 0.5,
+            }}>
+              Analytics Platform
+            </Typography>
+          </Box>
+        </Box>
 
         {/* Center icon */}
         <Box sx={{ position: 'relative', mb: 5 }}>
@@ -241,52 +270,12 @@ export default function StartupScreen({ onReady }) {
           </Box>
         </Box>
 
-        {/* Top rule */}
-        <Box sx={{
-          width: 180,
-          height: '1px',
-          background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
-          mb: 3,
-          '@keyframes ruleExpand': {
-            from: { width: 0, opacity: 0 },
-            to: { width: '180px', opacity: 1 },
-          },
-          animation: 'ruleExpand 0.8s ease 0.2s both',
-        }} />
-
-        {/* Title */}
-        <Typography sx={{
-          fontFamily: '"Cormorant Garamond", serif',
-          fontSize: '2.4rem',
-          fontWeight: 700,
-          letterSpacing: '0.28em',
-          color: 'text.primary',
-          textTransform: 'uppercase',
-          mb: 0.5,
-          animation: 'fadeIn 0.8s ease 0.4s both',
-        }}>
-          Sparky <Box component="span" sx={{ color: accent }}>Tool</Box>
-        </Typography>
-
-        <Typography sx={{
-          fontFamily: '"Raleway", sans-serif',
-          fontSize: '0.58rem',
-          fontWeight: 400,
-          letterSpacing: '0.4em',
-          color: 'text.disabled',
-          textTransform: 'uppercase',
-          mb: 5,
-          animation: 'fadeIn 0.8s ease 0.5s both',
-        }}>
-          Analytics Platform
-        </Typography>
-
-        {/* Bottom rule */}
+        {/* Rule */}
         <Box sx={{
           width: 180, height: '1px',
           background: `linear-gradient(90deg, transparent, ${accent}4d, transparent)`,
           mb: 4,
-          animation: 'fadeIn 0.8s ease 0.6s both',
+          animation: 'fadeIn 0.8s ease 0.2s both',
         }} />
 
         {/* Status */}
