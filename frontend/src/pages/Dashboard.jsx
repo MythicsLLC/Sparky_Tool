@@ -26,6 +26,7 @@ import DataTable   from '../components/DataTable'
 import LoadingDialog         from '../components/LoadingDialog'
 import FunctionalDashboard  from './FunctionalDashboard'
 import OperationalDashboard from './OperationalDashboard'
+import AnalyzeDashboard     from './AnalyzeDashboard'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig } from '../api'
 
@@ -346,6 +347,7 @@ export default function Dashboard() {
           <Tab label="Run"         />
           <Tab label="Functional"  />
           <Tab label="Operational" />
+          <Tab label="Analyse"     />
         </Tabs>
 
         {/* ── Tab panels ────────────────────────────────────────────────────── */}
@@ -619,6 +621,7 @@ export default function Dashboard() {
 
         {dashTab === 1 && <FunctionalDashboard />}
         {dashTab === 2 && <OperationalDashboard />}
+        {dashTab === 3 && <AnalyzeDashboard />}
 
       </Box>
 

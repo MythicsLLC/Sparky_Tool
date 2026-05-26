@@ -1,8 +1,13 @@
+import io
+import json
 import os
+import re
 import time
 import datetime
 import httpx
-from fastapi import APIRouter, Depends, Query, HTTPException
+import pandas as pd
+import google.generativeai as genai
+from fastapi import APIRouter, Depends, File, Query, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -258,3 +263,188 @@ def check_health(
         user.id[:8], result["peoplesoft"]["status"], result["windows"]["status"],
     )
     return result
+
+
+# ── File Analysis via Gemini ───────────────────────────────────────────────────
+
+_GEMINI_COLORS = [
+    "#6b8f71", "#6495b4", "#c9a84c", "#b45050",
+    "#9b59b6", "#e67e22", "#1abc9c", "#e74c3c",
+    "#3498db", "#2ecc71", "#f39c12", "#8e44ad",
+]
+
+_CHART_PROMPT = """You are a data visualisation expert. Analyse this dataset and return chart specifications as JSON.
+
+Dataset:
+{profile}
+
+Return a single JSON object (NO markdown, NO code fences, raw JSON only) with this exact structure:
+{{
+  "summary": "2-3 sentence plain-English description of what this dataset contains and key patterns",
+  "charts": [
+    {{
+      "id": "c1",
+      "type": "bar|line|area|pie|radialBar|scatter|composed",
+      "title": "Short descriptive title",
+      "description": "One sentence explaining the insight",
+      "data": [ ... ],
+      "xKey": "field used for X axis (bar/line/area/scatter/composed only)",
+      "yKeys": ["field1", "field2"],
+      "nameKey": "field used for labels (pie/radialBar only)",
+      "dataKey": "field used for values (pie/radialBar only)",
+      "colors": ["#hex1", "#hex2"]
+    }}
+  ]
+}}
+
+Data format rules per chart type:
+- bar/line/area/composed  → data is array of objects; set xKey + yKeys
+- pie                     → data is [{{"name":"...", "value": number}}]; set nameKey="name" dataKey="value"
+- radialBar               → data is [{{"name":"...", "value": 0-100 (percentage)}}]; set nameKey + dataKey
+- scatter                 → data is [{{"x": number, "y": number, "label":"..."}}]; set xKey="x" yKeys=["y"]
+
+General rules:
+- Produce 5–8 charts that together tell a complete story about the data
+- Pre-aggregate/group the data — do NOT put hundreds of raw rows in any chart
+- For bar/line/area keep at most 20 data points; use top-N or time-bucketing as needed
+- Choose chart type wisely: pie for ≤8 slices, radialBar for KPI-style percentages, scatter for correlations
+- Colors to use: {colors}
+- Assign one color per yKey or per pie/radialBar slice
+- Return ONLY valid JSON. No explanation. No markdown."""
+
+
+def _build_profile(df: pd.DataFrame, filename: str, max_sample: int = 100) -> dict:
+    """Build a compact dataset profile for the Gemini prompt."""
+    profile: dict = {
+        "filename": filename,
+        "total_rows": len(df),
+        "total_columns": len(df.columns),
+        "columns": [],
+    }
+
+    for col in df.columns:
+        series = df[col].dropna()
+        info: dict = {
+            "name": col,
+            "dtype": str(df[col].dtype),
+            "null_pct": round(df[col].isna().mean() * 100, 1),
+            "unique": int(df[col].nunique()),
+        }
+        if pd.api.types.is_numeric_dtype(df[col]) and len(series):
+            info["min"]  = float(series.min())
+            info["max"]  = float(series.max())
+            info["mean"] = round(float(series.mean()), 4)
+            info["sum"]  = round(float(series.sum()), 4)
+        else:
+            info["top_values"] = series.value_counts().head(8).to_dict()
+        profile["columns"].append(info)
+
+    # Aggregate value_counts for every categorical column (helps Gemini make pie/bar)
+    cat_aggs = {}
+    for col in df.select_dtypes(exclude="number").columns:
+        vc = df[col].value_counts().head(15)
+        cat_aggs[col] = vc.to_dict()
+    if cat_aggs:
+        profile["category_counts"] = cat_aggs
+
+    # Numeric correlations (small matrix)
+    num_cols = df.select_dtypes(include="number").columns.tolist()
+    if len(num_cols) >= 2:
+        corr = df[num_cols].corr().round(2).to_dict()
+        profile["correlations"] = corr
+
+    # Sample rows (capped)
+    sample = df.head(max_sample).where(pd.notnull(df), other=None)
+    profile["sample_rows"] = json.loads(sample.to_json(orient="records", date_format="iso"))
+
+    return profile
+
+
+def _extract_json(text: str) -> dict:
+    """Strip optional markdown fences and parse JSON from Gemini response."""
+    # Remove ```json ... ``` or ``` ... ``` wrappers
+    clean = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
+    clean = re.sub(r"\s*```$", "", clean)
+    return json.loads(clean)
+
+
+@router.post("/analyze-file")
+async def analyze_file(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """
+    Accept a CSV or Excel upload, build a dataset profile, ask Gemini to
+    recommend charts, and return a chart-spec JSON ready for the frontend.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(503, "GEMINI_API_KEY is not configured on this server")
+
+    # ── read file ────────────────────────────────────────────────────────────
+    raw = await file.read()
+    fname = file.filename or "upload"
+    ext   = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+
+    try:
+        if ext == "csv":
+            df = pd.read_csv(io.BytesIO(raw), on_bad_lines="skip")
+        elif ext in ("xlsx", "xlsm"):
+            df = pd.read_excel(io.BytesIO(raw), engine="openpyxl")
+        elif ext == "xls":
+            df = pd.read_excel(io.BytesIO(raw), engine="xlrd")
+        else:
+            raise HTTPException(400, f"Unsupported file type: .{ext}  (use .csv / .xlsx / .xls)")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, f"Could not parse file: {exc}") from exc
+
+    if df.empty:
+        raise HTTPException(422, "File is empty or could not be read")
+
+    # ── build compact profile ────────────────────────────────────────────────
+    profile = _build_profile(df, fname)
+    log.info(
+        "analyze_file  user=%s  file=%s  rows=%d  cols=%d",
+        user.id[:8], fname, profile["total_rows"], profile["total_columns"],
+    )
+
+    # ── call Gemini ──────────────────────────────────────────────────────────
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config=genai.GenerationConfig(
+            temperature=0.2,
+            response_mime_type="application/json",
+        ),
+    )
+
+    prompt = _CHART_PROMPT.format(
+        profile=json.dumps(profile, indent=2, default=str),
+        colors=", ".join(_GEMINI_COLORS),
+    )
+
+    try:
+        response = model.generate_content(prompt)
+        chart_spec = _extract_json(response.text)
+    except json.JSONDecodeError as exc:
+        log.error("Gemini returned non-JSON: %s", response.text[:400])
+        raise HTTPException(502, f"Gemini returned unparseable JSON: {exc}") from exc
+    except Exception as exc:
+        log.error("Gemini call failed: %s", exc)
+        raise HTTPException(502, f"Gemini error: {exc}") from exc
+
+    # Attach metadata so the frontend can display it
+    chart_spec["meta"] = {
+        "filename":      fname,
+        "total_rows":    profile["total_rows"],
+        "total_columns": profile["total_columns"],
+        "columns":       [c["name"] for c in profile["columns"]],
+    }
+
+    log.info(
+        "analyze_file  user=%s  charts_returned=%d",
+        user.id[:8], len(chart_spec.get("charts", [])),
+    )
+    return chart_spec

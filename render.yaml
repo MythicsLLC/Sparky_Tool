@@ -36,5 +36,10 @@ services:
       - key: ENCRYPTION_KEY
         sync: false
 
+      # ── Gemini AI ─────────────────────────────────────────────────────────────
+      # Get from https://aistudio.google.com/app/apikey
+      - key: GEMINI_API_KEY
+        sync: false
+
       # CORS_ORIGINS is no longer used — CORS is open to all origins.
       # Security is enforced by Clerk JWT validation on every endpoint.

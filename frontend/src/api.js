@@ -78,3 +78,13 @@ export const winReadFile   = (data) => client.post('/win-read-file', data)
 export const getCoreHRFiles    = (token)           => client.get('/v2/insights/corehr/files', { headers: auth(token) })
 export const getCoreHRFile     = (filename, token) => client.get('/v2/insights/corehr/file',  { headers: auth(token), params: { filename } })
 export const checkConnectivity = (token)           => client.get('/v2/insights/health',       { headers: auth(token) })
+
+// File analysis via Gemini (v2)
+// Pass a File object; the endpoint returns a chart-spec JSON.
+export const analyzeFile = (file, token) => {
+  const form = new FormData()
+  form.append('file', file)
+  return client.post('/v2/insights/analyze-file', form, {
+    headers: { ...auth(token), 'Content-Type': 'multipart/form-data' },
+  })
+}
