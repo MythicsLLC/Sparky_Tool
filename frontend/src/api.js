@@ -79,6 +79,20 @@ export const getCoreHRFiles    = (token)           => client.get('/v2/insights/c
 export const getCoreHRFile     = (filename, token) => client.get('/v2/insights/corehr/file',  { headers: auth(token), params: { filename } })
 export const checkConnectivity = (token)           => client.get('/v2/insights/health',       { headers: auth(token) })
 
+// AI file analyser (v2) — relies on the request interceptor for the Bearer token.
+// We delete Content-Type so the browser sets multipart/form-data with the correct
+// boundary automatically (the client default of application/json would break the upload).
+export const analyzeFile = (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return client.post('/v2/insights/analyze-file', fd, {
+    transformRequest: [(data, headers) => {
+      delete headers['Content-Type']
+      return data
+    }],
+  })
+}
+
 // File analysis via Gemini (v2)
 // Pass a File object; the endpoint returns a chart-spec JSON.
 export const analyzeFile = (file, token) => {

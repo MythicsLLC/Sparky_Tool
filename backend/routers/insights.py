@@ -265,6 +265,165 @@ def check_health(
     return result
 
 
+# ── Gemini-driven chart analysis ───────────────────────────────────────────────
+
+_PALETTE = ["#6b8f71", "#6495b4", "#c9a84c", "#b45050", "#9b59b6", "#e67e22", "#1abc9c", "#e74c3c"]
+
+_CHART_PROMPT = """\
+You are a data-visualisation expert. Analyse the dataset profile below and return \
+a single JSON object describing the best charts to visualise the data.
+
+DATASET PROFILE:
+{profile}
+
+Return ONLY a valid JSON object — no markdown, no code fences, no explanation text.
+
+Schema:
+{{
+  "summary": "2-3 sentence plain-English description of the dataset and its key insights",
+  "charts": [
+    {{
+      "id": "chart_1",
+      "type": "bar|line|area|pie|radialBar|scatter",
+      "title": "Concise chart title",
+      "description": "One sentence: what pattern or insight this chart reveals",
+      "xKey": "column name for X axis (bar / line / area / scatter only)",
+      "yKeys": ["col_a", "col_b"],
+      "nameKey": "column for slice labels (pie / radialBar only)",
+      "dataKey": "column for values  (pie / radialBar only)",
+      "data": [ {{...}} ],
+      "colors": ["#hex1", "#hex2"]
+    }}
+  ]
+}}
+
+Rules:
+- Produce 5 – 8 charts that best reveal different insights.
+- Pre-aggregate / group the data per chart; maximum 20 data points per chart.
+- Choose types as follows:
+    bar       → compare discrete categories or ranked values
+    line      → trends over time or ordered sequence
+    area      → filled / cumulative trend
+    pie       → part-of-whole proportions (max 8 slices); data=[{{"name":"…","value":N}}]
+    radialBar → performance or completion percentage 0–100; data=[{{"name":"…","value":0-100}}]
+    scatter   → correlation between two numeric columns; data=[{{"x":N,"y":N}}]
+- For bar / line / area: data rows must contain xKey and every key in yKeys as numbers.
+- nameKey and dataKey are ONLY required for pie and radialBar types.
+- Colour array (cycle if needed): {palette}
+- Every chart must have a non-empty data array with correct key names.
+- Return nothing except the JSON object.
+"""
+
+
+def _build_profile(df: pd.DataFrame, filename: str) -> dict:
+    """Compact statistical profile of a DataFrame, safe to embed in a prompt."""
+    profile: dict = {
+        "filename": filename,
+        "total_rows": int(len(df)),
+        "total_columns": int(len(df.columns)),
+        "columns": [],
+        # Send up to 100 rows as sample so Gemini can see real values
+        "sample_rows": (
+            df.head(100).where(df.head(100).notna(), other=None)
+            .astype(object).to_dict(orient="records")
+        ),
+    }
+    for col in df.columns:
+        col_info: dict = {
+            "name": col,
+            "dtype": str(df[col].dtype),
+            "nulls": int(df[col].isna().sum()),
+            "unique": int(df[col].nunique()),
+        }
+        if pd.api.types.is_numeric_dtype(df[col]) and df[col].notna().any():
+            col_info["min"]  = round(float(df[col].min()), 4)
+            col_info["max"]  = round(float(df[col].max()), 4)
+            col_info["mean"] = round(float(df[col].mean()), 4)
+        else:
+            col_info["sample_values"] = [str(v) for v in df[col].dropna().unique()[:10]]
+        profile["columns"].append(col_info)
+    return profile
+
+
+@router.post("/analyze-file")
+async def analyze_file(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """
+    Upload any CSV or Excel file.
+    The backend profiles it with pandas, sends the profile to Gemini,
+    and returns a chart-spec JSON the frontend renders dynamically.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(503, "GEMINI_API_KEY is not configured on the server.")
+
+    # ── parse the uploaded file ───────────────────────────────────────────────
+    content = await file.read()
+    fname   = (file.filename or "upload").lower()
+    try:
+        if fname.endswith(".csv"):
+            df = pd.read_csv(
+                io.BytesIO(content), encoding="utf-8", on_bad_lines="skip",
+            )
+        elif fname.endswith(".xlsx"):
+            df = pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        elif fname.endswith(".xls"):
+            df = pd.read_excel(io.BytesIO(content), engine="xlrd")
+        else:
+            raise HTTPException(
+                400,
+                "Unsupported file type. Please upload a .csv, .xlsx, or .xls file.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, f"Could not parse file: {exc}") from exc
+
+    if df.empty:
+        raise HTTPException(422, "The file is empty or could not be read.")
+
+    profile = _build_profile(df, file.filename or "upload")
+    log.info(
+        "analyze_file  user=%s  file=%s  rows=%d  cols=%d",
+        user.id[:8], file.filename, profile["total_rows"], profile["total_columns"],
+    )
+
+    # ── ask Gemini ────────────────────────────────────────────────────────────
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash",
+        generation_config={"response_mime_type": "application/json"},
+    )
+    prompt = _CHART_PROMPT.format(
+        profile=json.dumps(profile, ensure_ascii=False, default=str),
+        palette=json.dumps(_PALETTE),
+    )
+
+    try:
+        gemini_response = model.generate_content(prompt)
+        raw_text = gemini_response.text
+    except Exception as exc:
+        raise HTTPException(502, f"Gemini API error: {exc}") from exc
+
+    # Strip accidental markdown code fences
+    raw_text = raw_text.strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", raw_text, re.S)
+    if fenced:
+        raw_text = fenced.group(1)
+
+    try:
+        spec = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        log.error("Gemini returned non-JSON: %.400s", raw_text)
+        raise HTTPException(502, f"Gemini returned invalid JSON: {exc}") from exc
+
+    spec["row_count"] = profile["total_rows"]
+    spec["col_count"] = profile["total_columns"]
+    return spec
+
+
 # ── File Analysis via Gemini ───────────────────────────────────────────────────
 
 _GEMINI_COLORS = [

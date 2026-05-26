@@ -1,432 +1,400 @@
-import { useState, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import {
-  Box, Typography, Card, CardContent, Grid, CircularProgress,
-  Alert, Chip, Button, Divider,
+  Box, Typography, Alert, CircularProgress, Grid, Card, CardContent,
+  Button, Chip,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area,
-  PieChart, Pie, Cell, RadialBarChart, RadialBar,
-  ScatterChart, Scatter, ComposedChart,
-  XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip,
+  BarChart, Bar,
+  LineChart, Line,
+  AreaChart, Area,
+  PieChart, Pie, Cell,
+  RadialBarChart, RadialBar,
+  ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, CartesianGrid,
+  Tooltip as ChartTooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
-import UploadFileIcon   from '@mui/icons-material/UploadFile'
-import InsightsIcon     from '@mui/icons-material/Insights'
-import TableChartIcon   from '@mui/icons-material/TableChart'
-import AutoAwesomeIcon  from '@mui/icons-material/AutoAwesome'
-import { useAuth }  from '../AuthContext'
+import UploadFileIcon  from '@mui/icons-material/UploadFile'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import TableChartIcon  from '@mui/icons-material/TableChart'
 import { analyzeFile } from '../api'
 
-// ── palette shared across all charts ──────────────────────────────────────────
+// ── colour palette (matches backend prompt) ────────────────────────────────────
+const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
+const pal = (i) => PALETTE[i % PALETTE.length]
 
-const PALETTE = [
-  '#6b8f71', '#6495b4', '#c9a84c', '#b45050',
-  '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c',
-  '#3498db', '#2ecc71', '#f39c12', '#8e44ad',
-]
-
-// ── helpers ────────────────────────────────────────────────────────────────────
-
-function fmt(v) {
-  if (v == null) return ''
-  if (typeof v === 'number') {
-    if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(1)}M`
-    if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}K`
-    return Number.isInteger(v) ? String(v) : v.toFixed(2)
-  }
-  return String(v)
-}
-
-// Shorten long tick labels so axes stay readable
-function shortLabel(val, maxLen = 14) {
-  const s = String(val ?? '')
-  return s.length > maxLen ? s.slice(0, maxLen - 1) + '…' : s
-}
-
-// ── per-type chart renderers ───────────────────────────────────────────────────
-
-function BarChartCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={spec.data} margin={{ top: 4, right: 16, bottom: 40, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey={spec.xKey} tick={{ fontSize: 10 }} tickFormatter={shortLabel} angle={-30} textAnchor="end" interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={fmt} width={48} />
-        <ChartTooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-        {(spec.yKeys || []).map((k, i) => (
-          <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[2, 2, 0, 0]} maxBarSize={36} />
-        ))}
-      </BarChart>
-    </ResponsiveContainer>
-  )
-}
-
-function LineChartCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={spec.data} margin={{ top: 4, right: 16, bottom: 40, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey={spec.xKey} tick={{ fontSize: 10 }} tickFormatter={shortLabel} angle={-30} textAnchor="end" interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={fmt} width={48} />
-        <ChartTooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-        {(spec.yKeys || []).map((k, i) => (
-          <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={2} dot={false} />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
-  )
-}
-
-function AreaChartCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={spec.data} margin={{ top: 4, right: 16, bottom: 40, left: 8 }}>
-        <defs>
-          {(spec.yKeys || []).map((k, i) => (
-            <linearGradient key={k} id={`ag_${k}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={colors[i % colors.length]} stopOpacity={0.35} />
-              <stop offset="95%" stopColor={colors[i % colors.length]} stopOpacity={0.03} />
-            </linearGradient>
-          ))}
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey={spec.xKey} tick={{ fontSize: 10 }} tickFormatter={shortLabel} angle={-30} textAnchor="end" interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={fmt} width={48} />
-        <ChartTooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-        {(spec.yKeys || []).map((k, i) => (
-          <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={`url(#ag_${k})`} strokeWidth={2} />
-        ))}
-      </AreaChart>
-    </ResponsiveContainer>
-  )
-}
-
-function PieChartCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  const nameKey = spec.nameKey || 'name'
-  const dataKey = spec.dataKey || 'value'
-  const RADIAN = Math.PI / 180
-  const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-    if (percent < 0.04) return null
-    const r  = innerRadius + (outerRadius - innerRadius) * 0.5
-    const x  = cx + r * Math.cos(-midAngle * RADIAN)
-    const y  = cy + r * Math.sin(-midAngle * RADIAN)
-    return <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10}>{`${(percent * 100).toFixed(0)}%`}</text>
-  }
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={spec.data}
-          cx="50%" cy="50%"
-          innerRadius="38%" outerRadius="65%"
-          dataKey={dataKey}
-          nameKey={nameKey}
-          labelLine={false}
-          label={renderLabel}
-        >
-          {(spec.data || []).map((_, i) => (
-            <Cell key={i} fill={colors[i % colors.length]} />
-          ))}
-        </Pie>
-        <ChartTooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10 }} formatter={(val) => shortLabel(val, 20)} />
-      </PieChart>
-    </ResponsiveContainer>
-  )
-}
-
-function RadialBarCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  const nameKey = spec.nameKey || 'name'
-  const dataKey = spec.dataKey || 'value'
-  // Assign fill per entry so each arc gets a distinct colour
-  const data = (spec.data || []).map((d, i) => ({ ...d, fill: colors[i % colors.length] }))
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <RadialBarChart innerRadius="20%" outerRadius="90%" data={data} startAngle={180} endAngle={0}>
-        <RadialBar dataKey={dataKey} nameKey={nameKey} background label={{ position: 'insideStart', fill: '#fff', fontSize: 10 }} />
-        <ChartTooltip formatter={(v) => `${fmt(v)}%`} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10 }} formatter={(val) => shortLabel(val, 20)} />
-      </RadialBarChart>
-    </ResponsiveContainer>
-  )
-}
-
-function ScatterChartCard({ spec }) {
-  const color = (spec.colors || PALETTE)[0]
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ScatterChart margin={{ top: 4, right: 16, bottom: 16, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="x" name={spec.xKey || 'x'} tick={{ fontSize: 10 }} tickFormatter={fmt} />
-        <YAxis dataKey="y" name={(spec.yKeys || ['y'])[0]} tick={{ fontSize: 10 }} tickFormatter={fmt} width={48} />
-        <ChartTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Scatter data={spec.data} fill={color} opacity={0.75} />
-      </ScatterChart>
-    </ResponsiveContainer>
-  )
-}
-
-function ComposedChartCard({ spec }) {
-  const colors = spec.colors?.length ? spec.colors : PALETTE
-  // First yKey as bar, rest as lines
-  const [barKey, ...lineKeys] = spec.yKeys || []
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={spec.data} margin={{ top: 4, right: 16, bottom: 40, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey={spec.xKey} tick={{ fontSize: 10 }} tickFormatter={shortLabel} angle={-30} textAnchor="end" interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} tickFormatter={fmt} width={48} />
-        <ChartTooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1a1a1a', border: '1px solid #333', fontSize: 11 }} />
-        <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-        {barKey  && <Bar  dataKey={barKey}  fill={colors[0]} radius={[2, 2, 0, 0]} maxBarSize={36} />}
-        {lineKeys.map((k, i) => (
-          <Line key={k} type="monotone" dataKey={k} stroke={colors[i + 1]} strokeWidth={2} dot={false} />
-        ))}
-      </ComposedChart>
-    </ResponsiveContainer>
-  )
-}
-
-// ── main DynamicChart dispatcher ───────────────────────────────────────────────
+// ── DynamicChart ───────────────────────────────────────────────────────────────
+// Renders any chart spec that Gemini returns.  One switch on `type` → Recharts.
 
 function DynamicChart({ spec }) {
-  const type = (spec.type || 'bar').toLowerCase()
-  switch (type) {
-    case 'line':       return <LineChartCard    spec={spec} />
-    case 'area':       return <AreaChartCard    spec={spec} />
-    case 'pie':        return <PieChartCard     spec={spec} />
-    case 'radialbar':  return <RadialBarCard    spec={spec} />
-    case 'scatter':    return <ScatterChartCard spec={spec} />
-    case 'composed':   return <ComposedChartCard spec={spec} />
-    default:           return <BarChartCard     spec={spec} />
+  const { type, data = [], xKey, yKeys = [], nameKey = 'name', dataKey = 'value', colors = PALETTE } = spec
+  const c = (i) => colors[i] || pal(i)
+
+  if (!data.length) {
+    return (
+      <Box sx={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.disabled' }}>No data</Typography>
+      </Box>
+    )
   }
+
+  // ── Pie ──────────────────────────────────────────────────────────────────────
+  if (type === 'pie') {
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey={dataKey}
+            nameKey={nameKey}
+            cx="50%" cy="50%"
+            outerRadius={95} innerRadius={42}
+            paddingAngle={2}
+            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+            labelLine={false}
+            isAnimationActive={false}
+          >
+            {data.map((_, i) => <Cell key={i} fill={c(i)} />)}
+          </Pie>
+          <ChartTooltip
+            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+            formatter={(v) => [Number(v).toLocaleString(), '']}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    )
+  }
+
+  // ── Radial Bar (gauge) ───────────────────────────────────────────────────────
+  if (type === 'radialBar') {
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <RadialBarChart data={data} innerRadius={22} outerRadius={110} cx="50%" cy="55%">
+          <RadialBar background dataKey={dataKey} label={{ position: 'insideStart', fill: '#fff', fontSize: 10 }}>
+            {data.map((_, i) => <Cell key={i} fill={c(i)} />)}
+          </RadialBar>
+          <Legend
+            iconSize={10}
+            formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>}
+          />
+          <ChartTooltip
+            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+            formatter={(v) => [`${v}%`, '']}
+          />
+        </RadialBarChart>
+      </ResponsiveContainer>
+    )
+  }
+
+  // ── Scatter ──────────────────────────────────────────────────────────────────
+  if (type === 'scatter') {
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="x" type="number" name={xKey} tick={{ fontSize: 10 }} />
+          <YAxis dataKey="y" type="number" name={yKeys[0] || 'y'} tick={{ fontSize: 10 }} />
+          <ZAxis range={[38, 38]} />
+          <ChartTooltip
+            cursor={{ strokeDasharray: '3 3' }}
+            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+          />
+          <Scatter data={data} fill={c(0)} isAnimationActive={false} />
+        </ScatterChart>
+      </ResponsiveContainer>
+    )
+  }
+
+  // ── Bar / Line / Area ────────────────────────────────────────────────────────
+  const safeYKeys = yKeys.length ? yKeys : Object.keys(data[0] || {}).filter((k) => k !== xKey)
+
+  const ChartWrapper = type === 'line' ? LineChart : type === 'area' ? AreaChart : BarChart
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <ChartWrapper data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 10 }} />
+        <ChartTooltip
+          contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+        />
+        {safeYKeys.length > 1 && <Legend iconSize={10} />}
+
+        {safeYKeys.map((key, i) => {
+          if (type === 'line') {
+            return (
+              <Line
+                key={key} type="monotone" dataKey={key}
+                stroke={c(i)} strokeWidth={2} dot={false}
+                isAnimationActive={false}
+              />
+            )
+          }
+          if (type === 'area') {
+            return (
+              <Area
+                key={key} type="monotone" dataKey={key}
+                stroke={c(i)} fill={c(i)} fillOpacity={0.22} strokeWidth={2}
+                dot={false} isAnimationActive={false}
+              />
+            )
+          }
+          // bar
+          return (
+            <Bar key={key} dataKey={key} fill={c(i)} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+          )
+        })}
+      </ChartWrapper>
+    </ResponsiveContainer>
+  )
 }
 
-// ── chart card wrapper ─────────────────────────────────────────────────────────
+// ── ChartCard ──────────────────────────────────────────────────────────────────
+
+const TYPE_LABELS = {
+  bar: 'Bar', line: 'Line', area: 'Area',
+  pie: 'Pie', radialBar: 'Gauge', scatter: 'Scatter',
+}
 
 function ChartCard({ spec }) {
   const theme  = useTheme()
   const accent = theme.palette.primary.main
-  const typeLabel = (spec.type || 'bar').toUpperCase()
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', bgcolor: accent, opacity: 0.45 }} />
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, position: 'relative' }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-          <Box>
-            <Typography sx={{ fontSize: '0.72rem', fontFamily: '"Raleway", sans-serif', fontWeight: 700, color: 'text.primary' }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+        {/* header row */}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{ flex: 1, mr: 1 }}>
+            <Typography sx={{
+              fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+              fontSize: '0.8rem', mb: 0.3,
+            }}>
               {spec.title}
             </Typography>
-            {spec.description && (
-              <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', mt: 0.4 }}>
-                {spec.description}
-              </Typography>
-            )}
+            <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', lineHeight: 1.5 }}>
+              {spec.description}
+            </Typography>
           </Box>
           <Chip
-            label={typeLabel}
+            label={TYPE_LABELS[spec.type] || spec.type}
             size="small"
-            sx={{ fontSize: '0.52rem', height: 18, bgcolor: `${accent}18`, color: accent, fontFamily: '"Raleway", sans-serif' }}
+            sx={{
+              bgcolor: `${accent}14`, color: accent,
+              fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem',
+              height: 18, flexShrink: 0,
+            }}
           />
         </Box>
+
         <DynamicChart spec={spec} />
+
+        {/* row count badge */}
+        <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', mt: 1, textAlign: 'right' }}>
+          {(spec.data || []).length} data points
+        </Typography>
       </CardContent>
     </Card>
   )
 }
 
-// ── drop zone ──────────────────────────────────────────────────────────────────
+// ── DropZone ───────────────────────────────────────────────────────────────────
 
 function DropZone({ onFile, loading }) {
-  const theme  = useTheme()
-  const accent = theme.palette.primary.main
+  const theme   = useTheme()
+  const accent  = theme.palette.primary.main
+  const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault()
-    setDragging(false)
-    const f = e.dataTransfer.files?.[0]
+  const pick = useCallback((f) => {
     if (f) onFile(f)
   }, [onFile])
 
-  const handleChange = (e) => {
-    const f = e.target.files?.[0]
-    if (f) onFile(f)
-  }
-
   return (
     <Box
-      onDragOver={(e) => { e.preventDefault(); setDragging(true)  }}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
-      onDrop={handleDrop}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer?.files?.[0]) }}
+      onClick={() => !loading && inputRef.current?.click()}
       sx={{
-        border: `2px dashed ${dragging ? accent : 'rgba(255,255,255,0.15)'}`,
-        borderRadius: '6px',
-        p: { xs: 5, sm: 8 },
+        border: `2px dashed ${dragging ? accent : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: 2,
+        py: 7, px: 4,
         textAlign: 'center',
-        bgcolor: dragging ? `${accent}0a` : 'transparent',
-        transition: 'all 0.2s ease',
         cursor: loading ? 'default' : 'pointer',
+        transition: 'all 0.2s',
+        bgcolor: dragging ? `${accent}08` : 'transparent',
+        '&:hover': loading ? {} : { borderColor: `${accent}88`, bgcolor: `${accent}05` },
       }}
-      onClick={() => !loading && document.getElementById('file-input').click()}
     >
       <input
-        id="file-input"
+        ref={inputRef}
         type="file"
-        accept=".csv,.xlsx,.xlsm,.xls"
+        accept=".csv,.xlsx,.xls"
         style={{ display: 'none' }}
-        onChange={handleChange}
+        onChange={(e) => pick(e.target.files?.[0])}
       />
 
       {loading ? (
-        <>
-          <CircularProgress size={32} sx={{ color: accent, mb: 2 }} />
-          <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', fontFamily: '"Raleway", sans-serif' }}>
+        <Box>
+          <CircularProgress size={34} sx={{ color: accent, mb: 2 }} />
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem', color: 'text.secondary', mb: 0.5 }}>
             Gemini is analysing your data…
           </Typography>
-        </>
+          <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>
+            This takes 5 – 15 seconds depending on file size
+          </Typography>
+        </Box>
       ) : (
-        <>
-          <UploadFileIcon sx={{ fontSize: 42, color: accent, opacity: 0.6, mb: 1.5 }} />
-          <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: '"Raleway", sans-serif', color: 'text.primary', mb: 0.5 }}>
-            Drop a file here or click to browse
+        <Box>
+          <UploadFileIcon sx={{ fontSize: 44, color: 'text.disabled', mb: 1.5 }} />
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.92rem', mb: 0.5 }}>
+            Drop a CSV or Excel file here
           </Typography>
-          <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', fontFamily: '"Raleway", sans-serif' }}>
-            Supports&nbsp;.csv, .xlsx, .xlsm, .xls
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 2 }}>
+            .csv · .xlsx · .xls — Gemini reads the data and picks the best charts automatically
           </Typography>
-        </>
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{
+              borderColor: `${accent}44`, color: accent,
+              fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem',
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
+            }}
+          >
+            Browse file
+          </Button>
+        </Box>
       )}
     </Box>
   )
 }
 
-// ── meta bar (shown after analysis) ───────────────────────────────────────────
+// ── SummaryBar ─────────────────────────────────────────────────────────────────
 
-function MetaBar({ meta, onReset }) {
+function SummaryBar({ result, filename }) {
   const theme  = useTheme()
   const accent = theme.palette.primary.main
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 3 }}>
-      <TableChartIcon sx={{ fontSize: 16, color: accent }} />
-      <Typography sx={{ fontSize: '0.72rem', fontFamily: '"Raleway", sans-serif', color: 'text.primary', fontWeight: 700 }}>
-        {meta.filename}
-      </Typography>
-      <Chip label={`${meta.total_rows?.toLocaleString()} rows`}    size="small" sx={{ fontSize: '0.6rem', height: 18 }} />
-      <Chip label={`${meta.total_columns} columns`}                size="small" sx={{ fontSize: '0.6rem', height: 18 }} />
-      <Box sx={{ flex: 1 }} />
-      <Button
-        size="small"
-        variant="outlined"
-        onClick={onReset}
-        sx={{ fontSize: '0.62rem', fontFamily: '"Raleway", sans-serif', borderColor: 'divider', color: 'text.secondary' }}
-      >
-        Upload new file
-      </Button>
-    </Box>
+    <Card variant="outlined" sx={{ bgcolor: `${accent}07`, borderColor: `${accent}20`, mb: 3 }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+          <TableChartIcon sx={{ fontSize: 15, color: accent }} />
+          <Typography sx={{
+            fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+            fontSize: '0.62rem', letterSpacing: '0.16em',
+            textTransform: 'uppercase', color: accent,
+          }}>
+            {filename}
+          </Typography>
+          <Chip
+            label={`${result.row_count?.toLocaleString()} rows`}
+            size="small"
+            sx={{ bgcolor: `${accent}14`, color: accent, fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', height: 18 }}
+          />
+          <Chip
+            label={`${result.col_count} columns`}
+            size="small"
+            sx={{ bgcolor: `${accent}14`, color: accent, fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', height: 18 }}
+          />
+          <Chip
+            label={`${(result.charts || []).length} charts`}
+            size="small"
+            sx={{ bgcolor: `${accent}14`, color: accent, fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', height: 18 }}
+          />
+        </Box>
+        <Typography sx={{ fontSize: '0.78rem', color: 'text.primary', lineHeight: 1.65 }}>
+          {result.summary}
+        </Typography>
+      </CardContent>
+    </Card>
   )
 }
 
 // ── AnalyzeDashboard ───────────────────────────────────────────────────────────
 
 export default function AnalyzeDashboard() {
-  const { token }  = useAuth()
-  const theme      = useTheme()
-  const accent     = theme.palette.primary.main
-
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState(null)
-  const [chartSpec, setChartSpec] = useState(null)   // full Gemini response
+  const theme   = useTheme()
+  const accent  = theme.palette.primary.main
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState(null)
+  const [result,   setResult]   = useState(null)
+  const [filename, setFilename] = useState('')
 
   const handleFile = useCallback(async (file) => {
     setError(null)
-    setChartSpec(null)
+    setResult(null)
+    setFilename(file.name)
     setLoading(true)
     try {
-      const { data } = await analyzeFile(file, token)
-      setChartSpec(data)
+      const { data } = await analyzeFile(file)
+      setResult(data)
     } catch (err) {
-      const msg = err?.response?.data?.detail || err.message || 'Unknown error'
-      setError(msg)
+      setError(err?.response?.data?.detail || err.message || 'Analysis failed — check the server logs.')
     } finally {
       setLoading(false)
     }
-  }, [token])
-
-  const charts = chartSpec?.charts || []
+  }, [])
 
   return (
-    <Box sx={{ pt: 1 }}>
-
-      {/* ── header ─────────────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-        <AutoAwesomeIcon sx={{ fontSize: 16, color: accent }} />
+    <Box>
+      {/* ── section header ────────────────────────────────────────────────── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <AutoAwesomeIcon sx={{ color: accent, fontSize: 18 }} />
         <Typography sx={{
-          fontFamily: '"Raleway", sans-serif',
-          fontSize: '0.6rem',
-          fontWeight: 700,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: 'text.disabled',
+          fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+          fontSize: '0.62rem', letterSpacing: '0.22em',
+          textTransform: 'uppercase', color: 'text.secondary',
         }}>
-          AI File Analyser
+          AI Chart Analyser
+        </Typography>
+        <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
+          — upload any CSV or Excel and Gemini auto-generates charts
         </Typography>
       </Box>
 
+      {/* ── drop zone (hidden once results arrive) ────────────────────────── */}
+      {!result && <DropZone onFile={handleFile} loading={loading} />}
+
       {/* ── error ─────────────────────────────────────────────────────────── */}
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
+        <Alert severity="error" onClose={() => setError(null)} sx={{ mt: 2 }}>
           {error}
         </Alert>
       )}
 
-      {/* ── drop zone (hide after analysis) ────────────────────────────────── */}
-      {!chartSpec && (
-        <DropZone onFile={handleFile} loading={loading} />
-      )}
+      {/* ── results ───────────────────────────────────────────────────────── */}
+      {result && (
+        <Box>
+          <SummaryBar result={result} filename={filename} />
 
-      {/* ── results ─────────────────────────────────────────────────────────── */}
-      {chartSpec && (
-        <>
-          <MetaBar meta={chartSpec.meta || {}} onReset={() => setChartSpec(null)} />
-
-          {/* summary card */}
-          {chartSpec.summary && (
-            <Card variant="outlined" sx={{ bgcolor: `${accent}0a`, borderColor: `${accent}30`, mb: 3 }}>
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                <InsightsIcon sx={{ fontSize: 18, color: accent, flexShrink: 0, mt: 0.2 }} />
-                <Typography sx={{ fontSize: '0.76rem', fontFamily: '"Raleway", sans-serif', color: 'text.primary', lineHeight: 1.7 }}>
-                  {chartSpec.summary}
-                </Typography>
-              </CardContent>
-            </Card>
-          )}
-
-          <Divider sx={{ mb: 3 }} />
-
-          {/* chart grid */}
-          <Grid container spacing={3}>
-            {charts.map((spec) => (
+          <Grid container spacing={2.5}>
+            {(result.charts || []).map((spec) => (
               <Grid item xs={12} md={6} key={spec.id || spec.title}>
-                <Box sx={{ position: 'relative' }}>
-                  <ChartCard spec={spec} />
-                </Box>
+                <ChartCard spec={spec} />
               </Grid>
             ))}
           </Grid>
 
-          {charts.length === 0 && (
-            <Alert severity="warning">Gemini did not return any charts for this dataset.</Alert>
-          )}
-        </>
+          {/* upload another */}
+          <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+            <Button
+              onClick={() => { setResult(null); setFilename(''); setError(null) }}
+              startIcon={<UploadFileIcon sx={{ fontSize: 14 }} />}
+              sx={{
+                fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                color: 'text.secondary',
+                '&:hover': { color: accent },
+              }}
+            >
+              Upload another file
+            </Button>
+          </Box>
+        </Box>
       )}
     </Box>
   )
