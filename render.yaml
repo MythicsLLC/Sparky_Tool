@@ -36,8 +36,5 @@ services:
       - key: ENCRYPTION_KEY
         sync: false
 
-      # ── CORS ─────────────────────────────────────────────────────────────────
-      # Set to your Vercel frontend URL, e.g. https://sparky-tool.vercel.app
-      # Multiple origins: comma-separated
-      - key: CORS_ORIGINS
-        sync: false
+      # CORS_ORIGINS is no longer used — CORS is open to all origins.
+      # Security is enforced by Clerk JWT validation on every endpoint.

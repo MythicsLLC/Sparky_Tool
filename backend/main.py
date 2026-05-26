@@ -24,20 +24,17 @@ log = get_logger("main")
 settings = get_settings()
 app = FastAPI(title="Sparky Tool")
 
-# CORS_ORIGINS env var — comma-separated list of allowed origins.
-# Falls back to "*" so local dev works without any env config.
-# In production set CORS_ORIGINS=https://your-app.vercel.app on Render.
-_cors_origins_raw = _os.getenv("CORS_ORIGINS", "*")
-_cors_origins = (
-    ["*"] if _cors_origins_raw.strip() == "*"
-    else [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
-)
-
+# CORS — open to all origins.
+# Security is enforced via Clerk JWT on every authenticated endpoint,
+# so CORS does not need to be the access-control layer here.
+# allow_credentials must stay False when allow_origins=["*"].
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,
+    expose_headers=["*"],
 )
 
 
