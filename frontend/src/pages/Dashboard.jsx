@@ -149,8 +149,8 @@ export default function Dashboard() {
   )
 
   const refreshRuns = useCallback(() => {
-    if (!token) return
-    listRuns(token).then((res) => setRuns(res.data.items)).catch(() => {})
+    if (!token) return Promise.resolve()
+    return listRuns(token).then((res) => setRuns(res.data.items)).catch(() => {})
   }, [token])
 
   useEffect(() => {
@@ -167,16 +167,30 @@ export default function Dashboard() {
       .finally(() => setPageLoading(false))
   }, [token])
 
+  // Poll the runs list every 2 s while a run is active so instance_id and
+  // report_id surface in the table as soon as the backend commits them —
+  // well before the long-running POST response arrives.
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(refreshRuns, 2000)
+    return () => clearInterval(id)
+  }, [running, refreshRuns])
+
   const handleRun = async () => {
     if (!activeConfigId) { setError('Select a configuration first.'); return }
     setRunning(true)
     setError(null)
+    // Fetch immediately so the new "running" row appears in the table right away.
+    refreshRuns()
     try {
       const response = await runConfig(activeConfigId, token)
       setLastResult(response.data)
+      // Await the final refresh so the completed row (with report_id) is visible
+      // before the loading dialog dismisses.
       await refreshRuns()
     } catch (err) {
       setError(err.response?.data?.detail || 'Run failed unexpectedly')
+      await refreshRuns()
     } finally {
       setRunning(false)
     }
