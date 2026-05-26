@@ -1,0 +1,234 @@
+<h2>Full Dashboard Design — Three Sub-tabs</h2>
+<p class="subtitle">Here's the complete layout for each tab. Review each section and let me know if anything needs changing.</p>
+
+<!-- TAB BAR PREVIEW -->
+<div style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; font-family: 'Raleway', sans-serif;">
+
+  <!-- Mock topbar -->
+  <div style="background: rgba(0,0,0,0.5); padding: 0 16px; display: flex; align-items: center; height: 44px; border-bottom: 1px solid rgba(255,255,255,0.08); gap: 12px;">
+    <div style="display:flex;align-items:center;gap:7px;margin-right:12px;">
+      <div style="width:26px;height:26px;border-radius:50%;background:rgba(100,149,180,0.25);"></div>
+      <div style="font-size:0.62rem;color:#c9a84c;letter-spacing:0.2em;font-family:serif;">SPARKY TOOL</div>
+    </div>
+    <div style="display:flex;height:100%;align-items:center;gap:0;">
+      <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.55rem;color:#c9a84c;letter-spacing:0.12em;border-bottom:2px solid #c9a84c;">⊞ DASHBOARD</div>
+      <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.55rem;color:#555;letter-spacing:0.12em;">≡ CONFIGURATION</div>
+      <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.55rem;color:#555;letter-spacing:0.12em;">⚙ ADMIN</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;border-radius:50%;background:rgba(201,168,76,0.3);"></div>
+    </div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div style="background: rgba(0,0,0,0.3); padding: 0 16px; display: flex; height: 36px; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.54rem;color:#888;letter-spacing:0.12em;gap:5px;">▶ RUN</div>
+    <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.54rem;color:#c9a84c;letter-spacing:0.12em;border-bottom:2px solid #c9a84c;gap:5px;">📊 FUNCTIONAL</div>
+    <div style="padding:0 14px;height:100%;display:flex;align-items:center;font-size:0.54rem;color:#888;letter-spacing:0.12em;gap:5px;">⚙ OPERATIONAL</div>
+  </div>
+
+  <!-- Content area showing all 3 tab previews side by side -->
+  <div style="display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 1px; background: rgba(255,255,255,0.05);">
+
+    <!-- RUN tab -->
+    <div style="background: rgba(0,0,0,0.2); padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="font-size:0.5rem;color:#888;text-transform:uppercase;letter-spacing:0.15em;font-weight:700;">Tab 1 · Run</div>
+      <div style="background:rgba(100,149,180,0.1);border:1px solid rgba(100,149,180,0.2);border-radius:3px;padding:8px;">
+        <div style="font-size:0.56rem;color:#888;margin-bottom:5px;">Select config & run</div>
+        <div style="height:22px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:2px;display:flex;align-items:center;padding:0 8px;font-size:0.58rem;color:#c9a84c;">▶ Run CoreHR Discovery</div>
+      </div>
+      <div style="font-size:0.5rem;color:#555;text-transform:uppercase;letter-spacing:0.12em;margin-top:2px;">KPI cards</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div style="height:28px;background:rgba(107,143,113,0.1);border:1px solid rgba(107,143,113,0.2);border-radius:2px;"></div>
+        <div style="height:28px;background:rgba(180,80,80,0.1);border:1px solid rgba(180,80,80,0.2);border-radius:2px;"></div>
+      </div>
+      <div style="font-size:0.5rem;color:#555;text-transform:uppercase;letter-spacing:0.12em;margin-top:2px;">Recent runs table</div>
+      <div style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.06);border-radius:2px;padding:4px;">
+        <div style="height:8px;background:rgba(255,255,255,0.05);border-radius:1px;margin-bottom:3px;"></div>
+        <div style="height:8px;background:rgba(255,255,255,0.03);border-radius:1px;margin-bottom:3px;"></div>
+        <div style="height:8px;background:rgba(255,255,255,0.03);border-radius:1px;"></div>
+      </div>
+      <div style="font-size:0.5rem;color:#6b8f71;margin-top:2px;">← Existing content, unchanged</div>
+    </div>
+
+    <!-- FUNCTIONAL tab -->
+    <div style="background: rgba(0,0,0,0.15); padding: 12px; display: flex; flex-direction: column; gap: 7px; border-left:1px solid rgba(201,168,76,0.15);border-right:1px solid rgba(201,168,76,0.15);">
+      <div style="font-size:0.5rem;color:#c9a84c;text-transform:uppercase;letter-spacing:0.15em;font-weight:700;">Tab 2 · Functional — CoreHR Viewer</div>
+
+      <!-- File picker -->
+      <div style="background:rgba(100,149,180,0.08);border:1px solid rgba(100,149,180,0.2);border-radius:3px;padding:6px 8px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-family:monospace;font-size:0.6rem;color:#6495b4;">CoreHR_Discovery_04132026.csv</span>
+        <span style="font-size:0.5rem;color:#888;">▼ select file</span>
+      </div>
+
+      <!-- KPIs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;">
+        <div style="border:1px solid rgba(107,143,113,0.3);border-radius:2px;padding:5px;background:rgba(107,143,113,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Modules ON</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#6b8f71;">22</div>
+        </div>
+        <div style="border:1px solid rgba(180,80,80,0.3);border-radius:2px;padding:5px;background:rgba(180,80,80,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Modules OFF</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#b45050;">18</div>
+        </div>
+        <div style="border:1px solid rgba(100,149,180,0.3);border-radius:2px;padding:5px;background:rgba(100,149,180,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Countries</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#6495b4;">1</div>
+        </div>
+        <div style="border:1px solid rgba(201,168,76,0.3);border-radius:2px;padding:5px;background:rgba(201,168,76,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Bus. Units</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#c9a84c;">1</div>
+        </div>
+      </div>
+
+      <!-- Module status grid (searchable) -->
+      <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.15);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:5px;">⚙ PS Modules — searchable, filterable</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(107,143,113,0.08);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Benefits Admin</span><span style="color:#6b8f71;font-weight:700;">ON</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(107,143,113,0.08);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Payroll for NA</span><span style="color:#6b8f71;font-weight:700;">ON</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(180,80,80,0.06);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Global Payroll</span><span style="color:#b45050;font-weight:700;">OFF</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(107,143,113,0.08);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Human Resources</span><span style="color:#6b8f71;font-weight:700;">ON</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(180,80,80,0.06);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Time & Labor</span><span style="color:#b45050;font-weight:700;">OFF</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:2px 4px;background:rgba(107,143,113,0.08);border-radius:1px;font-size:0.54rem;">
+            <span style="color:#ccc;">Talent Acq</span><span style="color:#6b8f71;font-weight:700;">ON</span>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:0.48rem;color:#555;margin-top:3px;">+34 more · filter: All / ON / OFF</div>
+      </div>
+
+      <!-- Countries + Key Params side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+        <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.12);">
+          <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">🌐 Countries</div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <span style="color:#ccc;">USA</span><span style="color:#6b8f71;font-weight:700;">✓</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <span style="color:#555;">Canada</span><span style="color:#555;">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;">
+            <span style="color:#555;">Germany</span><span style="color:#555;">—</span>
+          </div>
+        </div>
+        <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.12);">
+          <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">🔧 Key Params</div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;">
+            <span style="color:#999;">Std Hours</span><span style="color:#c9a84c;font-family:monospace;">40</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;">
+            <span style="color:#999;">Currency</span><span style="color:#c9a84c;font-family:monospace;">USD</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.54rem;padding:2px 0;">
+            <span style="color:#999;">Pay Basis</span><span style="color:#c9a84c;font-family:monospace;">PA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Units -->
+      <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.12);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">🏢 Business Units</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 5px;background:rgba(107,143,113,0.08);border-radius:2px;font-size:0.56rem;">
+          <span style="color:#6b8f71;font-family:monospace;">SHAND</span>
+          <span style="color:#bbb;">UF Health</span>
+          <span style="color:#6b8f71;font-size:0.5rem;">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPERATIONAL tab -->
+    <div style="background: rgba(0,0,0,0.2); padding: 12px; display: flex; flex-direction: column; gap: 7px;">
+      <div style="font-size:0.5rem;color:#888;text-transform:uppercase;letter-spacing:0.15em;font-weight:700;">Tab 3 · Operational</div>
+
+      <!-- Live health -->
+      <div style="border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:6px;background:rgba(0,0,0,0.15);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;">🔌 Live Health — "Check Now" button</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(107,143,113,0.1);border-radius:2px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#6b8f71;flex-shrink:0;"></div>
+            <span style="font-size:0.58rem;color:#ddd;">PeopleSoft</span>
+            <span style="font-size:0.52rem;color:#888;margin-left:auto;">142ms</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 6px;background:rgba(107,143,113,0.1);border-radius:2px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:#6b8f71;flex-shrink:0;"></div>
+            <span style="font-size:0.58rem;color:#ddd;">Windows Server</span>
+            <span style="font-size:0.52rem;color:#888;margin-left:auto;">OK</span>
+          </div>
+        </div>
+        <div style="margin-top:5px;text-align:center;">
+          <div style="display:inline-flex;align-items:center;padding:3px 10px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:2px;font-size:0.52rem;color:#c9a84c;gap:4px;">↻ Check Now</div>
+        </div>
+      </div>
+
+      <!-- Stats KPIs -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div style="border:1px solid rgba(107,143,113,0.25);border-radius:2px;padding:5px;background:rgba(107,143,113,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Success Rate</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#6b8f71;">94%</div>
+        </div>
+        <div style="border:1px solid rgba(201,168,76,0.25);border-radius:2px;padding:5px;background:rgba(201,168,76,0.06);">
+          <div style="font-size:0.45rem;color:#888;">Avg Duration</div>
+          <div style="font-size:0.9rem;font-weight:700;color:#c9a84c;">12.4s</div>
+        </div>
+      </div>
+
+      <!-- Run health chart -->
+      <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.12);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;">📈 Run Health — 30 Days</div>
+        <div style="height:40px;display:flex;align-items:flex-end;gap:2px;">
+          <div style="flex:1;height:80%;background:rgba(107,143,113,0.4);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:100%;background:rgba(107,143,113,0.4);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:25%;background:rgba(180,80,80,0.5);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:90%;background:rgba(107,143,113,0.4);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:70%;background:rgba(107,143,113,0.4);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:95%;background:rgba(107,143,113,0.4);border-radius:1px 1px 0 0;"></div>
+          <div style="flex:1;height:50%;background:rgba(201,168,76,0.5);border-radius:1px 1px 0 0;"></div>
+        </div>
+      </div>
+
+      <!-- Errors by step -->
+      <div style="border:1px solid rgba(180,80,80,0.12);border-radius:3px;padding:6px;background:rgba(180,80,80,0.03);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">⚠ Failures by Step</div>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="display:grid;grid-template-columns:55px 1fr 20px;align-items:center;gap:3px;font-size:0.54rem;">
+            <span style="color:#b45050;font-family:monospace;">download</span>
+            <div style="background:rgba(180,80,80,0.15);height:6px;border-radius:1px;"><div style="background:#b45050;width:65%;height:100%;border-radius:1px;"></div></div>
+            <span style="color:#999;">2</span>
+          </div>
+          <div style="display:grid;grid-template-columns:55px 1fr 20px;align-items:center;gap:3px;font-size:0.54rem;">
+            <span style="color:#b45050;font-family:monospace;">poll</span>
+            <div style="background:rgba(180,80,80,0.15);height:6px;border-radius:1px;"><div style="background:#b45050;width:30%;height:100%;border-radius:1px;"></div></div>
+            <span style="color:#999;">1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent errors -->
+      <div style="border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:6px;background:rgba(0,0,0,0.12);">
+        <div style="font-size:0.48rem;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">📋 Recent Error Log</div>
+        <div style="font-family:monospace;font-size:0.54rem;color:#b45050;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);">SFTP timeout · download · 3h ago</div>
+        <div style="font-family:monospace;font-size:0.54rem;color:#b45050;padding:2px 0;">PS poll timeout · poll · 1d ago</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px;padding:14px;border:1px solid rgba(107,143,113,0.2);border-radius:4px;background:rgba(107,143,113,0.04);font-family:'Raleway',sans-serif;font-size:0.8rem;color:#aaa;line-height:1.7;">
+  <strong style="color:#ddd;">Does this look right?</strong> Reply "yes" to approve and I'll write the spec, or tell me what to adjust.
+  <br><br>
+  <strong style="color:#ddd;">Key decisions locked in:</strong><br>
+  ✓ Sub-tabs: <strong style="color:#c9a84c;">Run | Functional | Operational</strong> inside Dashboard<br>
+  ✓ Functional: CoreHR file picker → module ON/OFF grid + countries + params + BUs<br>
+  ✓ Operational: Live health check (PS + WinRM) + success rate + run chart + error breakdown
+</div>

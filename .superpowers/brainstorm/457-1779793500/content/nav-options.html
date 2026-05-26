@@ -1,0 +1,145 @@
+<h2>Where does the Functional / Operational toggle live?</h2>
+<p class="subtitle">Three options for how to navigate between the two dashboards. Click one to select.</p>
+
+<div class="options" style="margin-top: 20px;">
+
+  <!-- Option A: Two new topbar tabs -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Two new tabs in the topbar</h3>
+      <p>Functional and Operational become top-level nav items alongside Dashboard and Configuration.</p>
+
+      <div style="margin-top: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+        <!-- Mock topbar -->
+        <div style="background: rgba(0,0,0,0.4); padding: 0 16px; display: flex; align-items: center; gap: 0; height: 44px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-right:16px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,149,180,0.3);"></div>
+            <div>
+              <div style="font-size:0.6rem;color:#c9a84c;letter-spacing:0.2em;font-family:serif;">SPARKY TOOL</div>
+              <div style="font-size:0.4rem;color:#555;letter-spacing:0.2em;">ANALYTICS PLATFORM</div>
+            </div>
+          </div>
+          <!-- Tabs -->
+          <div style="display:flex;height:100%;align-items:center;">
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;gap:4px;">
+              <span style="font-size:10px;">⊞</span> DASHBOARD
+            </div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#c9a84c;letter-spacing:0.1em;border-bottom:2px solid #c9a84c;gap:4px;">
+              <span style="font-size:10px;">📊</span> FUNCTIONAL
+            </div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;gap:4px;">
+              <span style="font-size:10px;">⚙</span> OPERATIONAL
+            </div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;gap:4px;">
+              <span style="font-size:10px;">≡</span> CONFIGURATION
+            </div>
+          </div>
+          <div style="margin-left:auto;width:60px;height:24px;background:rgba(255,255,255,0.06);border-radius:12px;"></div>
+        </div>
+        <div style="padding: 10px 14px; background: rgba(0,0,0,0.2); font-size: 0.62rem; color: #888;">
+          Functional Dashboard content here…
+        </div>
+      </div>
+
+      <div style="margin-top: 8px; display: flex; gap: 12px; font-size: 0.7rem; color: #888;">
+        <span style="color: #6b8f71;">✓ Fast access from anywhere</span>
+        <span style="color: #6b8f71;">✓ Feels like a first-class feature</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Sub-tabs inside a single Dashboard page -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Sub-tabs inside the current Dashboard</h3>
+      <p>Dashboard tab stays in the topbar. Inside it, three sub-tabs: Run, Functional, Operational.</p>
+
+      <div style="margin-top: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+        <!-- Mock topbar (unchanged) -->
+        <div style="background: rgba(0,0,0,0.4); padding: 0 16px; display: flex; align-items: center; gap: 0; height: 44px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-right:16px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,149,180,0.3);"></div>
+            <div>
+              <div style="font-size:0.6rem;color:#c9a84c;letter-spacing:0.2em;font-family:serif;">SPARKY TOOL</div>
+              <div style="font-size:0.4rem;color:#555;letter-spacing:0.2em;">ANALYTICS PLATFORM</div>
+            </div>
+          </div>
+          <div style="display:flex;height:100%;align-items:center;">
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#c9a84c;letter-spacing:0.1em;border-bottom:2px solid #c9a84c;gap:4px;">
+              <span style="font-size:10px;">⊞</span> DASHBOARD
+            </div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;gap:4px;">
+              <span style="font-size:10px;">≡</span> CONFIGURATION
+            </div>
+          </div>
+          <div style="margin-left:auto;width:60px;height:24px;background:rgba(255,255,255,0.06);border-radius:12px;"></div>
+        </div>
+        <!-- Sub-tabs inside dashboard -->
+        <div style="background: rgba(0,0,0,0.25); padding: 0 14px; display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,0.07); height: 36px; align-items: center;">
+          <div style="padding: 0 14px; height: 100%; display:flex; align-items:center; font-size:0.56rem; color:#888; letter-spacing:0.1em;">RUN</div>
+          <div style="padding: 0 14px; height: 100%; display:flex; align-items:center; font-size:0.56rem; color:#c9a84c; letter-spacing:0.1em; border-bottom: 2px solid #c9a84c;">FUNCTIONAL</div>
+          <div style="padding: 0 14px; height: 100%; display:flex; align-items:center; font-size:0.56rem; color:#888; letter-spacing:0.1em;">OPERATIONAL</div>
+        </div>
+        <div style="padding: 10px 14px; background: rgba(0,0,0,0.2); font-size: 0.62rem; color: #888;">
+          Functional Dashboard content here…
+        </div>
+      </div>
+
+      <div style="margin-top: 8px; display: flex; gap: 12px; font-size: 0.7rem; color: #888;">
+        <span style="color: #6b8f71;">✓ Topbar stays clean</span>
+        <span style="color: #6b8f71;">✓ Groups all dashboard views together</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Toggle pill inside each dashboard -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Pill toggle inside the page header</h3>
+      <p>Functional and Operational each get their own topbar tab, but within each page a pill toggle lets you switch the other view quickly.</p>
+
+      <div style="margin-top: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+        <div style="background: rgba(0,0,0,0.4); padding: 0 16px; display: flex; align-items: center; height: 44px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-right:16px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(100,149,180,0.3);"></div>
+          </div>
+          <div style="display:flex;height:100%;align-items:center;">
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;">DASHBOARD</div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#c9a84c;letter-spacing:0.1em;border-bottom:2px solid #c9a84c;">FUNCTIONAL</div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;">OPERATIONAL</div>
+            <div style="padding: 0 12px; height: 100%; display:flex;align-items:center;font-size:0.58rem;color:#666;letter-spacing:0.1em;">CONFIGURATION</div>
+          </div>
+          <div style="margin-left:auto;width:60px;height:24px;background:rgba(255,255,255,0.06);border-radius:12px;"></div>
+        </div>
+        <!-- Page header with pill -->
+        <div style="background: rgba(0,0,0,0.2); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.07);">
+          <div>
+            <div style="font-size:0.5rem;color:#888;letter-spacing:0.2em;text-transform:uppercase;">Analytics</div>
+            <div style="font-size:1rem;color:#ddd;font-family:serif;font-weight:700;">Functional Dashboard</div>
+          </div>
+          <!-- Pill toggle -->
+          <div style="display:flex;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:2px;gap:1px;">
+            <div style="padding:4px 12px;border-radius:16px;background:#c9a84c;color:#000;font-size:0.55rem;font-weight:700;letter-spacing:0.1em;">FUNCTIONAL</div>
+            <div style="padding:4px 12px;border-radius:16px;color:#777;font-size:0.55rem;letter-spacing:0.1em;">OPERATIONAL</div>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; background: rgba(0,0,0,0.15); font-size: 0.62rem; color: #888;">
+          Functional Dashboard content here…
+        </div>
+      </div>
+
+      <div style="margin-top: 8px; display: flex; gap: 12px; font-size: 0.7rem; color: #888;">
+        <span style="color: #6b8f71;">✓ Quick switching between the two</span>
+        <span style="color: #6b8f71;">✓ Feels like a paired view</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; padding: 12px 16px; border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; background: rgba(0,0,0,0.15); font-size: 0.75rem; color: #888; font-family: 'Raleway', sans-serif;">
+  <strong style="color: #ddd;">My recommendation: Option B</strong> — keeps the topbar clean and groups Run + Functional + Operational together under one "Dashboard" nav item, matching how the rest of the app is structured (Admin has 4 sub-tabs, Dashboard would have 3).
+</div>

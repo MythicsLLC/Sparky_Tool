@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     sftp_username: str = ""
     sftp_password: str = ""
     sftp_remote_path: str = ""
+    ps_webserver_path: str = ""
 
     cors_origins: str = "http://localhost:3000"
 

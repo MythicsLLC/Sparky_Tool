@@ -29,6 +29,17 @@ class ConfigPayload(BaseModel):
     sftp_username: str = ""
     sftp_password: str = ""      # plain — encrypted before storage
     sftp_remote_path: str = ""
+    ps_webserver_path: str = ""
+    # Windows Server (WinRM) access
+    win_host: str = ""
+    win_port: int = 5985
+    win_username: str = ""
+    win_password: str = ""      # plain — encrypted before storage
+    win_use_ssl: bool = False
+    win_auth_type: str = "ntlm"
+    win_connection_type: str = "winrm"   # winrm | smb | ssh
+    win_share: str = "C$"
+    win_domain: str = ""
 
 
 def _serialize(config: UserConfig) -> dict:
@@ -48,6 +59,16 @@ def _serialize(config: UserConfig) -> dict:
         "sftp_username":      config.sftp_username,
         "sftp_password":      "***" if config.sftp_password_enc else "",
         "sftp_remote_path":   config.sftp_remote_path,
+        "ps_webserver_path":  config.ps_webserver_path,
+        "win_host":           config.win_host,
+        "win_port":           config.win_port,
+        "win_username":       config.win_username,
+        "win_password":        "***" if config.win_password_enc else "",
+        "win_use_ssl":         config.win_use_ssl,
+        "win_auth_type":       config.win_auth_type or "ntlm",
+        "win_connection_type": config.win_connection_type or "winrm",
+        "win_share":           config.win_share or "C$",
+        "win_domain":          config.win_domain or "",
         "is_active":          config.is_active,
         "created_at":         config.created_at,
         "updated_at":         config.updated_at,
@@ -83,6 +104,16 @@ def create_config(
         sftp_username=body.sftp_username,
         sftp_password_enc=encrypt(body.sftp_password) if body.sftp_password else "",
         sftp_remote_path=body.sftp_remote_path,
+        ps_webserver_path=body.ps_webserver_path,
+        win_host=body.win_host,
+        win_port=body.win_port,
+        win_username=body.win_username,
+        win_password_enc=encrypt(body.win_password) if body.win_password else "",
+        win_use_ssl=body.win_use_ssl,
+        win_auth_type=body.win_auth_type,
+        win_connection_type=body.win_connection_type,
+        win_share=body.win_share,
+        win_domain=body.win_domain,
     )
     db.add(config)
     db.add(AuditEvent(user_id=user.id, event_type="config_created", detail={"name": body.name}))
@@ -134,12 +165,23 @@ def update_config(
     config.sftp_port          = body.sftp_port
     config.sftp_username      = body.sftp_username
     config.sftp_remote_path   = body.sftp_remote_path
+    config.ps_webserver_path  = body.ps_webserver_path
+    config.win_host           = body.win_host
+    config.win_port           = body.win_port
+    config.win_username       = body.win_username
+    config.win_use_ssl         = body.win_use_ssl
+    config.win_auth_type       = body.win_auth_type
+    config.win_connection_type = body.win_connection_type
+    config.win_share           = body.win_share
+    config.win_domain          = body.win_domain
     config.updated_at         = datetime.now(timezone.utc)
 
     if body.ps_password and body.ps_password != "***":
         config.ps_password_enc = encrypt(body.ps_password)
     if body.sftp_password and body.sftp_password != "***":
         config.sftp_password_enc = encrypt(body.sftp_password)
+    if body.win_password and body.win_password != "***":
+        config.win_password_enc = encrypt(body.win_password)
 
     db.add(AuditEvent(user_id=user.id, event_type="config_updated", detail={"config_id": config_id}))
     db.commit()

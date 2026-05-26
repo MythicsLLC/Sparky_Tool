@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Box, CircularProgress } from '@mui/material'
 import StartupScreen from './components/StartupScreen'
-import Sidebar from './components/Sidebar'
+import Topbar from './components/Topbar'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
@@ -35,8 +35,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#0b0c0e' }}>
-        <CircularProgress size={28} sx={{ color: '#c9a84c' }} />
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+        <CircularProgress size={28} sx={{ color: 'primary.main' }} />
       </Box>
     )
   }
@@ -44,12 +44,12 @@ export default function App() {
   if (!user) return <SignInPage />
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#0b0c0e' }}>
-      <Sidebar route={route} navigate={navigate} user={user} onSignOut={signOut} />
-      <Box sx={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.default' }}>
+      <Topbar route={route} navigate={navigate} user={user} onSignOut={signOut} />
+      <Box component="main" sx={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         {route === 'dashboard' && <Dashboard />}
-        {route === 'settings' && <Settings />}
-        {route === 'admin'    && <Admin />}
+        {route === 'settings'  && <Settings />}
+        {route === 'admin'     && <Admin />}
       </Box>
     </Box>
   )

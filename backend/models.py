@@ -38,7 +38,18 @@ class UserConfig(Base):
     sftp_username      = Column(String, default="")
     sftp_password_enc  = Column(Text, default="")
     sftp_remote_path   = Column(Text, default="")
-    is_active          = Column(Boolean, default=True)
+    ps_webserver_path  = Column(Text, default="")
+    # Windows Server (WinRM) access
+    win_host           = Column(String, default="")
+    win_port           = Column(Integer, default=5985)
+    win_username       = Column(String, default="")
+    win_password_enc   = Column(Text, default="")
+    win_use_ssl         = Column(Boolean, default=False)
+    win_auth_type       = Column(String, default="ntlm")
+    win_connection_type = Column(String, default="winrm")   # winrm | smb | ssh
+    win_share           = Column(String, default="C$")       # SMB share (admin share by default)
+    win_domain          = Column(String, default="")         # domain for SMB / Kerberos
+    is_active           = Column(Boolean, default=True)
     created_at         = Column(TIMESTAMP(timezone=True), default=_now)
     updated_at         = Column(TIMESTAMP(timezone=True), default=_now)
 
@@ -59,6 +70,7 @@ class RunLog(Base):
     report_id       = Column(String, default="")
     sftp_skipped    = Column(Boolean, default=False)
     skip_reason     = Column(Text, default="")
+    failed_step     = Column(String, default="")   # trigger | poll | download | parse
     row_count       = Column(Integer)
     error_detail    = Column(Text)
     duration_ms     = Column(Integer)

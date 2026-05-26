@@ -22,6 +22,7 @@ def _serialize(entry: RunLog) -> dict:
         "report_id":       entry.report_id or "",
         "sftp_skipped":    entry.sftp_skipped or False,
         "skip_reason":     entry.skip_reason or "",
+        "failed_step":     entry.failed_step or "",
         "row_count":       entry.row_count,
         "error_detail":    entry.error_detail,
         "duration_ms":     entry.duration_ms,

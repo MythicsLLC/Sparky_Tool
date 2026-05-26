@@ -1,0 +1,149 @@
+<h2>Two New Dashboards — Concept Overview</h2>
+<p class="subtitle">Here's how I'm thinking about the split. Confirm which direction fits before we go deeper.</p>
+
+<div class="split" style="margin-top: 24px;">
+  <div class="mockup">
+    <div class="mockup-header" style="background: rgba(100,149,180,0.18); color: #6495b4;">📊 Functional Dashboard</div>
+    <div class="mockup-body" style="font-family: 'Raleway', sans-serif; font-size: 0.82rem; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: #888; font-weight: 700;">What the data says</div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <div style="border: 1px solid rgba(100,149,180,0.3); border-radius: 4px; padding: 10px; background: rgba(100,149,180,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Total Rows Fetched</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #6495b4;">48,302</div>
+        </div>
+        <div style="border: 1px solid rgba(107,143,113,0.3); border-radius: 4px; padding: 10px; background: rgba(107,143,113,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Reports Processed</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #6b8f71;">12</div>
+        </div>
+        <div style="border: 1px solid rgba(201,168,76,0.3); border-radius: 4px; padding: 10px; background: rgba(201,168,76,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Last File Fetched</div>
+          <div style="font-size: 0.85rem; font-weight: 700; color: #c9a84c; font-family: monospace;">2m ago</div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; background: rgba(0,0,0,0.15);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px;">📁 Files from Windows Server</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(100,149,180,0.08); border-radius: 2px; font-family: monospace; font-size: 0.68rem;">
+            <span style="color: #6495b4;">SM_DISCOVERY_2024.csv</span><span style="color: #888;">48,302 rows</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(107,143,113,0.08); border-radius: 2px; font-family: monospace; font-size: 0.68rem;">
+            <span style="color: #6b8f71;">REPORT_JAN_2024.csv</span><span style="color: #888;">12,100 rows</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 6px; background: rgba(128,128,128,0.08); border-radius: 2px; font-family: monospace; font-size: 0.68rem;">
+            <span style="color: #aaa;">AUDIT_LOG.csv</span><span style="color: #888;">3,450 rows</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 10px; background: rgba(0,0,0,0.1);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">📈 Row Trends by Report</div>
+        <div style="height: 50px; background: rgba(100,149,180,0.08); border-radius: 2px; display: flex; align-items: flex-end; padding: 4px; gap: 3px;">
+          <div style="flex:1; background: rgba(100,149,180,0.4); height: 60%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(100,149,180,0.4); height: 80%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(100,149,180,0.4); height: 45%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(100,149,180,0.4); height: 90%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(100,149,180,0.6); height: 70%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(100,149,180,0.8); height: 100%; border-radius: 2px 2px 0 0;"></div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.06); border-radius: 4px; padding: 10px; background: rgba(0,0,0,0.1);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">🔍 Browse / Preview Data</div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; font-size: 0.55rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <span>Report Name</span><span>Rows</span><span>Last Run</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; font-size: 0.65rem; padding: 3px 4px; color: #bbb;">
+            <span>SM_DISCOVERY</span><span>48,302</span><span>2m ago</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; font-size: 0.65rem; padding: 3px 4px; color: #bbb;">
+            <span>ASSET_REPORT</span><span>12,100</span><span>1h ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header" style="background: rgba(107,143,113,0.18); color: #6b8f71;">⚙️ Operational Dashboard</div>
+    <div class="mockup-body" style="font-family: 'Raleway', sans-serif; font-size: 0.82rem; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: #888; font-weight: 700;">How the system is running</div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <div style="border: 1px solid rgba(107,143,113,0.3); border-radius: 4px; padding: 10px; background: rgba(107,143,113,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Success Rate</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #6b8f71;">94%</div>
+        </div>
+        <div style="border: 1px solid rgba(180,80,80,0.3); border-radius: 4px; padding: 10px; background: rgba(180,80,80,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Failed Runs</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #b45050;">3</div>
+        </div>
+        <div style="border: 1px solid rgba(201,168,76,0.3); border-radius: 4px; padding: 10px; background: rgba(201,168,76,0.06);">
+          <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;">Avg Duration</div>
+          <div style="font-size: 1.4rem; font-weight: 700; color: #c9a84c;">12.4s</div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 10px; background: rgba(0,0,0,0.15);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px;">🚦 Current Status</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 6px; background: rgba(107,143,113,0.1); border-radius: 2px;">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: #6b8f71; flex-shrink:0;"></div>
+            <span style="font-size: 0.68rem; color: #6b8f71; font-family: monospace;">PeopleSoft</span>
+            <span style="font-size: 0.6rem; color: #888; margin-left: auto;">Reachable</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 6px; background: rgba(107,143,113,0.1); border-radius: 2px;">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: #6b8f71; flex-shrink:0;"></div>
+            <span style="font-size: 0.68rem; color: #6b8f71; font-family: monospace;">Windows Server</span>
+            <span style="font-size: 0.6rem; color: #888; margin-left: auto;">Connected</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 6px; background: rgba(201,168,76,0.1); border-radius: 2px;">
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: #c9a84c; flex-shrink:0; animation: pulse 1.5s infinite;"></div>
+            <span style="font-size: 0.68rem; color: #c9a84c; font-family: monospace;">Run #42</span>
+            <span style="font-size: 0.6rem; color: #888; margin-left: auto;">Running…</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 10px; background: rgba(0,0,0,0.1);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">📉 Run Health — Last 30 Days</div>
+        <div style="height: 60px; background: rgba(107,143,113,0.05); border-radius: 2px; display: flex; align-items: flex-end; padding: 4px; gap: 2px;">
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 90%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 100%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(180,80,80,0.6); height: 30%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 80%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 70%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 95%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(180,80,80,0.6); height: 20%; border-radius: 2px 2px 0 0;"></div>
+          <div style="flex:1; background: rgba(107,143,113,0.5); height: 85%; border-radius: 2px 2px 0 0;"></div>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 4px;">
+          <span style="font-size: 0.55rem; color: #6b8f71;">■ Success</span>
+          <span style="font-size: 0.55rem; color: #b45050;">■ Error</span>
+        </div>
+      </div>
+
+      <div style="border: 1px solid rgba(180,80,80,0.2); border-radius: 4px; padding: 10px; background: rgba(180,80,80,0.04);">
+        <div style="font-size: 0.55rem; color: #888; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">⚠ Recent Errors</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: grid; grid-template-columns: 1fr 80px 60px; font-size: 0.63rem; color: #999; padding: 3px 4px; border-bottom: 1px solid rgba(180,80,80,0.1);">
+            <span style="color: #b45050; font-family: monospace;">SFTP connection timeout</span><span>download</span><span>3h ago</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 80px 60px; font-size: 0.63rem; color: #999; padding: 3px 4px;">
+            <span style="color: #b45050; font-family: monospace;">PS poll timeout</span><span>poll</span><span>1d ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 20px; padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; background: rgba(0,0,0,0.15); font-family: 'Raleway', sans-serif; font-size: 0.78rem; color: #aaa; line-height: 1.6;">
+  <strong style="color: #ddd;">Key question about data:</strong> The Functional dashboard will show data <em>from your fetched files</em> — things like row counts, report contents, column distributions from the CSVs. What kind of analysis matters most to you once the data lands?
+</div>
+
+<style>
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>

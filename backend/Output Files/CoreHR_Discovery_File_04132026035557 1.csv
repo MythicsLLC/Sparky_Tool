@@ -1,0 +1,115 @@
+**********************************************************************
+		              DISCOVERY SESSION      	 	              	  
+**********************************************************************
+ 
+Run Date Time	: Apr-13-2026,03:55:57
+ 
+**********Countries implemented**********
+ COMPANY : ,SHD
+ COUNTRY : ,USA
+ USA : ,Y
+ CANADA : ,N
+ GERMANY : ,N
+ FRANCE : ,N
+ UK : ,N
+ JAPAN : ,N
+ BELGIUM : ,N
+ NETHERLANDS : ,N
+ Switzerland : ,N
+ Italy : ,N
+ SPAIN : ,N
+ MEXICO : ,N
+ AUSTRALIA : ,N
+ MALAYSIA : ,N
+ NewZealand : ,N
+ Singapore : ,N
+ Hong Kong : ,N
+ India : ,N
+ Brazil : ,N
+ China : ,N
+ Thailand : ,N
+ 
+------------------------------------------------------------
+Benefits Administration,Y
+Currency Conversion Utility,N
+Enterprise Learning Management,N
+Global Payroll Core,N
+Student Administration,N
+Company,SHD
+Minimum Standard Hours,2
+Position Management Option,P
+Default Standard Hours,40
+Salary Points,N
+Pay/Bill Management,N
+Payroll Interface,N
+Military Installation,N
+PeopleSoft eCompensation,Y
+PeopleSoft ePay,Y
+Talent Acquisition Management,Y
+Change Online Check,N
+Automatic Employee Tax Data,Y
+Automatic Job Termination,N
+FSA Claims Administration,N
+EIP Message Limit,1000
+Enforce Real Time Budget Check,N
+Refresh on Job Change,N
+'Temporary SSN' Mask,XXX
+To Currency,USD
+Currency Rate Type,OFFIC
+Multi-Step Grade,Y
+Update Incumbents Limit,50
+Receivables,N
+French Public Sector,N
+Labor Rules and Monitoring,N
+Project Costing,N
+NFC Indicator,N
+Maximum Standard Hours,40
+Standard Work Period,W
+Use Rate Code Groups,N
+Payroll for North America,Y
+Candidate Gateway,Y
+Benefits Billing,N
+Empl ID Field Length,6
+Encumbrance Trigger,Y
+Cache Retention Days,0
+Comm Control Budget Processor,N
+PeopleSoft General Ledger,N/A
+Retroactive Deductions,Y
+Use State Residence for Local,Y
+Enable Notification Composer,N
+Federal Functionality,N
+Absence Management,
+PeopleSoft eProfile,Y
+Education and Government,N
+PS/Time and Labor Product,N
+Automatic Job Suspension,N
+COBRA Administration,N
+Load in Preliminary Calc,N
+Compensation Frequency,H
+PeopleSoft eDevelopment,Y
+Change Final Check,N
+Change Reversal Adjustments,N
+Start Date for BenAdmin,2025-01-02
+Tax data reset for new company,N
+Directory Interface,Y
+HRMS Portal Pack,N
+General Ledger,Y
+German Public Sector,N
+Human Resources,Y
+PS/Pension Administration,N
+eCompensation Manager,N
+Benefits Deduction Class Order,1
+Pay Basis,PA
+Cache Validations,N
+PeopleSoft eBenefits,Y
+PeopleSoft ePerformance,Y
+eProfile Manager,Y
+Succession Planning,Y
+PS/Stock Administration,N
+Concurrent Calc/Confirm,N
+FMLA Administration,N
+Preferred Email Option,P
+ 
+------------------------------------------------------------
+ Business Unit , BU Active/Inactive , Descrition 
+SHAND,,UF Health

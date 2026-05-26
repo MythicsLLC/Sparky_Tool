@@ -8,7 +8,7 @@ import { useThemeContext } from '../ThemeContext'
 
 const MAX_ATTEMPTS = 5
 const RETRY_MS = 2000
-const PARTICLE_COUNT = 45
+const PARTICLE_COUNT = 120
 const REPEL_RADIUS = 100
 const MAX_SPEED = 3
 

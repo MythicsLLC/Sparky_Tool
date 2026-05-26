@@ -41,6 +41,17 @@ def _migrate_columns(engine) -> None:
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS ps_process_name VARCHAR DEFAULT ''",
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS sftp_skipped BOOLEAN DEFAULT FALSE",
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS skip_reason TEXT DEFAULT ''",
+        "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS failed_step VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS ps_webserver_path TEXT DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_host VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_port INTEGER DEFAULT 5985",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_username VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_password_enc TEXT DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_use_ssl BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_auth_type VARCHAR DEFAULT 'ntlm'",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_connection_type VARCHAR DEFAULT 'winrm'",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_share VARCHAR DEFAULT 'C$'",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_domain VARCHAR DEFAULT ''",
     ]
     try:
         with engine.connect() as conn:
