@@ -25,8 +25,104 @@ from logger import get_logger
 
 log = get_logger("vpn")
 
-# How long to wait (seconds) for VPN to establish a route.
 CONNECT_TIMEOUT = 45
+
+# ── input validation patterns ─────────────────────────────────────────────────
+
+# Safe hostname/IP: letters, digits, dots, hyphens, optional :port — no leading dash
+_SAFE_HOST_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*(:\d{1,5})?$')
+
+# Safe username: no shell metacharacters or option-prefix dash
+_SAFE_USER_RE = re.compile(r'^[A-Za-z0-9@._\-]+$')
+
+# OpenVPN directives that execute shell commands — strict denylist for belt-and-suspenders,
+# but the primary defence is the allowlist check below.
+_OPENVPN_EXEC_DIRECTIVES = re.compile(
+    r'^\s*(script-security|up|down|route-up|route-pre-down|ipchange|'
+    r'client-connect|client-disconnect|tls-verify|learn-address|'
+    r'auth-user-pass-verify|plugin|setenv\s+PATH)\b',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# WireGuard keys that are safe — anything else (PreUp/PostUp/PreDown/PostDown/…) is rejected.
+_WG_SAFE_KEYS = frozenset({
+    'privatekey', 'address', 'dns', 'mtu', 'listenport', 'table',   # [Interface]
+    'publickey', 'presharedkey', 'allowedips', 'endpoint', 'persistentkeepalive',  # [Peer]
+})
+
+# SSH -L port-forward: only this exact form is accepted in vpn_extra
+_SSH_L_RE = re.compile(r'^\d{1,5}:[A-Za-z0-9._-]+:\d{1,5}$')
+
+
+def _validate_host(host: str, label: str = "VPN host") -> None:
+    if not host or not _SAFE_HOST_RE.match(host):
+        raise RuntimeError(
+            f"{label} {host!r} contains invalid characters. "
+            "Use a plain hostname or IP address (no leading dashes or shell metacharacters)."
+        )
+
+
+def _validate_user(value: str, label: str) -> None:
+    if value and not _SAFE_USER_RE.match(value):
+        raise RuntimeError(
+            f"{label} {value!r} contains invalid characters."
+        )
+
+
+def _validate_openvpn_config(content: str) -> None:
+    """Reject any OpenVPN config that contains script-execution directives."""
+    match = _OPENVPN_EXEC_DIRECTIVES.search(content)
+    if match:
+        raise RuntimeError(
+            f"OpenVPN config contains a disallowed directive: {match.group().strip()!r}. "
+            "Remove script-security, up/down hooks, and plugin lines."
+        )
+
+
+def _validate_wireguard_config(content: str) -> None:
+    """
+    Parse the WireGuard config and reject any key not in the known-safe allowlist.
+    This blocks PreUp/PostUp/PreDown/PostDown and any other execution hooks.
+    """
+    for lineno, raw in enumerate(content.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#') or line.startswith('['):
+            continue
+        if '=' not in line:
+            raise RuntimeError(
+                f"WireGuard config line {lineno} has unexpected format: {line!r}"
+            )
+        key = line.split('=', 1)[0].strip().lower()
+        if key not in _WG_SAFE_KEYS:
+            raise RuntimeError(
+                f"WireGuard config contains disallowed key {line.split('=',1)[0].strip()!r} "
+                f"on line {lineno}. Only standard interface and peer keys are permitted "
+                "(PreUp/PostUp/PreDown/PostDown are not allowed)."
+            )
+
+
+def _validate_ssh_extra(extra: str) -> list[str]:
+    """
+    Accept only explicit -L port-forward lines (one per line).
+    Returns a flat list of ["-L", "localport:host:remoteport"] pairs.
+    Rejects anything else — no free-form SSH flags.
+    """
+    args = []
+    for lineno, raw in enumerate(extra.splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        # Strip a leading "-L" prefix if the user included it
+        if line.startswith('-L'):
+            line = line[2:].strip()
+        if not _SSH_L_RE.match(line):
+            raise RuntimeError(
+                f"SSH extra field line {lineno} is not a valid port-forward "
+                f"(expected format: localport:host:remoteport, got {line!r}). "
+                "Only -L port-forwards are accepted."
+            )
+        args += ["-L", line]
+    return args
 
 
 # ── public API ────────────────────────────────────────────────────────────────
@@ -34,11 +130,8 @@ CONNECT_TIMEOUT = 45
 def vpn_connect(settings: SimpleNamespace):
     """
     Start the VPN for the given config namespace.
-
-    Returns a context object passed to vpn_disconnect().
-    Returns None if vpn_type is 'none' or vpn_enabled is False.
-
-    Raises RuntimeError if the VPN fails to connect within CONNECT_TIMEOUT.
+    Returns a context object passed to vpn_disconnect(), or None if VPN is disabled.
+    Raises RuntimeError on validation failure or connection timeout.
     """
     if not getattr(settings, "vpn_enabled", False):
         return None
@@ -67,37 +160,27 @@ def vpn_disconnect(ctx):
     vpn_type = ctx.get("type")
     log.info("VPN disconnect  type=%s", vpn_type)
 
-    if vpn_type in ("openconnect", "openvpn"):
+    if vpn_type in ("openconnect", "openvpn", "ssh_tunnel"):
         proc = ctx.get("proc")
         if proc and proc.poll() is None:
             try:
                 proc.send_signal(signal.SIGTERM)
                 proc.wait(timeout=10)
             except Exception as exc:
-                log.warning("VPN disconnect error: %s", exc)
+                log.warning("VPN terminate error: %s", exc)
                 try:
                     proc.kill()
                 except Exception:
                     pass
 
     if vpn_type == "wireguard":
-        iface = ctx.get("iface", "wg-sparky")
-        conf  = ctx.get("conf_path")
-        try:
-            subprocess.run(["wg-quick", "down", conf or iface], timeout=15, check=False)
-        except Exception as exc:
-            log.warning("WireGuard down failed: %s", exc)
-
-    if vpn_type == "ssh_tunnel":
-        proc = ctx.get("proc")
-        if proc and proc.poll() is None:
+        conf = ctx.get("conf_path")
+        if conf:
             try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except Exception:
-                pass
+                subprocess.run(["wg-quick", "down", conf], timeout=15, check=False)
+            except Exception as exc:
+                log.warning("WireGuard down failed: %s", exc)
 
-    # Clean up temp files
     for path in ctx.get("temp_files", []):
         try:
             os.unlink(path)
@@ -105,13 +188,8 @@ def vpn_disconnect(ctx):
             pass
 
 
-# ── test helper ───────────────────────────────────────────────────────────────
-
 def vpn_test(settings: SimpleNamespace) -> dict:
-    """
-    Try to connect the VPN and immediately disconnect.
-    Returns {"ok": True} or {"ok": False, "error": "..."}.
-    """
+    """Connect then immediately disconnect. Returns {"ok": True} or {"ok": False, "error": …}."""
     ctx = None
     try:
         ctx = vpn_connect(settings)
@@ -125,31 +203,37 @@ def vpn_test(settings: SimpleNamespace) -> dict:
             pass
 
 
-# ── openconnect (Cisco AnyConnect / GlobalProtect / Pulse) ───────────────────
+# ── openconnect ───────────────────────────────────────────────────────────────
 
 def _connect_openconnect(s: SimpleNamespace):
     if not shutil.which("openconnect"):
         raise RuntimeError(
-            "openconnect is not installed on the server. "
-            "Install it with: apt-get install -y openconnect"
+            "openconnect is not installed. Install with: apt-get install -y openconnect"
         )
 
     host     = s.vpn_host.strip()
     username = getattr(s, "vpn_username", "").strip()
     password = getattr(s, "vpn_password", "").strip()
-    extra    = getattr(s, "vpn_extra", "").strip()   # group / authgroup / realm
+    group    = getattr(s, "vpn_extra", "").strip()   # authgroup / realm
     port     = getattr(s, "vpn_port", None)
+
+    # Validate all user-supplied values before they reach subprocess
+    _validate_host(host, "VPN gateway")
+    _validate_user(username, "VPN username")
+    _validate_user(group, "VPN group/realm")
 
     if port:
         host = f"{host}:{port}"
 
-    cmd = ["openconnect", "--non-interactive", "--no-dtls", f"--user={username}"]
-    if extra:
-        cmd += [f"--authgroup={extra}"]
-    cmd.append(host)
+    cmd = ["openconnect", "--non-interactive", "--no-dtls"]
+    if username:
+        cmd.append(f"--user={username}")
+    if group:
+        cmd.append(f"--authgroup={group}")
+    # Insert -- to prevent host from being parsed as an option flag
+    cmd += ["--", host]
 
-    # Feed password via stdin
-    log.debug("openconnect cmd: %s", " ".join(cmd))
+    log.debug("openconnect  host=%s  user=%s  group=%s", host, username, group)
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE,
@@ -163,7 +247,7 @@ def _connect_openconnect(s: SimpleNamespace):
         except Exception:
             pass
 
-    _wait_for_vpn_route(proc, timeout=CONNECT_TIMEOUT)
+    _wait_for_vpn_output(proc, timeout=CONNECT_TIMEOUT)
     return {"type": "openconnect", "proc": proc, "temp_files": []}
 
 
@@ -172,41 +256,45 @@ def _connect_openconnect(s: SimpleNamespace):
 def _connect_openvpn(s: SimpleNamespace):
     if not shutil.which("openvpn"):
         raise RuntimeError(
-            "openvpn is not installed on the server. "
-            "Install it with: apt-get install -y openvpn"
+            "openvpn is not installed. Install with: apt-get install -y openvpn"
         )
 
-    extra    = getattr(s, "vpn_extra", "").strip()   # .ovpn config file content
+    config   = getattr(s, "vpn_extra", "").strip()
     username = getattr(s, "vpn_username", "").strip()
     password = getattr(s, "vpn_password", "").strip()
     temp_files = []
 
-    if not extra:
-        # Build a minimal config from host/port/user fields
+    if not config:
         host = s.vpn_host.strip()
         port = getattr(s, "vpn_port", None) or 1194
-        extra = f"client\ndev tun\nproto udp\nremote {host} {port}\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\n"
+        _validate_host(host, "OpenVPN remote host")
+        config = f"client\ndev tun\nproto udp\nremote {host} {port}\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\n"
 
-    # Write config to temp file
+    # Block shell-execution directives before writing to disk
+    _validate_openvpn_config(config)
+
     fd, conf_path = tempfile.mkstemp(suffix=".ovpn")
     os.close(fd)
+    os.chmod(conf_path, 0o600)
     with open(conf_path, "w") as fh:
-        fh.write(extra)
+        fh.write(config)
     temp_files.append(conf_path)
 
-    cmd = ["openvpn", "--config", conf_path, "--auth-nocache"]
+    # --script-security 0 ensures no up/down scripts run even if config slips through
+    cmd = ["openvpn", "--config", conf_path, "--auth-nocache", "--script-security", "0"]
 
     if username and password:
         fd2, creds_path = tempfile.mkstemp()
         os.close(fd2)
+        os.chmod(creds_path, 0o600)
         with open(creds_path, "w") as fh:
             fh.write(f"{username}\n{password}\n")
         cmd += ["--auth-user-pass", creds_path]
         temp_files.append(creds_path)
 
-    log.debug("openvpn cmd: %s", " ".join(cmd))
+    log.debug("openvpn  conf=%s", conf_path)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    _wait_for_vpn_route(proc, timeout=CONNECT_TIMEOUT, keyword="Initialization Sequence Completed")
+    _wait_for_vpn_output(proc, timeout=CONNECT_TIMEOUT, keyword="Initialization Sequence Completed")
     return {"type": "openvpn", "proc": proc, "temp_files": temp_files}
 
 
@@ -215,18 +303,21 @@ def _connect_openvpn(s: SimpleNamespace):
 def _connect_wireguard(s: SimpleNamespace):
     if not shutil.which("wg-quick"):
         raise RuntimeError(
-            "wg-quick is not installed. Install WireGuard: apt-get install -y wireguard"
+            "wg-quick is not installed. Install with: apt-get install -y wireguard-tools"
         )
 
     conf_content = getattr(s, "vpn_extra", "").strip()
     if not conf_content:
         raise RuntimeError("WireGuard requires a configuration (paste your wg0.conf in the Extra field).")
 
+    # Block PreUp/PostUp/PreDown/PostDown and any unknown keys before writing to disk
+    _validate_wireguard_config(conf_content)
+
     fd, conf_path = tempfile.mkstemp(suffix=".conf")
     os.close(fd)
+    os.chmod(conf_path, 0o600)
     with open(conf_path, "w") as fh:
         fh.write(conf_content)
-    os.chmod(conf_path, 0o600)
 
     result = subprocess.run(["wg-quick", "up", conf_path], capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
@@ -237,7 +328,7 @@ def _connect_wireguard(s: SimpleNamespace):
     return {"type": "wireguard", "conf_path": conf_path, "temp_files": [conf_path]}
 
 
-# ── ssh tunnel (SOCKS5 proxy / local port forward) ────────────────────────────
+# ── ssh tunnel ────────────────────────────────────────────────────────────────
 
 def _connect_ssh_tunnel(s: SimpleNamespace):
     if not shutil.which("ssh"):
@@ -246,44 +337,48 @@ def _connect_ssh_tunnel(s: SimpleNamespace):
     host     = s.vpn_host.strip()
     port     = getattr(s, "vpn_port", None) or 22
     username = getattr(s, "vpn_username", "").strip()
-    extra    = getattr(s, "vpn_extra", "").strip()   # e.g. "-L 5985:win-host:5985"
+    extra    = getattr(s, "vpn_extra", "").strip()
 
-    # Build the SSH command — create a SOCKS5 proxy on localhost:1080 by default
-    local_socks = "1080"
+    _validate_host(host, "SSH jump host")
+    _validate_user(username, "SSH username")
+
+    # Always create a SOCKS5 proxy on localhost:1080
     cmd = [
-        "ssh", "-N", "-o", "StrictHostKeyChecking=no",
-        "-D", local_socks,
-        "-p", str(port),
+        "ssh", "-N",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "BatchMode=yes",
+        "-D", "1080",
+        "-p", str(int(port)),
     ]
-    # Allow extra port-forward args from the Extra field
-    if extra:
-        cmd += extra.split()
-    cmd.append(f"{username}@{host}" if username else host)
 
-    log.debug("ssh tunnel cmd: %s", " ".join(cmd))
+    # Only accept -L port-forward lines from vpn_extra — nothing else
+    if extra:
+        cmd += _validate_ssh_extra(extra)
+
+    # Insert -- to prevent host from being interpreted as an SSH option
+    target = f"{username}@{host}" if username else host
+    cmd += ["--", target]
+
+    log.debug("ssh tunnel  host=%s  port=%d  user=%s", host, port, username)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    time.sleep(3)   # SSH doesn't print "connected" — brief wait is sufficient
+    time.sleep(3)
     if proc.poll() is not None:
         out = proc.stdout.read().decode(errors="replace")[:400]
         raise RuntimeError(f"SSH tunnel exited immediately: {out}")
 
-    log.info("SSH tunnel established  socks5=localhost:%s", local_socks)
+    log.info("SSH tunnel established  socks5=localhost:1080")
     return {"type": "ssh_tunnel", "proc": proc, "temp_files": []}
 
 
-# ── helper ────────────────────────────────────────────────────────────────────
+# ── helpers ───────────────────────────────────────────────────────────────────
 
-def _wait_for_vpn_route(proc, timeout=CONNECT_TIMEOUT, keyword=None):
-    """
-    Poll subprocess stdout for a success keyword, or fall back to checking
-    that the process is still alive after CONNECT_TIMEOUT.
-    """
-    deadline = time.time() + timeout
-    buf = ""
-
-    # Default success keyword for openconnect
+def _wait_for_vpn_output(proc, timeout=CONNECT_TIMEOUT, keyword=None):
+    """Poll stdout for a success keyword; fall back to liveness check on timeout."""
     if keyword is None:
         keyword = "Connected as"
+
+    deadline = time.time() + timeout
+    buf = ""
 
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -300,17 +395,14 @@ def _wait_for_vpn_route(proc, timeout=CONNECT_TIMEOUT, keyword=None):
 
         time.sleep(0.5)
 
-    # Timeout — if process is still alive, assume connection is OK (some
-    # VPN clients don't print a clear "connected" message)
     if proc.poll() is None:
-        log.warning("VPN connect timed out waiting for keyword — process alive, proceeding")
+        log.warning("VPN connect timed out waiting for %r — process alive, proceeding", keyword)
         return
 
     raise RuntimeError(f"VPN did not connect within {timeout}s. Last output: {buf[-400:]}")
 
 
 def _readline_nonblocking(proc):
-    """Read a line from stdout without blocking if nothing is available."""
     import select
     if proc.stdout and select.select([proc.stdout], [], [], 0.1)[0]:
         return proc.stdout.readline().decode(errors="replace")
