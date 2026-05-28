@@ -370,11 +370,38 @@ def _extract_json(text: str) -> dict:
     return json.loads(clean)
 
 
-@router.post("/analyze-file")
-async def analyze_file(
-    file: UploadFile = File(...),
+@router.get("/ai-models")
+def list_active_ai_models(
     user: User = Depends(get_current_user),
     db:   Session = Depends(get_db),
+):
+    """Return all active AI models (no API keys) so the frontend can populate a selector."""
+    models = (
+        db.query(AiModel)
+        .filter(AiModel.is_active == True)  # noqa: E712
+        .order_by(AiModel.is_default.desc(), AiModel.name.asc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id":         m.id,
+                "name":       m.name,
+                "provider":   m.provider,
+                "model_id":   m.model_id,
+                "is_default": m.is_default,
+            }
+            for m in models
+        ]
+    }
+
+
+@router.post("/analyze-file")
+async def analyze_file(
+    file:         UploadFile = File(...),
+    user:         User = Depends(get_current_user),
+    db:           Session = Depends(get_db),
+    ai_model_id:  int | None = Query(None),
 ):
     """
     Accept a CSV or Excel upload, build a dataset profile, ask Gemini to
@@ -417,9 +444,16 @@ async def analyze_file(
     )
 
     # ── resolve the active AI model ──────────────────────────────────────────
-    db_model = db.query(AiModel).filter(
-        AiModel.is_default == True, AiModel.is_active == True  # noqa: E712
-    ).first()
+    if ai_model_id is not None:
+        db_model = db.query(AiModel).filter(
+            AiModel.id == ai_model_id, AiModel.is_active == True  # noqa: E712
+        ).first()
+        if not db_model:
+            raise HTTPException(404, "Selected AI model not found or not active")
+    else:
+        db_model = db.query(AiModel).filter(
+            AiModel.is_default == True, AiModel.is_active == True  # noqa: E712
+        ).first()
 
     if db_model:
         provider  = db_model.provider

@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Box, Typography, Alert, CircularProgress, Grid, Card, CardContent,
-  Button, Chip,
+  Button, Chip, Select, MenuItem, FormControl,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import {
@@ -19,11 +19,14 @@ import UploadFileIcon    from '@mui/icons-material/UploadFile'
 import AutoAwesomeIcon   from '@mui/icons-material/AutoAwesome'
 import TableChartIcon    from '@mui/icons-material/TableChart'
 import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
-import { analyzeFile }   from '../api'
+import { analyzeFile, listInsightModels } from '../api'
+import { useAuth } from '../AuthContext'
 
 // ── colour palette (matches backend prompt) ────────────────────────────────────
 const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
 const pal = (i) => PALETTE[i % PALETTE.length]
+
+const PROVIDER_COLORS = { gemini: '#4285f4', openai: '#10a37f', anthropic: '#d4a84b', grok: '#1da1f2', generic: '#888' }
 
 // ── DynamicChart ───────────────────────────────────────────────────────────────
 // Renders any chart spec that Gemini returns.  One switch on `type` → Recharts.
@@ -320,12 +323,26 @@ function SummaryBar({ result, filename }) {
 export default function AnalyzeDashboard() {
   const theme   = useTheme()
   const accent  = theme.palette.primary.main
+  const { token } = useAuth()
   const chartsRef = useRef(null)
-  const [loading,     setLoading]     = useState(false)
-  const [pdfLoading,  setPdfLoading]  = useState(false)
-  const [error,       setError]       = useState(null)
-  const [result,      setResult]      = useState(null)
-  const [filename,    setFilename]    = useState('')
+  const [loading,         setLoading]         = useState(false)
+  const [pdfLoading,      setPdfLoading]      = useState(false)
+  const [error,           setError]           = useState(null)
+  const [result,          setResult]          = useState(null)
+  const [filename,        setFilename]        = useState('')
+  const [models,          setModels]          = useState([])
+  const [selectedModelId, setSelectedModelId] = useState(null)
+
+  useEffect(() => {
+    listInsightModels()
+      .then(({ data }) => {
+        const items = data.items ?? []
+        setModels(items)
+        const def = items.find((m) => m.is_default)
+        if (def) setSelectedModelId(def.id)
+      })
+      .catch(() => {})
+  }, [token])
 
   const handleFile = useCallback(async (file) => {
     setError(null)
@@ -333,14 +350,14 @@ export default function AnalyzeDashboard() {
     setFilename(file.name)
     setLoading(true)
     try {
-      const { data } = await analyzeFile(file)
+      const { data } = await analyzeFile(file, selectedModelId)
       setResult(data)
     } catch (err) {
       setError(err?.response?.data?.detail || err.message || 'Analysis failed — check the server logs.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedModelId])
 
   const downloadPdf = useCallback(async () => {
     if (!chartsRef.current || !result) return
@@ -392,7 +409,7 @@ export default function AnalyzeDashboard() {
   return (
     <Box>
       {/* ── section header ────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
         <AutoAwesomeIcon sx={{ color: accent, fontSize: 18 }} />
         <Typography sx={{
           fontFamily: '"Raleway", sans-serif', fontWeight: 700,
@@ -404,6 +421,50 @@ export default function AnalyzeDashboard() {
         <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled' }}>
           — upload any CSV or Excel and AI auto-generates charts
         </Typography>
+
+        {models.length > 0 && (
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{
+              fontSize: '0.55rem', letterSpacing: '0.16em', textTransform: 'uppercase',
+              color: 'text.disabled', fontFamily: '"Raleway", sans-serif',
+            }}>
+              Model
+            </Typography>
+            <FormControl size="small">
+              <Select
+                value={selectedModelId ?? ''}
+                onChange={(e) => setSelectedModelId(e.target.value === '' ? null : e.target.value)}
+                displayEmpty
+                sx={{
+                  fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', height: 28, minWidth: 180,
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: `${accent}30` },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: `${accent}70` },
+                  '& .MuiSelect-icon': { fontSize: 16 },
+                }}
+              >
+                <MenuItem value="" sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', color: 'text.disabled' }}>
+                  Default
+                </MenuItem>
+                {models.map((m) => (
+                  <MenuItem key={m.id} value={m.id} sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <Box sx={{
+                        width: 7, height: 7, borderRadius: '50%',
+                        bgcolor: PROVIDER_COLORS[m.provider] || '#888', flexShrink: 0,
+                      }} />
+                      {m.name}
+                      {m.is_default && (
+                        <Typography component="span" sx={{ fontSize: '0.55rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
+                          (default)
+                        </Typography>
+                      )}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        )}
       </Box>
 
       {/* ── drop zone (hidden once results arrive) ────────────────────────── */}

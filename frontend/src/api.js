@@ -79,13 +79,16 @@ export const getCoreHRFiles    = (token)           => client.get('/v2/insights/c
 export const getCoreHRFile     = (filename, token) => client.get('/v2/insights/corehr/file',  { headers: auth(token), params: { filename } })
 export const checkConnectivity = (token)           => client.get('/v2/insights/health',       { headers: auth(token) })
 
-// File analysis via Gemini (v2)
-// Pass a File object; the endpoint returns a chart-spec JSON.
-export const analyzeFile = (file, token) => {
+// File analysis (v2)
+export const listInsightModels = () => client.get('/v2/insights/ai-models')
+
+export const analyzeFile = (file, aiModelId) => {
   const form = new FormData()
   form.append('file', file)
+  const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
   return client.post('/v2/insights/analyze-file', form, {
-    headers: { ...auth(token), 'Content-Type': 'multipart/form-data' },
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params,
   })
 }
 
