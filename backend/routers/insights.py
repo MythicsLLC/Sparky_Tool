@@ -413,7 +413,7 @@ async def analyze_file(
     # ── call Gemini ──────────────────────────────────────────────────────────
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.5-flash",
         generation_config=genai.GenerationConfig(
             temperature=0.2,
             response_mime_type="application/json",
