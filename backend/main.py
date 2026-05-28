@@ -108,30 +108,32 @@ async def _emit_wide_event(
     path: str, method: str, http_status: int, duration_ms: int,
     user_id: str | None, request_id: str,
 ) -> None:
-    """Fire-and-forget wide event writer using a background thread to avoid blocking."""
-    event_name = _path_to_event(method, path)
-    # Skip T4 events (health, me, flags list) — they're too noisy
+    """Fire-and-forget wide event writer. Session is always closed via try/finally."""
     from routers.wide_events import get_event_tier, _should_write
-    tier = get_event_tier(event_name)
+    tier = get_event_tier(_path_to_event(method, path))
     if not _should_write(tier):
         return
 
     try:
-        from database import get_db as _get_db
-        db = next(_get_db())
-        from routers.wide_events import write_wide_event
-        write_wide_event(
-            db,
-            event=event_name,
-            status="success" if http_status < 400 else "failed",
-            http_method=method,
-            http_status=http_status,
-            endpoint=path,
-            user_id=user_id,
-            duration_ms=duration_ms,
-            request_id=request_id,
-        )
-        db.close()
+        from database import _SessionLocal
+        if _SessionLocal is None:
+            return
+        db = _SessionLocal()
+        try:
+            from routers.wide_events import write_wide_event
+            write_wide_event(
+                db,
+                event=_path_to_event(method, path),
+                status="success" if http_status < 400 else "failed",
+                http_method=method,
+                http_status=http_status,
+                endpoint=path,
+                user_id=user_id,
+                duration_ms=duration_ms,
+                request_id=request_id,
+            )
+        finally:
+            db.close()  # always runs — no more session leaks
     except Exception:
         pass  # wide events are best-effort, never crash the request
 

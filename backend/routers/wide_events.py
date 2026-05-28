@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth import require_admin, get_current_user
-from database import get_db
+from database import get_db, _SessionLocal
 from models import User, WideEvent, WideEventView
 from logger import get_logger
 
@@ -179,6 +179,11 @@ def list_events(
 
 
 # ── SSE stream (polling-based, works with Neon pooler) ───────────────────────
+# Each poll cycle opens and closes its own session immediately.
+# No DB connection is held open for the stream's lifetime.
+
+_MAX_STREAM_SECONDS = 1800  # hard cap: 30 min per connection
+
 
 @router.get("/stream")
 async def stream_events(
@@ -187,68 +192,89 @@ async def stream_events(
     status:       str | None = Query(None),
     tier:         int | None = Query(None),
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
+    # No db dependency — sessions are opened/closed per poll cycle
 ):
     since_id: int = 0
 
-    async def generator():
-        nonlocal since_id
-
-        # Seed since_id at the current max so we only stream NEW events
-        result = db.execute(text("SELECT COALESCE(MAX(id), 0) FROM wide_events")).scalar()
-        since_id = result or 0
-
-        yield f"event: ready\ndata: {json.dumps({'ok': True})}\n\n"
-
-        heartbeat_tick = 0
-        while True:
-            if await request.is_disconnected():
-                break
-
+    def _poll() -> list:
+        """Run one DB poll in a short-lived session. Called via run_in_executor."""
+        if _SessionLocal is None:
+            return []
+        db = _SessionLocal()
+        try:
             clauses = ["id > :since_id"]
             params: dict = {"since_id": since_id}
-            if event:  clauses.append("event = :event");  params["event"]  = event
+            if event:  clauses.append("event = :event");   params["event"]  = event
             if status: clauses.append("status = :status"); params["status"] = status
             if tier:   clauses.append("tier = :tier");     params["tier"]   = tier
-
             where = " AND ".join(clauses)
-            rows = db.execute(
+            return db.execute(
                 text(f"SELECT * FROM wide_events WHERE {where} ORDER BY id ASC LIMIT 50"),
                 params,
             ).fetchall()
+        finally:
+            db.close()
 
+    def _seed() -> int:
+        """Read the current max id to avoid replaying old events."""
+        if _SessionLocal is None:
+            return 0
+        db = _SessionLocal()
+        try:
+            return db.execute(text("SELECT COALESCE(MAX(id), 0) FROM wide_events")).scalar() or 0
+        finally:
+            db.close()
+
+    async def generator():
+        nonlocal since_id
+        loop = asyncio.get_event_loop()
+
+        since_id = await loop.run_in_executor(None, _seed)
+        yield f"event: ready\ndata: {json.dumps({'ok': True})}\n\n"
+
+        heartbeat_tick = 0
+        elapsed = 0
+        while elapsed < _MAX_STREAM_SECONDS:
+            if await request.is_disconnected():
+                break
+
+            rows = await loop.run_in_executor(None, _poll)
             for row in rows:
                 since_id = max(since_id, row.id)
                 data = {
-                    "id":               row.id,
-                    "event":            row.event,
-                    "status":           row.status,
-                    "tier":             row.tier,
-                    "message":          row.message,
+                    "id":                row.id,
+                    "event":             row.event,
+                    "status":            row.status,
+                    "tier":              row.tier,
+                    "message":           row.message,
                     "total_duration_ms": row.total_duration_ms,
-                    "http_method":      row.http_method,
-                    "http_status":      row.http_status,
-                    "endpoint":         row.endpoint,
-                    "user_id":          row.user_id,
-                    "user_name":        row.user_name,
-                    "environment":      row.environment,
-                    "created_at":       str(row.created_at),
+                    "http_method":       row.http_method,
+                    "http_status":       row.http_status,
+                    "endpoint":          row.endpoint,
+                    "user_id":           row.user_id,
+                    "user_name":         row.user_name,
+                    "environment":       row.environment,
+                    "created_at":        str(row.created_at),
                 }
                 yield f"event: event\ndata: {json.dumps(data)}\n\n"
 
             heartbeat_tick += 1
-            if heartbeat_tick >= 12:
+            if heartbeat_tick >= 12:  # every ~24 s
                 yield f"event: heartbeat\ndata: {json.dumps({'now': datetime.now(timezone.utc).isoformat()})}\n\n"
                 heartbeat_tick = 0
 
             await asyncio.sleep(2)
+            elapsed += 2
+
+        # Tell the client the stream ended so it can reconnect if desired
+        yield f"event: close\ndata: {json.dumps({'reason': 'max_duration'})}\n\n"
 
     return StreamingResponse(
         generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control":    "no-cache, no-transform",
-            "Connection":       "keep-alive",
+            "Cache-Control":     "no-cache, no-transform",
+            "Connection":        "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
