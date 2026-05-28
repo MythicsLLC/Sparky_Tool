@@ -214,9 +214,41 @@ _CERT_FP_RE = re.compile(r'^[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31}$|^[0-9a-fA-F]{
 
 def _connect_fortinet(s: SimpleNamespace):
     if not shutil.which("openfortivpn"):
-        raise RuntimeError(
-            "openfortivpn is not installed. Install with: apt-get install -y openfortivpn"
-        )
+        log.warning("openfortivpn not found. Attempting automatic installation...")
+
+        install_commands = [
+            ["apt-get", "update"],
+            ["apt-get", "install", "-y", "openfortivpn"]
+        ]
+
+        for cmd in install_commands:
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"Command failed: {' '.join(cmd)}\n"
+                        f"STDOUT: {result.stdout}\n"
+                        f"STDERR: {result.stderr}"
+                    )
+
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to auto-install openfortivpn: {exc}"
+                )
+
+        # Verify installation
+        if not shutil.which("openfortivpn"):
+            raise RuntimeError(
+                "openfortivpn installation completed but binary still not found."
+            )
+
+        log.info("openfortivpn installed successfully.")
 
     host     = s.vpn_host.strip()
     port     = getattr(s, "vpn_port", None) or 443
