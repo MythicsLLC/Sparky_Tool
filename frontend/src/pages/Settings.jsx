@@ -664,7 +664,7 @@ export default function Settings() {
                   sx={inputSx} />
               </Field>
 
-              <Field label="Port (optional)">
+              <Field label="Port">
                 <TextField fullWidth size="small" type="number" value={form.vpn_port} onChange={set('vpn_port')}
                   placeholder={form.vpn_type === 'ssh_tunnel' ? '22' : form.vpn_type === 'openvpn' ? '1194' : '443'}
                   inputProps={{ min: 1, max: 65535 }} sx={inputSx} />
