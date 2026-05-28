@@ -73,7 +73,9 @@ function MonoCopy({ val }) {
 // ── StatusPill ────────────────────────────────────────────────────────────────
 
 function StatusPill({ status, sftp_skipped }) {
-  let label = status, bg = 'rgba(201,168,76,0.12)', color = '#c9a84c', Icon = HourglassEmptyIcon
+  const theme = useTheme()
+  const accent = theme.palette.primary.main
+  let label = status, bg = `${accent}18`, color = accent, Icon = HourglassEmptyIcon
   if (status === 'success' && sftp_skipped) {
     label = 'PS only'; bg = 'rgba(100,149,180,0.14)'; color = '#6495b4'; Icon = CloudSyncIcon
   } else if (status === 'success') {
@@ -94,7 +96,8 @@ function StatusPill({ status, sftp_skipped }) {
 // ── KpiCard ───────────────────────────────────────────────────────────────────
 
 function KpiCard({ label, value, sub, Icon, accent, mono }) {
-  const accentColor = accent || '#c9a84c'
+  const theme = useTheme()
+  const accentColor = accent || theme.palette.primary.main
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', position: 'relative', overflow: 'hidden' }}>
       <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', bgcolor: accentColor, opacity: 0.55 }} />

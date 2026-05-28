@@ -152,12 +152,76 @@ function buildTheme(mode, accent) {
       MuiAppBar: {
         styleOverrides: { root: { backgroundImage: 'none' } },
       },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontFamily: '"Raleway", sans-serif',
+            borderRadius: 2,
+          },
+        },
+      },
+      MuiTooltip: {
+        styleOverrides: {
+          tooltip: {
+            fontFamily: '"Raleway", sans-serif',
+            fontSize: '0.68rem',
+            backgroundColor: dark ? '#1e2128' : '#2b2b2b',
+            color: dark ? '#ede8d0' : '#f5f0e8',
+            border: `1px solid ${accent}22`,
+          },
+          arrow: { color: dark ? '#1e2128' : '#2b2b2b' },
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: {
+            fontFamily: '"Raleway", sans-serif',
+            fontSize: '0.75rem',
+            '&:hover': { backgroundColor: `${accent}0a` },
+            '&.Mui-selected': { backgroundColor: `${accent}14` },
+            '&.Mui-selected:hover': { backgroundColor: `${accent}1c` },
+          },
+        },
+      },
+      MuiListItemText: {
+        styleOverrides: {
+          primary: { fontFamily: '"Raleway", sans-serif' },
+          secondary: { fontFamily: '"Raleway", sans-serif' },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            fontFamily: '"Raleway", sans-serif',
+            textTransform: 'none',
+          },
+        },
+      },
+      MuiSwitch: {
+        styleOverrides: {
+          switchBase: {
+            '&.Mui-checked': { color: accent },
+            '&.Mui-checked + .MuiSwitch-track': { backgroundColor: accent },
+          },
+        },
+      },
+      MuiAvatar: {
+        styleOverrides: {
+          root: { fontFamily: '"Raleway", sans-serif', fontWeight: 700 },
+        },
+      },
     },
   })
 }
 
 // ── Context ────────────────────────────────────────────────────────────────
 const ThemeCtx = createContext(null)
+
+function hexToRgb(hex) {
+  const h = hex.replace('#', '')
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
 
 export function ThemeContextProvider({ children }) {
   const [mode,         setMode]         = useState(() => localStorage.getItem(LS_MODE)         || 'dark')
@@ -168,6 +232,38 @@ export function ThemeContextProvider({ children }) {
   const accent = mode === 'dark' ? accentDark : accentLight
 
   const theme = useMemo(() => buildTheme(mode, accent), [mode, accent])
+
+  // Inject CSS custom properties so App.css, scrollbars, ::selection, and class
+  // components all respond to theme changes without needing hooks.
+  useEffect(() => {
+    const dark = mode === 'dark'
+    const bg          = dark ? '#0b0c0e' : '#f5f3ef'
+    const paper       = dark ? '#111316' : '#ffffff'
+    const textPrimary = dark ? '#ede8d0' : '#1a1814'
+    const [r, g, b]   = hexToRgb(accent)
+
+    const root = document.documentElement
+    root.style.setProperty('--sparky-bg',           bg)
+    root.style.setProperty('--sparky-paper',        paper)
+    root.style.setProperty('--sparky-text-primary', textPrimary)
+    root.style.setProperty('--sparky-accent',       accent)
+    root.style.setProperty('--sparky-accent-r',     r)
+    root.style.setProperty('--sparky-accent-g',     g)
+    root.style.setProperty('--sparky-accent-b',     b)
+
+    let styleEl = document.getElementById('sparky-dynamic-styles')
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'sparky-dynamic-styles'
+      document.head.appendChild(styleEl)
+    }
+    styleEl.textContent = `
+      ::-webkit-scrollbar-track { background: ${bg}; }
+      ::-webkit-scrollbar-thumb { background: rgba(${r},${g},${b},0.22); border-radius: 2px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(${r},${g},${b},0.42); }
+      ::selection { background: rgba(${r},${g},${b},0.24); color: ${textPrimary}; }
+    `
+  }, [mode, accent])
 
   // Update the browser-tab favicon whenever the effective accent changes.
   useEffect(() => { updateFavicon(accent) }, [accent])

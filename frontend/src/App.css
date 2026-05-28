@@ -5,14 +5,11 @@
 *::after { box-sizing: border-box; }
 
 html, body {
-  background-color: #0b0c0e;
+  /* Uses CSS variable injected by ThemeContext — adapts to both dark and light mode */
+  background-color: var(--sparky-bg, #0b0c0e);
   margin: 0;
   padding: 0;
 }
 
+/* Scrollbar sizing — colours injected dynamically by ThemeContext */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: #0b0c0e; }
-::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.18); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(201,168,76,0.35); }
-
-::selection { background: rgba(201,168,76,0.2); color: #ede8d0; }

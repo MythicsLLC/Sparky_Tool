@@ -34,6 +34,12 @@ const PROVIDER_COLORS = { gemini: '#4285f4', openai: '#10a37f', anthropic: '#d4a
 function DynamicChart({ spec }) {
   const { type, data = [], xKey, yKeys = [], nameKey = 'name', dataKey = 'value', colors = PALETTE } = spec
   const c = (i) => colors[i] || pal(i)
+  const theme = useTheme()
+  const dark  = theme.palette.mode === 'dark'
+  const paper = dark ? '#111316' : '#ffffff'
+  const tooltipBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'
+  const gridColor     = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
+  const tooltipStyle  = { fontSize: 11, background: paper, border: `1px solid ${tooltipBorder}` }
 
   if (!data.length) {
     return (
@@ -62,7 +68,7 @@ function DynamicChart({ spec }) {
             {data.map((_, i) => <Cell key={i} fill={c(i)} />)}
           </Pie>
           <ChartTooltip
-            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+            contentStyle={tooltipStyle}
             formatter={(v) => [Number(v).toLocaleString(), '']}
           />
         </PieChart>
@@ -83,7 +89,7 @@ function DynamicChart({ spec }) {
             formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>}
           />
           <ChartTooltip
-            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+            contentStyle={tooltipStyle}
             formatter={(v) => [`${v}%`, '']}
           />
         </RadialBarChart>
@@ -96,13 +102,13 @@ function DynamicChart({ spec }) {
     return (
       <ResponsiveContainer width="100%" height={260}>
         <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
           <XAxis dataKey="x" type="number" name={xKey} tick={{ fontSize: 10 }} />
           <YAxis dataKey="y" type="number" name={yKeys[0] || 'y'} tick={{ fontSize: 10 }} />
           <ZAxis range={[38, 38]} />
           <ChartTooltip
             cursor={{ strokeDasharray: '3 3' }}
-            contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
+            contentStyle={tooltipStyle}
           />
           <Scatter data={data} fill={c(0)} isAnimationActive={false} />
         </ScatterChart>
@@ -118,7 +124,7 @@ function DynamicChart({ spec }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ChartWrapper data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
         <XAxis dataKey={xKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
         <YAxis tick={{ fontSize: 10 }} />
         <ChartTooltip
@@ -222,7 +228,7 @@ function DropZone({ onFile, loading }) {
       onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer?.files?.[0]) }}
       onClick={() => !loading && inputRef.current?.click()}
       sx={{
-        border: `2px dashed ${dragging ? accent : 'rgba(255,255,255,0.1)'}`,
+        border: `2px dashed ${dragging ? accent : theme.palette.divider}`,
         borderRadius: 2,
         py: 7, px: 4,
         textAlign: 'center',
@@ -371,7 +377,7 @@ export default function AnalyzeDashboard() {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#121212',
+        backgroundColor: theme.palette.background.default,
         logging: false,
       })
 
