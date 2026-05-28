@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Box, CircularProgress } from '@mui/material'
+import { Box } from '@mui/material'
 import StartupScreen from './components/StartupScreen'
 import Topbar from './components/Topbar'
 import Dashboard from './pages/Dashboard'
@@ -32,13 +32,15 @@ export default function App() {
     setRoute(to)
   }, [])
 
-  if (!ready) return <StartupScreen onReady={() => setReady(true)} />
-
-  if (loading) {
+  // Keep the startup screen visible until BOTH the backend health check passes
+  // (ready) AND Clerk auth has finished resolving (loading). This prevents a
+  // plain spinner flash between the branded screen and the real UI.
+  if (!ready || loading) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
-        <CircularProgress size={28} sx={{ color: 'primary.main' }} />
-      </Box>
+      <StartupScreen
+        onReady={() => setReady(true)}
+        authLoading={ready && loading}
+      />
     )
   }
 

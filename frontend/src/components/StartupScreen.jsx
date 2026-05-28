@@ -33,7 +33,9 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-export default function StartupScreen({ onReady }) {
+// authLoading=true means the backend health check already passed; we're now
+// waiting for Clerk auth to resolve. Skip health checks, show a different status.
+export default function StartupScreen({ onReady, authLoading = false }) {
   const { accent } = useThemeContext()
   const [status, setStatus] = useState('checking')
   const timer = useRef(null)
@@ -45,8 +47,9 @@ export default function StartupScreen({ onReady }) {
   // Keep accentRef in sync so the canvas loop always draws with the live accent
   accentRef.current = accent
 
-  // ── Health check ───────────────────────────────────────────────────────────
+  // ── Health check (skipped when authLoading — backend already confirmed OK) ──
   const runCheck = useCallback(() => {
+    if (authLoading) return
     clearTimeout(timer.current)
     setStatus('checking')
     let attempts = 0
@@ -62,9 +65,12 @@ export default function StartupScreen({ onReady }) {
       }
     }
     attempt()
-  }, [onReady])
+  }, [onReady, authLoading])
 
-  useEffect(() => { runCheck(); return () => clearTimeout(timer.current) }, [runCheck])
+  useEffect(() => {
+    if (!authLoading) runCheck()
+    return () => clearTimeout(timer.current)
+  }, [runCheck, authLoading])
 
   // ── Particle canvas ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -141,7 +147,7 @@ export default function StartupScreen({ onReady }) {
     }
   }, [])
 
-  const isError = status === 'error'
+  const isError = !authLoading && status === 'error'
 
   return (
     <Box sx={{
@@ -305,13 +311,14 @@ export default function StartupScreen({ onReady }) {
         ) : (
           <Box sx={{ textAlign: 'center', animation: 'fadeIn 0.8s ease 0.7s both' }}>
             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', letterSpacing: '0.22em', color: 'text.disabled', textTransform: 'uppercase', mb: 2 }}>
-              Connecting to backend…
+              {authLoading ? 'Authenticating your session…' : 'Connecting to backend…'}
             </Typography>
             {/* Dot row loader */}
             <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
               {Array.from({ length: 5 }).map((_, i) => (
                 <Box key={i} sx={{
-                  width: 3, height: 3, bgcolor: accent,
+                  width: 3, height: 3,
+                  bgcolor: authLoading ? `${accent}99` : accent,
                   '@keyframes dotPulse': {
                     '0%,100%': { opacity: 0.1, transform: 'scaleY(1)' },
                     '50%': { opacity: 1, transform: 'scaleY(2)' },

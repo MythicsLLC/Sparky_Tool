@@ -372,13 +372,14 @@ export default function Settings() {
   const btnSx = { color: accent, borderColor: `${accent}59`, borderRadius: '3px', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.16em', px: 2.5, py: 0.9, '&:hover:not(:disabled)': { borderColor: accent, bgcolor: `${accent}0a` }, '&:disabled': { opacity: 0.4 } }
 
   if (loading) return (
-    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
+    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
       <CircularProgress size={32} sx={{ color: accent }} />
     </Box>
   )
 
   return (
-    <Box sx={{ flex: 1, bgcolor: 'background.default', px: 5, py: 5, maxWidth: 960, display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ flex: 1, bgcolor: 'background.default', display: 'flex', justifyContent: 'center', px: { xs: 2, sm: 4, md: 5 }, py: 5 }}>
+    <Box sx={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <Box sx={{ mb: 4 }}>
@@ -1013,6 +1014,7 @@ export default function Settings() {
         winDomain={form.win_domain}
         rootPath={form.ps_webserver_path || (form.win_username ? `C:\\Users\\${form.win_username}` : 'C:\\')}
       />
+    </Box>
     </Box>
   )
 }
