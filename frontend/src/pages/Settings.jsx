@@ -214,6 +214,21 @@ export default function Settings() {
     if (WIN_KEYS.includes(k)) setWinTestStatus(null)
   }
 
+  const parseError = (err, fallback) => {
+    const detail = err?.response?.data?.detail
+
+    if (typeof detail === 'string') return detail
+
+    if (Array.isArray(detail)) {
+      return detail.map((d) => d.msg || JSON.stringify(d)).join(', ')
+    }
+
+    if (typeof detail === 'object' && detail !== null) {
+      return detail.msg || JSON.stringify(detail)
+    }
+
+    return fallback
+  }
   const handleConnectionTypeChange = (e) => {
     const type = e.target.value
     setForm((prev) => ({ ...prev, win_connection_type: type, win_port: WIN_DEFAULT_PORTS[type] || prev.win_port }))
@@ -296,7 +311,7 @@ export default function Settings() {
       })
       setWinTestStatus({ ok: true, ...res.data })
     } catch (err) {
-      setWinTestStatus({ ok: false, message: err.response?.data?.detail ?? 'Connection failed' })
+      setWinTestStatus({ ok: false, message: parseError(err, 'Connection failed') })
     }
   }
 
@@ -912,7 +927,11 @@ export default function Settings() {
       }}>
         {error && (
           <Alert severity="error" onClose={() => setError(null)} sx={{ flex: 1, minWidth: 0, py: 0.5, bgcolor: 'rgba(143,74,74,0.1)', border: '1px solid rgba(143,74,74,0.3)', color: isDark ? '#c98f8f' : '#8f4a4a', borderRadius: '3px', '& .MuiAlert-icon': { color: '#8f4a4a' } }}>
-            {error}
+            <Typography>
+              {typeof winTestStatus.message === 'string'
+                ? winTestStatus.message
+                : JSON.stringify(winTestStatus.message)}
+            </Typography>
           </Alert>
         )}
         {success && (
