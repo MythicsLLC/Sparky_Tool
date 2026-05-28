@@ -109,13 +109,70 @@ export const createWideEventView = (payload, token)     => client.post('/v2/admi
 export const updateWideEventView = (id, payload, token) => client.put(`/v2/admin/events/views/${id}`, payload, { headers: auth(token) })
 export const deleteWideEventView = (id, token)          => client.delete(`/v2/admin/events/views/${id}`, { headers: auth(token) })
 
-// SSE stream — returns an EventSource (caller manages lifecycle)
-export function openWideEventStream(token, params = {}) {
-  const qs = new URLSearchParams(params).toString()
+/**
+ * Open a wide-event SSE stream using fetch() so the token travels in the
+ * Authorization header — never in the URL (no logs, no history leakage).
+ *
+ * @param {string}   token    - Bearer token
+ * @param {object}   params   - Optional query filters (event, status, tier)
+ * @param {object}   handlers - { onEvent, onReady, onHeartbeat, onError }
+ * @returns {{ close: () => void }}
+ */
+export function openWideEventStream(token, params = {}, handlers = {}) {
+  const qs   = new URLSearchParams(params).toString()
   const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
   const url  = `${base}/api/v2/admin/events/stream${qs ? '?' + qs : ''}`
-  // EventSource doesn't support custom headers; pass token as query param
-  return new EventSource(`${url}${qs ? '&' : '?'}access_token=${token}`)
+
+  const controller = new AbortController()
+
+  ;(async () => {
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+        signal: controller.signal,
+      })
+
+      if (!response.ok || !response.body) {
+        handlers.onError?.(new Error(`HTTP ${response.status}`))
+        return
+      }
+
+      const reader  = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer       = ''
+      let currentEvent = 'message'
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() // retain incomplete trailing line
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            const raw = line.slice(5).trim()
+            try {
+              const data = JSON.parse(raw)
+              if (currentEvent === 'event')      handlers.onEvent?.(data)
+              else if (currentEvent === 'ready') handlers.onReady?.(data)
+              else if (currentEvent === 'heartbeat') handlers.onHeartbeat?.(data)
+            } catch {
+              // non-JSON data line — ignore
+            }
+            currentEvent = 'message'
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') handlers.onError?.(err)
+    }
+  })()
+
+  return { close: () => controller.abort() }
 }
 
 // User Preferences (v2)
