@@ -90,3 +90,18 @@ class AuditEvent(Base):
     detail     = Column(JSON, default=dict)
     ip_address = Column(String)
     created_at = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+class AiModel(Base):
+    __tablename__ = "ai_models"
+    __table_args__ = (Index("idx_ai_models_provider", "provider"),)
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    name        = Column(String(255), nullable=False)
+    provider    = Column(String(50), nullable=False)   # gemini|openai|anthropic|grok|generic
+    model_id    = Column(String(255), nullable=False)  # e.g. gemini-2.0-flash
+    api_key_enc = Column(Text, default="")
+    base_url    = Column(Text, default="")             # for generic/OpenAI-compatible
+    is_default  = Column(Boolean, default=False)
+    is_active   = Column(Boolean, default=True)
+    created_at  = Column(TIMESTAMP(timezone=True), default=_now)
+    updated_at  = Column(TIMESTAMP(timezone=True), default=_now)
