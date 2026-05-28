@@ -4,7 +4,7 @@ import {
   Tabs, Tab, Chip, Alert, Tooltip, IconButton, TextField, InputAdornment,
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel,
-  Divider,
+  Divider, Collapse,
 } from '@mui/material'
 import { DataGrid } from '@mui/x-data-grid'
 import ViewToggle from '../components/ViewToggle'
@@ -41,6 +41,7 @@ import StarOutlineIcon          from '@mui/icons-material/StarOutline'
 import ToggleOnIcon             from '@mui/icons-material/ToggleOn'
 import ToggleOffIcon            from '@mui/icons-material/ToggleOff'
 import LinkIcon                 from '@mui/icons-material/Link'
+import CodeIcon                 from '@mui/icons-material/Code'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as ChartTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
@@ -349,6 +350,8 @@ export default function Admin() {
   })
   const [aiModelLoading, setAiModelLoading] = useState(false)
   const [deleteAiDialog, setDeleteAiDialog] = useState(null) // null | { id, name }
+  const [curlOpen,       setCurlOpen]       = useState(false)
+  const [curlText,       setCurlText]       = useState('')
 
   // per-row role loading
   const [roleLoadingId, setRoleLoadingId] = useState(null)
@@ -466,12 +469,58 @@ export default function Admin() {
 
   const openAddModel = () => {
     setAiModelForm({ name: '', provider: 'gemini', model_id: '', api_key: '', base_url: '', is_default: false, is_active: true })
+    setCurlOpen(false); setCurlText('')
     setAiModelDialog('add')
   }
 
   const openEditModel = (m) => {
     setAiModelForm({ name: m.name, provider: m.provider, model_id: m.model_id, api_key: '', base_url: m.base_url, is_default: m.is_default, is_active: m.is_active })
+    setCurlOpen(false); setCurlText('')
     setAiModelDialog(m)
+  }
+
+  const handleParseCurl = () => {
+    const text = curlText.trim()
+    if (!text) return
+    const parsed = {}
+
+    // API key from Authorization Bearer header
+    const authMatch = text.match(/Authorization[^:]*:\s*(?:"|')?Bearer\s+([A-Za-z0-9_\-.]+)/i)
+    if (authMatch) parsed.api_key = authMatch[1]
+
+    // First https URL — strip to base (origin + version prefix if present)
+    const urlMatch = text.match(/https?:\/\/[^\s'"\\]+/)
+    if (urlMatch) {
+      try {
+        const url = new URL(urlMatch[0])
+        const parts = url.pathname.split('/').filter(Boolean)
+        const vIdx  = parts.findIndex((p) => /^v\d+/i.test(p))
+        parsed.base_url = url.origin + (vIdx >= 0 ? '/' + parts.slice(0, vIdx + 1).join('/') : '')
+      } catch {}
+    }
+
+    // Model ID from JSON body
+    const modelMatch = text.match(/"model"\s*:\s*"([^"]+)"/)
+    if (modelMatch) parsed.model_id = modelMatch[1]
+
+    // Infer provider from URL domain then model prefix
+    const base = (parsed.base_url || '').toLowerCase()
+    const mid  = (parsed.model_id  || '').toLowerCase()
+    if      (base.includes('x.ai')            || mid.startsWith('grok'))                         parsed.provider = 'grok'
+    else if (base.includes('openai.com')      || mid.startsWith('gpt') || mid.startsWith('o1') || mid.startsWith('o3')) parsed.provider = 'openai'
+    else if (base.includes('anthropic.com')   || mid.startsWith('claude'))                       parsed.provider = 'anthropic'
+    else if (base.includes('googleapis.com')  || base.includes('generativelanguage') || mid.startsWith('gemini')) parsed.provider = 'gemini'
+    else                                                                                          parsed.provider = 'generic'
+
+    setAiModelForm((prev) => ({
+      ...prev,
+      ...(parsed.api_key  ? { api_key:  parsed.api_key  } : {}),
+      ...(parsed.model_id ? { model_id: parsed.model_id } : {}),
+      ...(parsed.base_url ? { base_url: parsed.base_url } : {}),
+      ...(parsed.provider ? { provider: parsed.provider } : {}),
+    }))
+    setCurlText('')
+    setCurlOpen(false)
   }
 
   const handleSaveAiModel = async () => {
@@ -1472,6 +1521,52 @@ export default function Admin() {
           {aiModelDialog === 'add' ? 'Add AI Model' : 'Edit AI Model'}
         </DialogTitle>
         <DialogContent>
+          {/* ── cURL import ──────────────────────────────────────────────── */}
+          <Box sx={{ mb: 2 }}>
+            <Button
+              size="small"
+              onClick={() => setCurlOpen((p) => !p)}
+              startIcon={<CodeIcon sx={{ fontSize: 14 }} />}
+              sx={{
+                fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem',
+                color: curlOpen ? 'primary.main' : 'text.secondary',
+                textTransform: 'none', p: 0, minWidth: 0,
+                '&:hover': { color: 'primary.main', bgcolor: 'transparent' },
+              }}
+            >
+              {curlOpen ? 'Hide cURL importer' : 'Paste a cURL command to auto-fill ↓'}
+            </Button>
+            <Collapse in={curlOpen}>
+              <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <TextField
+                  multiline
+                  minRows={4}
+                  maxRows={9}
+                  fullWidth
+                  size="small"
+                  placeholder={'curl https://api.x.ai/v1/responses \\\n    -H "Content-Type: application/json" \\\n    -H "Authorization: Bearer YOUR_KEY" \\\n    -d \'{"model": "grok-4", "input": "..."}\''}
+                  value={curlText}
+                  onChange={(e) => setCurlText(e.target.value)}
+                  sx={{ '& .MuiInputBase-root': { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem' } }}
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleParseCurl}
+                  disabled={!curlText.trim()}
+                  sx={{
+                    alignSelf: 'flex-start',
+                    fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem',
+                    borderColor: `${accent}44`, color: accent,
+                    '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
+                  }}
+                >
+                  Parse &amp; fill fields
+                </Button>
+              </Box>
+            </Collapse>
+          </Box>
+
           <Box sx={{ display: 'grid', gap: 2, mt: 0.5 }}>
             <TextField
               label="Display name *"
