@@ -39,6 +39,14 @@ class UserConfig(Base):
     sftp_password_enc  = Column(Text, default="")
     sftp_remote_path   = Column(Text, default="")
     ps_webserver_path  = Column(Text, default="")
+    # VPN tunnel (optional — connects before Windows server access)
+    vpn_enabled        = Column(Boolean, default=False)
+    vpn_type           = Column(String, default="none")   # none|openconnect|openvpn|wireguard|ssh_tunnel
+    vpn_host           = Column(String, default="")
+    vpn_port           = Column(Integer, default=None)
+    vpn_username       = Column(String, default="")
+    vpn_password_enc   = Column(Text, default="")
+    vpn_extra          = Column(Text, default="")         # group/realm (AnyConnect), OTP, etc.
     # Windows Server (WinRM) access
     win_host           = Column(String, default="")
     win_port           = Column(Integer, default=5985)

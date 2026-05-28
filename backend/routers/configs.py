@@ -30,6 +30,14 @@ class ConfigPayload(BaseModel):
     sftp_password: str = ""      # plain — encrypted before storage
     sftp_remote_path: str = ""
     ps_webserver_path: str = ""
+    # VPN tunnel
+    vpn_enabled: bool = False
+    vpn_type: str = "none"          # none | openconnect | openvpn | wireguard | ssh_tunnel
+    vpn_host: str = ""
+    vpn_port: int | None = None
+    vpn_username: str = ""
+    vpn_password: str = ""          # plain — encrypted before storage
+    vpn_extra: str = ""             # group/realm (AnyConnect), config file content (OpenVPN), etc.
     # Windows Server (WinRM) access
     win_host: str = ""
     win_port: int = 5985
@@ -60,6 +68,13 @@ def _serialize(config: UserConfig) -> dict:
         "sftp_password":      "***" if config.sftp_password_enc else "",
         "sftp_remote_path":   config.sftp_remote_path,
         "ps_webserver_path":  config.ps_webserver_path,
+        "vpn_enabled":        config.vpn_enabled or False,
+        "vpn_type":           config.vpn_type or "none",
+        "vpn_host":           config.vpn_host or "",
+        "vpn_port":           config.vpn_port,
+        "vpn_username":       config.vpn_username or "",
+        "vpn_password":       "***" if config.vpn_password_enc else "",
+        "vpn_extra":          config.vpn_extra or "",
         "win_host":           config.win_host,
         "win_port":           config.win_port,
         "win_username":       config.win_username,
@@ -105,6 +120,13 @@ def create_config(
         sftp_password_enc=encrypt(body.sftp_password) if body.sftp_password else "",
         sftp_remote_path=body.sftp_remote_path,
         ps_webserver_path=body.ps_webserver_path,
+        vpn_enabled=body.vpn_enabled,
+        vpn_type=body.vpn_type,
+        vpn_host=body.vpn_host,
+        vpn_port=body.vpn_port,
+        vpn_username=body.vpn_username,
+        vpn_password_enc=encrypt(body.vpn_password) if body.vpn_password else "",
+        vpn_extra=body.vpn_extra,
         win_host=body.win_host,
         win_port=body.win_port,
         win_username=body.win_username,
@@ -166,6 +188,12 @@ def update_config(
     config.sftp_username      = body.sftp_username
     config.sftp_remote_path   = body.sftp_remote_path
     config.ps_webserver_path  = body.ps_webserver_path
+    config.vpn_enabled        = body.vpn_enabled
+    config.vpn_type           = body.vpn_type
+    config.vpn_host           = body.vpn_host
+    config.vpn_port           = body.vpn_port
+    config.vpn_username       = body.vpn_username
+    config.vpn_extra          = body.vpn_extra
     config.win_host           = body.win_host
     config.win_port           = body.win_port
     config.win_username       = body.win_username
@@ -180,6 +208,8 @@ def update_config(
         config.ps_password_enc = encrypt(body.ps_password)
     if body.sftp_password and body.sftp_password != "***":
         config.sftp_password_enc = encrypt(body.sftp_password)
+    if body.vpn_password and body.vpn_password != "***":
+        config.vpn_password_enc = encrypt(body.vpn_password)
     if body.win_password and body.win_password != "***":
         config.win_password_enc = encrypt(body.win_password)
 

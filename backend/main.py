@@ -83,6 +83,14 @@ try:
             sftp_username=config.sftp_username or "",
             sftp_password=decrypt(config.sftp_password_enc),
             sftp_remote_path=config.sftp_remote_path or "",
+            # VPN tunnel
+            vpn_enabled=config.vpn_enabled or False,
+            vpn_type=config.vpn_type or "none",
+            vpn_host=config.vpn_host or "",
+            vpn_port=config.vpn_port,
+            vpn_username=config.vpn_username or "",
+            vpn_password=decrypt(config.vpn_password_enc) if config.vpn_password_enc else "",
+            vpn_extra=config.vpn_extra or "",
             # Windows Server (WinRM) retrieval
             win_host=config.win_host or "",
             win_port=config.win_port or 5985,
@@ -232,7 +240,19 @@ try:
                 remote_path = remote_path.replace("{instance_id}", instance_id)
 
             t3 = _time.time()
+            _vpn_ctx = None
+            _is_windows_method = s.retrieval_method in ("winrm", "smb", "win_ssh")
             try:
+                # Establish VPN tunnel before Windows connections if configured
+                if _is_windows_method and getattr(s, "vpn_enabled", False):
+                    try:
+                        import vpn_client as _vpn
+                        _vpn_ctx = _vpn.vpn_connect(s)
+                        log.info("Run %d  VPN connected  type=%s", run_log.id, s.vpn_type)
+                    except Exception as vpn_exc:
+                        run_log.failed_step = "vpn"
+                        raise HTTPException(503, f"VPN connection failed: {vpn_exc}")
+
                 if s.retrieval_method == "scp":
                     csv_bytes = scp_client.download_csv(remote_path=remote_path, _settings=s)
                 elif s.retrieval_method == "winrm":
@@ -250,8 +270,17 @@ try:
                 label = {"scp": "SSH/SCP", "winrm": "WinRM", "smb": "SMB", "win_ssh": "SSH"}.get(
                     s.retrieval_method, "SFTP"
                 )
-                run_log.failed_step = "download"
-                raise HTTPException(503, f"{label} download error: {exc}")
+                if not isinstance(exc, HTTPException):
+                    run_log.failed_step = "download"
+                raise exc if isinstance(exc, HTTPException) else HTTPException(503, f"{label} download error: {exc}")
+            finally:
+                if _vpn_ctx is not None:
+                    try:
+                        import vpn_client as _vpn
+                        _vpn.vpn_disconnect(_vpn_ctx)
+                        log.info("Run %d  VPN disconnected", run_log.id)
+                    except Exception as vpn_disc_exc:
+                        log.warning("Run %d  VPN disconnect error: %s", run_log.id, vpn_disc_exc)
             log.info("Run %d  step=download  size=%d bytes  %d ms",
                      run_log.id, len(csv_bytes), round((_time.time() - t3) * 1000))
 
@@ -652,6 +681,41 @@ def test_retrieval(body: RetrievalTestPayload):
 
 
 # ── Windows Server (WinRM) endpoints ──────────────────────────────────────────
+
+class VpnTestPayload(BaseModel):
+    vpn_type: str = "none"
+    vpn_host: str = ""
+    vpn_port: int | None = None
+    vpn_username: str = ""
+    vpn_password: str = ""
+    vpn_extra: str = ""
+
+
+@app.post("/api/test-vpn")
+def test_vpn(body: VpnTestPayload):
+    from types import SimpleNamespace
+    s = SimpleNamespace(
+        vpn_enabled=True,
+        vpn_type=body.vpn_type,
+        vpn_host=body.vpn_host,
+        vpn_port=body.vpn_port,
+        vpn_username=body.vpn_username,
+        vpn_password=body.vpn_password,
+        vpn_extra=body.vpn_extra,
+    )
+    log.info("test_vpn  type=%s  host=%s", body.vpn_type, body.vpn_host)
+    try:
+        import vpn_client as _vpn
+        result = _vpn.vpn_test(s)
+        if result["ok"]:
+            return {"status": "ok", "vpn_type": body.vpn_type}
+        raise HTTPException(400, result.get("error", "VPN test failed"))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.warning("test_vpn error: %s", exc)
+        raise HTTPException(400, str(exc))
+
 
 class WinPayload(BaseModel):
     win_host: str

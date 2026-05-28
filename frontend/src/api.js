@@ -69,6 +69,9 @@ export const saveSettings   = (data) => client.post('/settings', data)
 export const testRetrieval  = (data) => client.post('/test-retrieval', data)
 export const testPeoplesoft = (data) => client.post('/test-peoplesoft', data)
 
+// VPN tunnel
+export const testVpn       = (data) => client.post('/test-vpn', data)
+
 // Windows Server (WinRM)
 export const testWindows   = (data) => client.post('/test-windows', data)
 export const winBrowse     = (data) => client.post('/win-browse', data)

@@ -52,6 +52,13 @@ def _migrate_columns(engine) -> None:
         "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_connection_type VARCHAR DEFAULT 'winrm'",
         "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_share VARCHAR DEFAULT 'C$'",
         "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS win_domain VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_enabled BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_type VARCHAR DEFAULT 'none'",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_host VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_port INTEGER",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_username VARCHAR DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_password_enc TEXT DEFAULT ''",
+        "ALTER TABLE user_configs ADD COLUMN IF NOT EXISTS vpn_extra TEXT DEFAULT ''",
     ]
     try:
         with engine.connect() as conn:

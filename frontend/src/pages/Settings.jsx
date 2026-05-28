@@ -12,9 +12,10 @@ import CloseIcon       from '@mui/icons-material/Close'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DnsIcon        from '@mui/icons-material/Dns'
+import VpnLockIcon    from '@mui/icons-material/VpnLock'
 import { useAuth } from '../AuthContext'
 import { useThemeContext } from '../ThemeContext'
-import { listConfigs, createConfig, updateConfig, deleteConfig, testRetrieval, testPeoplesoft, testWindows } from '../api'
+import { listConfigs, createConfig, updateConfig, deleteConfig, testRetrieval, testPeoplesoft, testWindows, testVpn } from '../api'
 import WinServerBrowser from '../components/WinServerBrowser'
 
 const WIN_DEFAULT_PORTS = { winrm: '5985', smb: '445', ssh: '22' }
@@ -27,12 +28,22 @@ const EMPTY = {
   sftp_host: '', sftp_port: '22', sftp_username: '',
   sftp_password: '', sftp_remote_path: '',
   ps_webserver_path: '',
+  vpn_enabled: false, vpn_type: 'none', vpn_host: '', vpn_port: '',
+  vpn_username: '', vpn_password: '', vpn_extra: '',
   win_host: '', win_port: '5985', win_username: '', win_password: '', win_use_ssl: false,
   win_auth_type: 'ntlm',
   win_connection_type: 'winrm',
   win_share: 'C$',
   win_domain: '',
 }
+
+const VPN_TYPES = [
+  { value: 'none',        label: 'None — no VPN required' },
+  { value: 'openconnect', label: 'Cisco AnyConnect / GlobalProtect / Pulse Secure' },
+  { value: 'openvpn',     label: 'OpenVPN (.ovpn config)' },
+  { value: 'wireguard',   label: 'WireGuard (wg-quick config)' },
+  { value: 'ssh_tunnel',  label: 'SSH Tunnel — SOCKS5 proxy via jump host' },
+]
 
 // ── Module-level components (hooks allowed) ──────────────────────────────────
 
@@ -120,6 +131,8 @@ export default function Settings() {
   const [showWinPass, setShowWinPass]       = useState(false)
   const [winTestStatus, setWinTestStatus]   = useState(null)
   const [winBrowserOpen, setWinBrowserOpen] = useState(false)
+  const [showVpnPass, setShowVpnPass]       = useState(false)
+  const [vpnTestStatus, setVpnTestStatus]   = useState(null)
 
   const inputSx = {
     '& .MuiOutlinedInput-root': {
@@ -167,6 +180,13 @@ export default function Settings() {
       sftp_password:      config.sftp_password || '',    // "***" sentinel if a password is saved
       sftp_remote_path:   config.sftp_remote_path || '',
       ps_webserver_path:  config.ps_webserver_path || '',
+      vpn_enabled:        config.vpn_enabled || false,
+      vpn_type:           config.vpn_type || 'none',
+      vpn_host:           config.vpn_host || '',
+      vpn_port:           config.vpn_port ? String(config.vpn_port) : '',
+      vpn_username:       config.vpn_username || '',
+      vpn_password:       config.vpn_password || '',
+      vpn_extra:          config.vpn_extra || '',
       win_host:           config.win_host || '',
       win_port:           config.win_port ? String(config.win_port) : '5985',
       win_username:       config.win_username || '',
@@ -181,6 +201,7 @@ export default function Settings() {
 
   const RETRIEVAL_KEYS = ['retrieval_method', 'sftp_host', 'sftp_port', 'sftp_username', 'sftp_password', 'sftp_remote_path']
   const PS_KEYS  = ['ps_base_url', 'ps_auth_type', 'ps_username', 'ps_password', 'ps_endpoint', 'ps_status_endpoint', 'ps_process_name']
+  const VPN_KEYS = ['vpn_enabled', 'vpn_type', 'vpn_host', 'vpn_port', 'vpn_username', 'vpn_password', 'vpn_extra']
   const WIN_KEYS = ['win_host', 'win_port', 'win_username', 'win_password', 'win_use_ssl', 'win_auth_type', 'win_connection_type', 'win_share', 'win_domain']
 
   const set = (k) => (e) => {
@@ -188,6 +209,7 @@ export default function Settings() {
     setForm((prev) => ({ ...prev, [k]: value }))
     if (RETRIEVAL_KEYS.includes(k)) setTestStatus(null)
     if (PS_KEYS.includes(k))  setPsTestStatus(null)
+    if (VPN_KEYS.includes(k)) setVpnTestStatus(null)
     if (WIN_KEYS.includes(k)) setWinTestStatus(null)
   }
 
@@ -244,6 +266,23 @@ export default function Settings() {
     }
   }
 
+  const handleVpnTest = async () => {
+    setVpnTestStatus('testing')
+    try {
+      await testVpn({
+        vpn_type: form.vpn_type,
+        vpn_host: form.vpn_host,
+        vpn_port: form.vpn_port ? parseInt(form.vpn_port, 10) : null,
+        vpn_username: form.vpn_username,
+        vpn_password: livePass(form.vpn_password),
+        vpn_extra: form.vpn_extra,
+      })
+      setVpnTestStatus({ ok: true })
+    } catch (err) {
+      setVpnTestStatus({ ok: false, message: err.response?.data?.detail ?? 'VPN connection failed' })
+    }
+  }
+
   const handleWinTest = async () => {
     setWinTestStatus('testing')
     try {
@@ -296,7 +335,8 @@ export default function Settings() {
   const sec02Complete = !!(form.sftp_remote_path && (
     ['sftp', 'scp'].includes(form.retrieval_method) ? form.sftp_host : true
   ))
-  const sec03Complete = !!(form.win_host && form.win_username)
+  const sec03Complete = !!(form.vpn_enabled ? form.vpn_host && form.vpn_type !== 'none' : true)
+  const sec04Complete = !!(form.win_host && form.win_username)
 
   // Shared result box
   const ResultBox = ({ status }) => status && status !== 'testing' && (
@@ -561,15 +601,149 @@ export default function Settings() {
           ) : (
             <Box sx={{ gridColumn: '1 / -1' }}>
               <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: 'text.disabled', letterSpacing: '0.06em' }}>
-                Use <strong style={{ fontWeight: 700 }}>Test {{ winrm: 'WinRM', smb: 'SMB', win_ssh: 'SSH' }[form.retrieval_method] || 'connection'}</strong> in Section 03 below.
+                Use <strong style={{ fontWeight: 700 }}>Test {{ winrm: 'WinRM', smb: 'SMB', win_ssh: 'SSH' }[form.retrieval_method] || 'connection'}</strong> in Section 04 below.
               </Typography>
             </Box>
           )}
         </Box>
       </SectionCard>
 
-      {/* ── Section 03: Windows server access ────────────────────────────────── */}
-      <SectionCard number="03" title="Windows server access" subtitle="Browse and retrieve files from a Windows host — WinRM, SMB, or SSH" complete={sec03Complete}>
+      {/* ── Section 03: VPN Tunnel ───────────────────────────────────────────── */}
+      <SectionCard number="03" title="VPN Tunnel" subtitle="Optional — establish a VPN connection before reaching the Windows server" complete={sec03Complete}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+
+          {/* Enable toggle + type selector in one row */}
+          <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={form.vpn_enabled}
+                  onChange={set('vpn_enabled')}
+                  size="small"
+                />
+              }
+              label={
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', color: 'text.secondary' }}>
+                  Enable VPN before Windows connection
+                </Typography>
+              }
+            />
+          </Box>
+
+          {form.vpn_enabled && (<>
+            <Box sx={{ gridColumn: '1 / -1' }}>
+              <Field label="VPN type">
+                <FormControl fullWidth size="small">
+                  <Select value={form.vpn_type} onChange={set('vpn_type')} sx={selectSx}>
+                    {VPN_TYPES.map((t) => <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Field>
+            </Box>
+
+            {form.vpn_type !== 'none' && (<>
+              <Field label="VPN gateway / host">
+                <TextField fullWidth size="small" value={form.vpn_host} onChange={set('vpn_host')}
+                  placeholder={form.vpn_type === 'ssh_tunnel' ? 'jump.example.com' : 'vpn.example.com'}
+                  sx={inputSx} />
+              </Field>
+
+              <Field label="Port (optional)">
+                <TextField fullWidth size="small" type="number" value={form.vpn_port} onChange={set('vpn_port')}
+                  placeholder={form.vpn_type === 'ssh_tunnel' ? '22' : form.vpn_type === 'openvpn' ? '1194' : '443'}
+                  inputProps={{ min: 1, max: 65535 }} sx={inputSx} />
+              </Field>
+
+              {form.vpn_type !== 'wireguard' && (<>
+                <Field label="Username">
+                  <TextField fullWidth size="small" value={form.vpn_username} onChange={set('vpn_username')}
+                    placeholder={form.vpn_type === 'ssh_tunnel' ? 'jumpuser' : 'vpnuser'} autoComplete="off" sx={inputSx} />
+                </Field>
+                <Field label="Password">
+                  <TextField fullWidth size="small" type={showVpnPass ? 'text' : 'password'}
+                    value={form.vpn_password} onChange={set('vpn_password')} autoComplete="new-password"
+                    InputProps={passAdornment(showVpnPass, () => setShowVpnPass((p) => !p))} sx={inputSx} />
+                </Field>
+              </>)}
+
+              {/* Extra / config field — label changes per VPN type */}
+              <Box sx={{ gridColumn: '1 / -1' }}>
+                {form.vpn_type === 'openconnect' && (
+                  <Field label="Group / realm (optional)">
+                    <TextField fullWidth size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
+                      placeholder="e.g. Employees"
+                      helperText="AnyConnect group/realm (--authgroup). Leave blank if not required."
+                      FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
+                      sx={inputSx} />
+                  </Field>
+                )}
+                {form.vpn_type === 'openvpn' && (
+                  <Field label=".ovpn config file content">
+                    <TextField fullWidth multiline rows={6} size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
+                      placeholder="Paste your .ovpn file content here. Username/password above are injected automatically."
+                      sx={{ ...inputSx, '& .MuiOutlinedInput-root': { ...inputSx['& .MuiOutlinedInput-root'], fontFamily: '"JetBrains Mono", monospace', fontSize: '0.72rem' } }} />
+                  </Field>
+                )}
+                {form.vpn_type === 'wireguard' && (
+                  <Field label="WireGuard config (wg0.conf)">
+                    <TextField fullWidth multiline rows={8} size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
+                      placeholder={'[Interface]\nPrivateKey = ...\nAddress = ...\n\n[Peer]\nPublicKey = ...\nEndpoint = ...\nAllowedIPs = ...'}
+                      sx={{ ...inputSx, '& .MuiOutlinedInput-root': { ...inputSx['& .MuiOutlinedInput-root'], fontFamily: '"JetBrains Mono", monospace', fontSize: '0.72rem' } }} />
+                  </Field>
+                )}
+                {form.vpn_type === 'ssh_tunnel' && (
+                  <Field label="Extra SSH flags (optional)">
+                    <TextField fullWidth size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
+                      placeholder="-L 5985:192.168.1.100:5985"
+                      helperText="Additional port-forward args. A SOCKS5 proxy on localhost:1080 is always created."
+                      FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
+                      sx={inputSx} />
+                  </Field>
+                )}
+              </Box>
+
+              {/* Hint box */}
+              <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2, py: 1.5, border: `1px solid ${accent}26`, bgcolor: `${accent}06`, borderRadius: '3px' }}>
+                <VpnLockIcon sx={{ fontSize: 15, color: accent, mt: 0.15, flexShrink: 0 }} />
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.65 }}>
+                  {form.vpn_type === 'openconnect' && <><strong style={{ fontWeight: 700 }}>openconnect</strong> must be installed on the server (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>apt-get install openconnect</Box>). It supports Cisco AnyConnect, GlobalProtect, Pulse Secure and F5 BIG-IP endpoints.</>}
+                  {form.vpn_type === 'openvpn' && <><strong style={{ fontWeight: 700 }}>openvpn</strong> must be installed on the server. Paste your full <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>.ovpn</Box> config above — credentials are injected from the fields above automatically.</>}
+                  {form.vpn_type === 'wireguard' && <><strong style={{ fontWeight: 700 }}>wg-quick</strong> must be installed on the server (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>apt-get install wireguard-tools</Box>). Paste your complete <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>wg0.conf</Box> above.</>}
+                  {form.vpn_type === 'ssh_tunnel' && <>An SSH SOCKS5 proxy is opened on <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>localhost:1080</Box> via the jump host. No OS-level VPN driver is needed — ideal when the Windows host is reachable through a bastion/jump server.</>}
+                </Typography>
+              </Box>
+
+              {/* VPN test button */}
+              <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <Button onClick={handleVpnTest} variant="outlined"
+                  disabled={vpnTestStatus === 'testing' || !form.vpn_host || form.vpn_type === 'none'}
+                  startIcon={vpnTestStatus === 'testing' ? <CircularProgress size={13} sx={{ color: accent }} /> : <VpnLockIcon sx={{ fontSize: 14 }} />}
+                  sx={btnSx}>
+                  {vpnTestStatus === 'testing' ? 'Connecting…' : 'Test VPN connection'}
+                </Button>
+
+                {vpnTestStatus && vpnTestStatus !== 'testing' && (
+                  <Box sx={{
+                    display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2, py: 1.2, borderRadius: '3px', flex: 1, minWidth: 0,
+                    border: vpnTestStatus.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
+                    bgcolor: vpnTestStatus.ok ? 'rgba(107,143,113,0.06)' : 'rgba(143,74,74,0.06)',
+                    '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
+                    animation: 'resultIn 0.25s ease both',
+                  }}>
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', mt: 0.35, flexShrink: 0, bgcolor: vpnTestStatus.ok ? '#6b8f71' : '#8f4a4a', boxShadow: vpnTestStatus.ok ? '0 0 6px rgba(107,143,113,0.6)' : '0 0 6px rgba(143,74,74,0.6)' }} />
+                    <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: vpnTestStatus.ok ? '#8fc99a' : '#c98f8f', letterSpacing: '0.04em', lineHeight: 1.5 }}>
+                      {vpnTestStatus.ok ? 'VPN connected successfully' : vpnTestStatus.message}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </>)}
+          </>)}
+        </Box>
+      </SectionCard>
+
+      {/* ── Section 04: Windows server access ────────────────────────────────── */}
+      <SectionCard number="04" title="Windows server access" subtitle="Browse and retrieve files from a Windows host — WinRM, SMB, or SSH" complete={sec04Complete}>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
 
           <Box sx={{ gridColumn: '1 / -1' }}>
