@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from database import get_db
 from encrypt import decrypt
-from models import User, UserConfig
+from openai import OpenAI
+import anthropic as _anthropic_sdk
+from models import User, UserConfig, AiModel
 from logger import get_logger
 
 log = get_logger("insights")
@@ -372,15 +374,12 @@ def _extract_json(text: str) -> dict:
 async def analyze_file(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
+    db:   Session = Depends(get_db),
 ):
     """
     Accept a CSV or Excel upload, build a dataset profile, ask Gemini to
     recommend charts, and return a chart-spec JSON ready for the frontend.
     """
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(503, "GEMINI_API_KEY is not configured on this server")
-
     # ── read file ────────────────────────────────────────────────────────────
     raw = await file.read()
     fname = file.filename or "upload"
@@ -410,30 +409,81 @@ async def analyze_file(
         user.id[:8], fname, profile["total_rows"], profile["total_columns"],
     )
 
-    # ── call Gemini ──────────────────────────────────────────────────────────
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        generation_config=genai.GenerationConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-        ),
-    )
+    # ── resolve the active AI model ──────────────────────────────────────────
+    db_model = db.query(AiModel).filter(
+        AiModel.is_default == True, AiModel.is_active == True  # noqa: E712
+    ).first()
 
+    if db_model:
+        provider  = db_model.provider
+        model_id  = db_model.model_id
+        api_key   = decrypt(db_model.api_key_enc) if db_model.api_key_enc else ""
+        base_url  = db_model.base_url or ""
+    else:
+        # fall back to environment variable (backwards-compat)
+        provider  = "gemini"
+        model_id  = "gemini-1.5-flash"
+        api_key   = os.environ.get("GEMINI_API_KEY", "").strip()
+        base_url  = ""
+
+    if not api_key:
+        raise HTTPException(503, "No AI model API key configured. Add one in Admin → AI Models.")
+
+    # ── call the provider ────────────────────────────────────────────────────
     prompt = _CHART_PROMPT.format(
         profile=json.dumps(profile, indent=2, default=str),
         colors=", ".join(_GEMINI_COLORS),
     )
 
     try:
-        response = model.generate_content(prompt)
-        chart_spec = _extract_json(response.text)
+        if provider == "gemini":
+            genai.configure(api_key=api_key)
+            gm = genai.GenerativeModel(
+                model_name=model_id,
+                generation_config=genai.GenerationConfig(
+                    temperature=0.2,
+                    response_mime_type="application/json",
+                ),
+            )
+            response = gm.generate_content(prompt)
+            chart_spec = _extract_json(response.text)
+
+        elif provider in ("openai", "grok", "generic"):
+            client_kwargs = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            elif provider == "grok":
+                client_kwargs["base_url"] = "https://api.x.ai/v1"
+            oai = OpenAI(**client_kwargs)
+            resp = oai.chat.completions.create(
+                model=model_id,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            chart_spec = json.loads(resp.choices[0].message.content)
+
+        elif provider == "anthropic":
+            ant = _anthropic_sdk.Anthropic(api_key=api_key)
+            msg = ant.messages.create(
+                model=model_id,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = msg.content[0].text
+            chart_spec = _extract_json(raw)
+
+        else:
+            raise HTTPException(400, f"Unknown provider: {provider}")
+
+    except HTTPException:
+        raise
     except json.JSONDecodeError as exc:
-        log.error("Gemini returned non-JSON: %s", response.text[:400])
-        raise HTTPException(502, f"Gemini returned unparseable JSON: {exc}") from exc
+        log.error("AI provider returned non-JSON for provider=%s", provider)
+        raise HTTPException(502, f"AI provider returned invalid JSON: {exc}") from exc
     except Exception as exc:
-        log.error("Gemini call failed: %s", exc)
-        raise HTTPException(502, f"Gemini error: {exc}") from exc
+        log.error("AI provider call failed provider=%s: %s", provider, exc)
+        raise HTTPException(502, f"AI provider error: {exc}") from exc
 
     # Attach metadata so the frontend can display it
     chart_spec["meta"] = {
