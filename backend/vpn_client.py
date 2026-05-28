@@ -5,6 +5,7 @@ Establishes a VPN connection before Windows server access (WinRM/SMB/SSH)
 and tears it down afterwards.
 
 Supported types:
+  fortinet     — Fortinet FortiGate SSL VPN (openfortivpn)
   openconnect  — Cisco AnyConnect, GlobalProtect, Pulse Secure, F5 BIG-IP
   openvpn      — OpenVPN (config file content stored in vpn_extra)
   wireguard    — WireGuard (wg-quick, config in vpn_extra)
@@ -141,6 +142,8 @@ def vpn_connect(settings: SimpleNamespace):
 
     log.info("VPN connect  type=%s  host=%s", vpn_type, getattr(settings, "vpn_host", ""))
 
+    if vpn_type == "fortinet":
+        return _connect_fortinet(settings)
     if vpn_type == "openconnect":
         return _connect_openconnect(settings)
     if vpn_type == "openvpn":
@@ -201,6 +204,68 @@ def vpn_test(settings: SimpleNamespace) -> dict:
             vpn_disconnect(ctx)
         except Exception:
             pass
+
+
+# ── fortinet (openfortivpn) ───────────────────────────────────────────────────
+
+# Trusted-cert fingerprint: 64 hex chars (SHA-256), optionally colon-separated
+_CERT_FP_RE = re.compile(r'^[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31}$|^[0-9a-fA-F]{64}$')
+
+
+def _connect_fortinet(s: SimpleNamespace):
+    if not shutil.which("openfortivpn"):
+        raise RuntimeError(
+            "openfortivpn is not installed. Install with: apt-get install -y openfortivpn"
+        )
+
+    host     = s.vpn_host.strip()
+    port     = getattr(s, "vpn_port", None) or 443
+    username = getattr(s, "vpn_username", "").strip()
+    password = getattr(s, "vpn_password", "").strip()
+    # vpn_extra holds the trusted certificate fingerprint (SHA-256).
+    # Enterprise FortiGate gateways almost always require this.
+    trusted_cert = getattr(s, "vpn_extra", "").strip()
+
+    _validate_host(host, "FortiGate gateway")
+    _validate_user(username, "VPN username")
+
+    if trusted_cert and not _CERT_FP_RE.match(trusted_cert):
+        raise RuntimeError(
+            "Trusted certificate fingerprint must be a 64-char hex string "
+            "(SHA-256), e.g. ab12cd34… or ab:12:cd:34:…"
+        )
+
+    # openfortivpn gateway:port -u user --password=pass [--trusted-cert=fp]
+    cmd = [
+        "openfortivpn",
+        f"{host}:{port}",
+        f"--username={username}",
+        "--password-from-stdin",
+    ]
+    if trusted_cert:
+        # Normalise to colon-separated form that openfortivpn expects
+        fp = trusted_cert.replace(":", "")
+        fp_colon = ":".join(fp[i:i+2] for i in range(0, len(fp), 2))
+        cmd.append(f"--trusted-cert={fp_colon}")
+
+    log.debug("openfortivpn  host=%s:%s  user=%s  cert=%s",
+              host, port, username, "yes" if trusted_cert else "no")
+
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if password:
+        try:
+            proc.stdin.write((password + "\n").encode())
+            proc.stdin.flush()
+        except Exception:
+            pass
+
+    _wait_for_vpn_output(proc, timeout=CONNECT_TIMEOUT, keyword="Tunnel is up and running")
+    return {"type": "fortinet", "proc": proc, "temp_files": []}
 
 
 # ── openconnect ───────────────────────────────────────────────────────────────

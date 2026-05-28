@@ -1,9 +1,11 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# VPN clients: openconnect (Cisco AnyConnect / GlobalProtect / Pulse),
+# VPN clients: openfortivpn (Fortinet FortiGate SSL VPN),
+# openconnect (Cisco AnyConnect / GlobalProtect / Pulse),
 # openvpn, wireguard-tools (wg-quick), openssh-client (SSH tunnel)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    openfortivpn \
     openconnect \
     openvpn \
     wireguard-tools \

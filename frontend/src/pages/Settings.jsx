@@ -39,6 +39,7 @@ const EMPTY = {
 
 const VPN_TYPES = [
   { value: 'none',        label: 'None — no VPN required' },
+  { value: 'fortinet',    label: 'Fortinet FortiGate SSL VPN (most common)' },
   { value: 'openconnect', label: 'Cisco AnyConnect / GlobalProtect / Pulse Secure' },
   { value: 'openvpn',     label: 'OpenVPN (.ovpn config)' },
   { value: 'wireguard',   label: 'WireGuard (wg-quick config)' },
@@ -668,6 +669,15 @@ export default function Settings() {
 
               {/* Extra / config field — label changes per VPN type */}
               <Box sx={{ gridColumn: '1 / -1' }}>
+                {form.vpn_type === 'fortinet' && (
+                  <Field label="Trusted certificate fingerprint (optional)">
+                    <TextField fullWidth size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
+                      placeholder="ab:12:cd:34:ef:56:… (64-char SHA-256 hex, colon-separated or plain)"
+                      helperText="Required when the FortiGate gateway uses a self-signed certificate. Get it from your IT team or FortiClient logs."
+                      FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
+                      sx={{ ...inputSx, '& .MuiOutlinedInput-root': { ...inputSx['& .MuiOutlinedInput-root'], fontFamily: '"JetBrains Mono", monospace', fontSize: '0.75rem' } }} />
+                  </Field>
+                )}
                 {form.vpn_type === 'openconnect' && (
                   <Field label="Group / realm (optional)">
                     <TextField fullWidth size="small" value={form.vpn_extra} onChange={set('vpn_extra')}
@@ -706,6 +716,7 @@ export default function Settings() {
               <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2, py: 1.5, border: `1px solid ${accent}26`, bgcolor: `${accent}06`, borderRadius: '3px' }}>
                 <VpnLockIcon sx={{ fontSize: 15, color: accent, mt: 0.15, flexShrink: 0 }} />
                 <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.65 }}>
+                  {form.vpn_type === 'fortinet' && <><strong style={{ fontWeight: 700 }}>openfortivpn</strong> must be installed on the server (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>apt-get install openfortivpn</Box>). It connects to Fortinet FortiGate SSL VPN gateways (the same protocol as FortiClient). Default port is 443. If your gateway uses a self-signed certificate, paste the SHA-256 fingerprint above.</>}
                   {form.vpn_type === 'openconnect' && <><strong style={{ fontWeight: 700 }}>openconnect</strong> must be installed on the server (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>apt-get install openconnect</Box>). It supports Cisco AnyConnect, GlobalProtect, Pulse Secure and F5 BIG-IP endpoints.</>}
                   {form.vpn_type === 'openvpn' && <><strong style={{ fontWeight: 700 }}>openvpn</strong> must be installed on the server. Paste your full <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>.ovpn</Box> config above — credentials are injected from the fields above automatically.</>}
                   {form.vpn_type === 'wireguard' && <><strong style={{ fontWeight: 700 }}>wg-quick</strong> must be installed on the server (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>apt-get install wireguard-tools</Box>). Paste your complete <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: accent }}>wg0.conf</Box> above.</>}
