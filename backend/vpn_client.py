@@ -215,7 +215,7 @@ _CERT_FP_RE = re.compile(r'^[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31}$|^[0-9a-fA-F]{
 def _connect_fortinet(s: SimpleNamespace):
     if not shutil.which("openfortivpn"):
         raise RuntimeError(
-            "openfortivpn is not installed. Install with: apt-get install -y openfortivpn"
+            "This Feature is an upcoming feature from Sparky Tool. We will be back with it soon. Stay tuned!"
         )
 
     host     = s.vpn_host.strip()
