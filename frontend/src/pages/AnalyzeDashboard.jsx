@@ -15,10 +15,11 @@ import {
   Tooltip as ChartTooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
-import UploadFileIcon  from '@mui/icons-material/UploadFile'
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
-import TableChartIcon  from '@mui/icons-material/TableChart'
-import { analyzeFile } from '../api'
+import UploadFileIcon    from '@mui/icons-material/UploadFile'
+import AutoAwesomeIcon   from '@mui/icons-material/AutoAwesome'
+import TableChartIcon    from '@mui/icons-material/TableChart'
+import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
+import { analyzeFile }   from '../api'
 
 // ── colour palette (matches backend prompt) ────────────────────────────────────
 const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
@@ -319,10 +320,12 @@ function SummaryBar({ result, filename }) {
 export default function AnalyzeDashboard() {
   const theme   = useTheme()
   const accent  = theme.palette.primary.main
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState(null)
-  const [result,   setResult]   = useState(null)
-  const [filename, setFilename] = useState('')
+  const chartsRef = useRef(null)
+  const [loading,     setLoading]     = useState(false)
+  const [pdfLoading,  setPdfLoading]  = useState(false)
+  const [error,       setError]       = useState(null)
+  const [result,      setResult]      = useState(null)
+  const [filename,    setFilename]    = useState('')
 
   const handleFile = useCallback(async (file) => {
     setError(null)
@@ -338,6 +341,53 @@ export default function AnalyzeDashboard() {
       setLoading(false)
     }
   }, [])
+
+  const downloadPdf = useCallback(async () => {
+    if (!chartsRef.current || !result) return
+    setPdfLoading(true)
+    try {
+      const { default: html2canvas } = await import('html2canvas')
+      const { jsPDF }                = await import('jspdf')
+
+      const el      = chartsRef.current
+      const canvas  = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#121212',
+        logging: false,
+      })
+
+      const imgData   = canvas.toDataURL('image/png')
+      const pdf       = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageW     = pdf.internal.pageSize.getWidth()
+      const pageH     = pdf.internal.pageSize.getHeight()
+      const margin    = 32
+      const printW    = pageW - margin * 2
+      const imgH      = (canvas.height / canvas.width) * printW
+      const totalPages = Math.ceil(imgH / pageH)
+
+      let yOffset = 0
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage()
+        pdf.addImage(
+          imgData, 'PNG',
+          margin,
+          margin - yOffset,
+          printW,
+          imgH,
+        )
+        yOffset += pageH - margin
+      }
+
+      const safeName = (filename || 'report').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '_')
+      pdf.save(`${safeName}_charts.pdf`)
+    } catch (err) {
+      console.error('PDF generation failed', err)
+    } finally {
+      setPdfLoading(false)
+    }
+  }, [result, filename])
 
   return (
     <Box>
@@ -369,7 +419,28 @@ export default function AnalyzeDashboard() {
       {/* ── results ───────────────────────────────────────────────────────── */}
       {result && (
         <Box>
-          <SummaryBar result={result} filename={filename} />
+          {/* PDF download toolbar */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={downloadPdf}
+              disabled={pdfLoading}
+              startIcon={pdfLoading ? <CircularProgress size={14} /> : <PictureAsPdfIcon sx={{ fontSize: 16 }} />}
+              sx={{
+                borderColor: `${accent}44`, color: accent,
+                fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
+              }}
+            >
+              {pdfLoading ? 'Generating…' : 'Download PDF'}
+            </Button>
+          </Box>
+
+          {/* Captured area */}
+          <Box ref={chartsRef}>
+            <SummaryBar result={result} filename={filename} />
 
           <Grid container spacing={2.5}>
             {(result.charts || []).map((spec) => (
@@ -378,6 +449,8 @@ export default function AnalyzeDashboard() {
               </Grid>
             ))}
           </Grid>
+
+          </Box>{/* end chartsRef */}
 
           {/* upload another */}
           <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
