@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Box, Typography, Button, Alert, CircularProgress,
   Select, MenuItem, Chip, Grid, Card, CardContent,
@@ -8,6 +8,7 @@ import { useTheme } from '@mui/material/styles'
 import { DataGrid } from '@mui/x-data-grid'
 import MythicsLogo from '../assets/MythicsLogo'
 import MythicsLoader from '../components/MythicsLoader'
+import mythicsLogoPng from '../assets/mythics-logo-color.png'
 import ViewToggle from '../components/ViewToggle'
 import { getDataGridSx } from '../utils/dataGridSx'
 import ContentCopyIcon        from '@mui/icons-material/ContentCopy'
@@ -21,6 +22,7 @@ import SpeedIcon              from '@mui/icons-material/Speed'
 import BarChartIcon           from '@mui/icons-material/BarChart'
 import AccessTimeIcon         from '@mui/icons-material/AccessTime'
 import SettingsIcon           from '@mui/icons-material/Settings'
+import PictureAsPdfIcon      from '@mui/icons-material/PictureAsPdf'
 import KPICards    from '../components/KPICards'
 import Charts      from '../components/Charts'
 import DataTable   from '../components/DataTable'
@@ -157,6 +159,10 @@ export default function Dashboard() {
   const [dashTab,        setDashTab]        = useState(
     () => parseInt(localStorage.getItem('dashboard_tab') || '0', 10)
   )
+  const [pdfTabLoading,  setPdfTabLoading]  = useState(false)
+  const tabRef = useRef(null)
+
+  const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis']
 
   const handleRunsViewChange = (v) => {
     setRunsView(v)
@@ -167,6 +173,87 @@ export default function Dashboard() {
     setDashTab(v)
     localStorage.setItem('dashboard_tab', String(v))
   }
+
+  const downloadTabPdf = useCallback(async () => {
+    if (!tabRef.current) return
+    setPdfTabLoading(true)
+    try {
+      const { default: html2canvas } = await import('html2canvas')
+      const { jsPDF }                = await import('jspdf')
+
+      // Load Mythics logo at natural aspect ratio
+      const logo = await new Promise((resolve) => {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => {
+          const c = document.createElement('canvas')
+          c.width = img.naturalWidth; c.height = img.naturalHeight
+          c.getContext('2d').drawImage(img, 0, 0)
+          resolve({ data: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+        }
+        img.src = mythicsLogoPng
+      })
+
+      const canvas = await html2canvas(tabRef.current, {
+        scale: 2, useCORS: true, allowTaint: true,
+        backgroundColor: theme.palette.background.default,
+        logging: false,
+      })
+
+      const pdf    = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageW  = pdf.internal.pageSize.getWidth()
+      const pageH  = pdf.internal.pageSize.getHeight()
+      const margin = 40
+
+      // ── Header ──────────────────────────────────────────────────────────────
+      const logoW = 90
+      const logoH = logoW * (logo.h / logo.w)
+      pdf.addImage(logo.data, 'PNG', pageW - margin - logoW, margin * 0.8, logoW, logoH)
+
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(15)
+      pdf.setTextColor(24, 24, 24)
+      pdf.text(TAB_NAMES[dashTab], margin, margin + 14)
+
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor(110, 110, 110)
+      pdf.text(
+        `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+        margin, margin + 30,
+      )
+
+      const headerBottom = margin + 46
+      pdf.setDrawColor(210, 210, 210)
+      pdf.setLineWidth(0.5)
+      pdf.line(margin, headerBottom, pageW - margin, headerBottom)
+
+      // ── Tab content image (multi-page) ──────────────────────────────────────
+      const imgData   = canvas.toDataURL('image/png')
+      const printW    = pageW - margin * 2
+      const imgH      = (canvas.height / canvas.width) * printW
+      let y           = headerBottom + 14
+
+      const page1Avail = pageH - y - margin
+      const extraPages = imgH > page1Avail
+        ? Math.ceil((imgH - page1Avail) / (pageH - margin * 2))
+        : 0
+
+      let imgStart = 0
+      for (let page = 0; page < 1 + extraPages; page++) {
+        if (page > 0) { pdf.addPage(); y = margin }
+        pdf.addImage(imgData, 'PNG', margin, y - imgStart, printW, imgH)
+        imgStart += page === 0 ? page1Avail : (pageH - margin * 2)
+      }
+
+      const tabSlug = TAB_NAMES[dashTab].toLowerCase().replace(/\s+/g, '_')
+      pdf.save(`sparky_${tabSlug}_${new Date().toISOString().slice(0, 10)}.pdf`)
+    } catch (err) {
+      console.error('PDF generation failed', err)
+    } finally {
+      setPdfTabLoading(false)
+    }
+  }, [dashTab, theme])
 
   const selectedConfig = useMemo(
     () => configs.find((c) => c.id === activeConfigId) || null,
@@ -328,35 +415,58 @@ export default function Dashboard() {
           </Box>
         </Box>
 
-        {/* ── Sub-tabs: Run | Functional | Operational ────────────────────── */}
-        <Tabs
-          value={dashTab}
-          onChange={handleDashTabChange}
-          sx={{
-            mb: 4,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            '& .MuiTab-root': {
-              fontFamily: '"Raleway", sans-serif',
-              fontSize: '0.63rem',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'text.secondary',
-              minHeight: 40,
-            },
-            '& .Mui-selected':      { color: accent },
-            '& .MuiTabs-indicator': { bgcolor: accent },
-          }}
-        >
-          <Tab label="Run"         />
-          <Tab label="Functional"  />
-          <Tab label="Operational" />
-          <Tab label="Analyse"     />
-        </Tabs>
+        {/* ── Sub-tabs: Run | Functional | Operational | Analyse ─────────── */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Tabs
+            value={dashTab}
+            onChange={handleDashTabChange}
+            sx={{
+              flex: 1,
+              borderBottom: 'none',
+              '& .MuiTab-root': {
+                fontFamily: '"Raleway", sans-serif',
+                fontSize: '0.63rem',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: 'text.secondary',
+                minHeight: 40,
+              },
+              '& .Mui-selected':      { color: accent },
+              '& .MuiTabs-indicator': { bgcolor: accent },
+            }}
+          >
+            <Tab label="Run"         />
+            <Tab label="Functional"  />
+            <Tab label="Operational" />
+            <Tab label="Analyse"     />
+          </Tabs>
+
+          {/* Universal PDF download — works for all four tabs */}
+          <Tooltip title={`Download ${TAB_NAMES[dashTab]} as PDF`} arrow placement="left">
+            <span>
+              <IconButton
+                onClick={downloadTabPdf}
+                disabled={pdfTabLoading || pageLoading}
+                size="small"
+                sx={{
+                  mr: 0.5,
+                  color: pdfTabLoading ? 'text.disabled' : 'text.secondary',
+                  '&:hover': { color: accent, bgcolor: `${accent}12` },
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {pdfTabLoading
+                  ? <CircularProgress size={14} sx={{ color: accent }} />
+                  : <PictureAsPdfIcon sx={{ fontSize: 18 }} />
+                }
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
 
         {/* ── Tab panels ────────────────────────────────────────────────────── */}
         {dashTab === 0 && (
-          <>
+          <Box ref={tabRef}>
 
         {error && (
           <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>{error}</Alert>
@@ -618,12 +728,12 @@ export default function Dashboard() {
           </Box>
         )}
 
-          </>
+          </Box>
         )}
 
-        {dashTab === 1 && <FunctionalDashboard />}
-        {dashTab === 2 && <OperationalDashboard />}
-        {dashTab === 3 && <AnalyzeDashboard />}
+        {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard /></Box>}
+        {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
+        {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
 
       </Box>
 
