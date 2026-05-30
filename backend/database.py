@@ -191,14 +191,16 @@ def _migrate_columns(engine) -> None:
         AFTER INSERT ON wide_events
         FOR EACH ROW EXECUTE FUNCTION notify_wide_events_inserted()""",
     ]
-    try:
-        with engine.connect() as conn:
-            for stmt in stmts:
+    ok = 0
+    for stmt in stmts:
+        try:
+            with engine.connect() as conn:
                 conn.execute(text(stmt))
-            conn.commit()
-        log.info("Schema migrations applied")
-    except Exception as exc:
-        log.warning("Schema migration failed (non-fatal): %s", exc)
+                conn.commit()
+            ok += 1
+        except Exception as exc:
+            log.warning("Migration statement skipped: %s | %s", stmt.strip()[:80], exc)
+    log.info("Schema migrations: %d/%d statements applied", ok, len(stmts))
 
 
 def _init():
