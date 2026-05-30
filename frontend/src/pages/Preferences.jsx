@@ -11,6 +11,7 @@ import RestoreIcon      from '@mui/icons-material/Restore'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import { useAuth } from '../AuthContext'
 import { getPreferences, updatePreferences } from '../api'
+import MythicsLoader from '../components/MythicsLoader'
 
 const DEFAULTS = {
   dateFormat:                'YYYY-MM-DD',
@@ -98,13 +99,7 @@ export default function Preferences() {
 
   const handleReset = () => setPrefs(DEFAULTS)
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 6, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress size={28} sx={{ color: 'primary.main' }} />
-      </Box>
-    )
-  }
+  if (loading) return <MythicsLoader sx={{ minHeight: '60vh' }} />
 
   return (
     <Box sx={{ px: { xs: 2, sm: 4 }, py: 4, maxWidth: 760, mx: 'auto' }}>

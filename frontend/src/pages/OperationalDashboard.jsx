@@ -16,6 +16,7 @@ import SpeedIcon              from '@mui/icons-material/Speed'
 import BarChartIcon           from '@mui/icons-material/BarChart'
 import { useAuth } from '../AuthContext'
 import { listRuns, checkConnectivity } from '../api'
+import MythicsLoader from '../components/MythicsLoader'
 
 // ── formatters ─────────────────────────────────────────────────────────────────
 
@@ -200,13 +201,7 @@ export default function OperationalDashboard() {
   )
 
   // ── render ─────────────────────────────────────────────────────────────────
-  if (loadingRuns) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-        <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-      </Box>
-    )
-  }
+  if (loadingRuns) return <MythicsLoader size={72} sx={{ py: 10 }} />
 
   return (
     <Box sx={{ display: 'grid', gap: 4 }}>

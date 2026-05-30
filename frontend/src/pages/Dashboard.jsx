@@ -7,6 +7,7 @@ import {
 import { useTheme } from '@mui/material/styles'
 import { DataGrid } from '@mui/x-data-grid'
 import MythicsLogo from '../assets/MythicsLogo'
+import MythicsLoader from '../components/MythicsLoader'
 import ViewToggle from '../components/ViewToggle'
 import { getDataGridSx } from '../utils/dataGridSx'
 import ContentCopyIcon        from '@mui/icons-material/ContentCopy'
@@ -408,9 +409,7 @@ export default function Dashboard() {
 
         {/* page-load spinner */}
         {pageLoading && !runs.length && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-            <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-          </Box>
+          <MythicsLoader size={72} sx={{ py: 8 }} />
         )}
 
         {/* onboarding nudge */}

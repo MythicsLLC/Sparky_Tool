@@ -21,6 +21,7 @@ import TableChartIcon    from '@mui/icons-material/TableChart'
 import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
 import { analyzeFile, listInsightModels } from '../api'
 import { useAuth } from '../AuthContext'
+import MythicsLoader from '../components/MythicsLoader'
 
 // ── colour palette (matches backend prompt) ────────────────────────────────────
 const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
@@ -247,9 +248,9 @@ function DropZone({ onFile, loading }) {
       />
 
       {loading ? (
-        <Box>
-          <CircularProgress size={34} sx={{ color: accent, mb: 2 }} />
-          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem', color: 'text.secondary', mb: 0.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <MythicsLoader size={80} />
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem', color: 'text.secondary' }}>
             AI is analysing your data…
           </Typography>
           <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>

@@ -24,6 +24,7 @@ import NumbersIcon      from '@mui/icons-material/Numbers'
 import { getDataGridSx } from '../utils/dataGridSx'
 import { useAuth }  from '../AuthContext'
 import { getCoreHRFiles, getCoreHRFile } from '../api'
+import MythicsLoader from '../components/MythicsLoader'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -500,13 +501,7 @@ export default function FunctionalDashboard() {
   )
 
   // ── guard renders ──────────────────────────────────────────────────────────
-  if (loadingFiles) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-        <CircularProgress size={24} sx={{ color: 'primary.main' }} />
-      </Box>
-    )
-  }
+  if (loadingFiles) return <MythicsLoader size={72} sx={{ py: 10 }} />
 
   if (!files.length) {
     return (
@@ -559,7 +554,7 @@ export default function FunctionalDashboard() {
             )}
           </Box>
         )}
-        {loadingData && <CircularProgress size={18} sx={{ color: 'primary.main' }} />}
+        {loadingData && <MythicsLoader size={40} />}
       </Box>
 
       {data && kpi && (

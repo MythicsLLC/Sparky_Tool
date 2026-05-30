@@ -51,6 +51,7 @@ import {
   Tooltip as ChartTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
 import { useAuth } from '../AuthContext'
+import MythicsLoader from '../components/MythicsLoader'
 import {
   listAdminStats, listAdminLogs, listAdminUsers, listAdminRuns,
   inviteAdminUser, setUserRole, updateAdminUser, deleteAdminUser,
@@ -670,13 +671,7 @@ export default function Admin() {
     )
   }
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 6, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress size={28} sx={{ color: 'primary.main' }} />
-      </Box>
-    )
-  }
+  if (loading) return <MythicsLoader sx={{ minHeight: '60vh' }} />
 
   // ── derived ───────────────────────────────────────────────────────────────
 

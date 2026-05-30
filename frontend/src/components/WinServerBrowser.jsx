@@ -13,6 +13,7 @@ import HomeIcon            from '@mui/icons-material/Home'
 import ArticleIcon         from '@mui/icons-material/Article'
 import { useThemeContext } from '../ThemeContext'
 import { winBrowse, winReadFile } from '../api'
+import MythicsLoader from './MythicsLoader'
 
 // Text file extensions that can be opened in the viewer
 const TEXT_EXTS = new Set([
@@ -276,11 +277,7 @@ export default function WinServerBrowser({
             borderRight: viewFile ? `1px solid ${accent}1f` : 'none',
             transition: 'width 0.2s ease',
           }}>
-            {loading && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200 }}>
-                <CircularProgress size={28} sx={{ color: accent }} />
-              </Box>
-            )}
+            {loading && <MythicsLoader size={64} sx={{ height: 200 }} />}
 
             {error && !loading && (
               <Box sx={{ px: 3, py: 3 }}>

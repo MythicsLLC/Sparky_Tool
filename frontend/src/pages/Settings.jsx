@@ -17,6 +17,7 @@ import { useAuth } from '../AuthContext'
 import { useThemeContext } from '../ThemeContext'
 import { listConfigs, createConfig, updateConfig, deleteConfig, testRetrieval, testPeoplesoft, testWindows, testVpn, listEngines } from '../api'
 import WinServerBrowser from '../components/WinServerBrowser'
+import MythicsLoader from '../components/MythicsLoader'
 
 const WIN_DEFAULT_PORTS = { winrm: '5985', smb: '445', ssh: '22' }
 
@@ -377,9 +378,7 @@ export default function Settings() {
   const btnSx = { color: accent, borderColor: `${accent}59`, borderRadius: '3px', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.16em', px: 2.5, py: 0.9, '&:hover:not(:disabled)': { borderColor: accent, bgcolor: `${accent}0a` }, '&:disabled': { opacity: 0.4 } }
 
   if (loading) return (
-    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <CircularProgress size={32} sx={{ color: accent }} />
-    </Box>
+    <MythicsLoader sx={{ flex: 1, minHeight: '100vh', bgcolor: 'background.default' }} />
   )
 
   return (
