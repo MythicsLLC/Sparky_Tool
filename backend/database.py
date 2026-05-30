@@ -152,6 +152,29 @@ def _migrate_columns(engine) -> None:
             created_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )""",
         "CREATE INDEX IF NOT EXISTS idx_ai_msg_conv_id ON ai_messages (conversation_id)",
+        # ── engines ───────────────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS engines (
+            id           SERIAL PRIMARY KEY,
+            name         VARCHAR(200) NOT NULL,
+            process_name VARCHAR(200) NOT NULL DEFAULT '',
+            description  TEXT DEFAULT '',
+            is_active    BOOLEAN DEFAULT TRUE,
+            sort_order   INTEGER DEFAULT 0,
+            created_by   VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+            created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_engines_sort ON engines (sort_order)",
+        "ALTER TABLE engines ADD COLUMN IF NOT EXISTS process_name VARCHAR(200) NOT NULL DEFAULT ''",
+        # ── user_config_engines ───────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS user_config_engines (
+            id         SERIAL PRIMARY KEY,
+            config_id  INTEGER NOT NULL REFERENCES user_configs(id) ON DELETE CASCADE,
+            engine_id  INTEGER NOT NULL REFERENCES engines(id) ON DELETE CASCADE,
+            sort_order INTEGER DEFAULT 0,
+            CONSTRAINT uq_config_engine UNIQUE (config_id, engine_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_uce_config_id ON user_config_engines (config_id)",
         # ── pg_notify trigger for wide_events (supports future LISTEN-based SSE) ──
         """CREATE OR REPLACE FUNCTION notify_wide_events_inserted()
         RETURNS trigger AS $$
