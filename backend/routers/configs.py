@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import User, UserConfig, AuditEvent
+from models import User, UserConfig, UserConfigEngine, Engine, AuditEvent
 from encrypt import encrypt, decrypt
 from logger import get_logger
 
@@ -32,26 +32,49 @@ class ConfigPayload(BaseModel):
     ps_webserver_path: str = ""
     # VPN tunnel
     vpn_enabled: bool = False
-    vpn_type: str = "none"          # none | openconnect | openvpn | wireguard | ssh_tunnel
+    vpn_type: str = "none"
     vpn_host: str = ""
     vpn_port: int | None = None
     vpn_username: str = ""
-    vpn_password: str = ""          # plain — encrypted before storage
-    vpn_extra: str = ""             # group/realm (AnyConnect), config file content (OpenVPN), etc.
-    # Windows Server (WinRM) access
+    vpn_password: str = ""
+    vpn_extra: str = ""
+    # Windows Server access
     win_host: str = ""
     win_port: int = 5985
     win_username: str = ""
-    win_password: str = ""      # plain — encrypted before storage
+    win_password: str = ""
     win_use_ssl: bool = False
     win_auth_type: str = "ntlm"
-    win_connection_type: str = "winrm"   # winrm | smb | ssh
+    win_connection_type: str = "winrm"
     win_share: str = "C$"
     win_domain: str = ""
-    engine_id: int | None = None
+    # Engines — ordered list of engine IDs to run sequentially
+    engine_ids: list[int] = []
 
 
-def _serialize(config: UserConfig) -> dict:
+def _get_engines(config_id: int, db: Session) -> list[dict]:
+    rows = (
+        db.query(UserConfigEngine, Engine)
+        .join(Engine, UserConfigEngine.engine_id == Engine.id)
+        .filter(UserConfigEngine.config_id == config_id)
+        .order_by(UserConfigEngine.sort_order)
+        .all()
+    )
+    return [
+        {"id": e.id, "name": e.name, "process_name": e.process_name, "sort_order": uce.sort_order}
+        for uce, e in rows
+    ]
+
+
+def _sync_engines(config_id: int, engine_ids: list[int], db: Session) -> None:
+    """Replace the engine selection for a config with the given ordered list."""
+    db.query(UserConfigEngine).filter(UserConfigEngine.config_id == config_id).delete()
+    for order, eid in enumerate(engine_ids):
+        db.add(UserConfigEngine(config_id=config_id, engine_id=eid, sort_order=order))
+
+
+def _serialize(config: UserConfig, db: Session) -> dict:
+    engines = _get_engines(config.id, db)
     return {
         "id":                 config.id,
         "name":               config.name,
@@ -79,13 +102,14 @@ def _serialize(config: UserConfig) -> dict:
         "win_host":           config.win_host,
         "win_port":           config.win_port,
         "win_username":       config.win_username,
-        "win_password":        "***" if config.win_password_enc else "",
-        "win_use_ssl":         config.win_use_ssl,
-        "win_auth_type":       config.win_auth_type or "ntlm",
+        "win_password":       "***" if config.win_password_enc else "",
+        "win_use_ssl":        config.win_use_ssl,
+        "win_auth_type":      config.win_auth_type or "ntlm",
         "win_connection_type": config.win_connection_type or "winrm",
-        "win_share":           config.win_share or "C$",
-        "win_domain":          config.win_domain or "",
-        "engine_id":          config.engine_id,
+        "win_share":          config.win_share or "C$",
+        "win_domain":         config.win_domain or "",
+        "engine_ids":         [e["id"] for e in engines],
+        "engines":            engines,
         "is_active":          config.is_active,
         "created_at":         config.created_at,
         "updated_at":         config.updated_at,
@@ -96,7 +120,7 @@ def _serialize(config: UserConfig) -> dict:
 def list_configs(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     configs = db.query(UserConfig).filter(UserConfig.user_id == user.id).all()
     log.debug("list_configs  user=%s  count=%d", user.id[:8], len(configs))
-    return [_serialize(c) for c in configs]
+    return [_serialize(c, db) for c in configs]
 
 
 @router.post("/")
@@ -138,14 +162,16 @@ def create_config(
         win_connection_type=body.win_connection_type,
         win_share=body.win_share,
         win_domain=body.win_domain,
-        engine_id=body.engine_id,
     )
     db.add(config)
+    db.flush()  # get config.id before syncing engines
+    _sync_engines(config.id, body.engine_ids, db)
     db.add(AuditEvent(user_id=user.id, event_type="config_created", detail={"name": body.name}))
     db.commit()
     db.refresh(config)
-    log.info("Config created  id=%d  name=%r  user=%s", config.id, body.name, user.id[:8])
-    return _serialize(config)
+    log.info("Config created  id=%d  name=%r  engines=%s  user=%s",
+             config.id, body.name, body.engine_ids, user.id[:8])
+    return _serialize(config, db)
 
 
 @router.get("/{config_id}")
@@ -161,7 +187,7 @@ def get_config(
         log.warning("get_config 404  id=%d  user=%s", config_id, user.id[:8])
         raise HTTPException(404, "Configuration not found")
     log.debug("get_config  id=%d  user=%s", config_id, user.id[:8])
-    return _serialize(config)
+    return _serialize(config, db)
 
 
 @router.put("/{config_id}")
@@ -200,12 +226,11 @@ def update_config(
     config.win_host           = body.win_host
     config.win_port           = body.win_port
     config.win_username       = body.win_username
-    config.win_use_ssl         = body.win_use_ssl
-    config.win_auth_type       = body.win_auth_type
+    config.win_use_ssl        = body.win_use_ssl
+    config.win_auth_type      = body.win_auth_type
     config.win_connection_type = body.win_connection_type
-    config.win_share           = body.win_share
-    config.win_domain          = body.win_domain
-    config.engine_id           = body.engine_id
+    config.win_share          = body.win_share
+    config.win_domain         = body.win_domain
     config.updated_at         = datetime.now(timezone.utc)
 
     if body.ps_password and body.ps_password != "***":
@@ -217,11 +242,13 @@ def update_config(
     if body.win_password and body.win_password != "***":
         config.win_password_enc = encrypt(body.win_password)
 
+    _sync_engines(config_id, body.engine_ids, db)
     db.add(AuditEvent(user_id=user.id, event_type="config_updated", detail={"config_id": config_id}))
     db.commit()
     db.refresh(config)
-    log.info("Config updated  id=%d  name=%r  user=%s", config_id, body.name, user.id[:8])
-    return _serialize(config)
+    log.info("Config updated  id=%d  name=%r  engines=%s  user=%s",
+             config_id, body.name, body.engine_ids, user.id[:8])
+    return _serialize(config, db)
 
 
 @router.delete("/{config_id}")

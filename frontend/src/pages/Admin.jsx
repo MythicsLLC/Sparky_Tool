@@ -378,7 +378,7 @@ export default function Admin() {
   // ── Engines ───────────────────────────────────────────────────────────────
   const [engines,       setEngines]       = useState([])
   const [engineDialog,  setEngineDialog]  = useState(null) // null | 'add' | engine-object
-  const [engineForm,    setEngineForm]    = useState({ name: '', description: '', is_active: true, sort_order: 0 })
+  const [engineForm,    setEngineForm]    = useState({ name: '', process_name: '', description: '', is_active: true, sort_order: 0 })
   const [engineLoading, setEngineLoading] = useState(false)
   const [deleteEngDlg,  setDeleteEngDlg]  = useState(null) // null | { id, name }
 
@@ -618,12 +618,12 @@ export default function Admin() {
   // ── Engine actions ────────────────────────────────────────────────────────
 
   const openAddEngine = () => {
-    setEngineForm({ name: '', description: '', is_active: true, sort_order: 0 })
+    setEngineForm({ name: '', process_name: '', description: '', is_active: true, sort_order: 0 })
     setEngineDialog('add')
   }
 
   const openEditEngine = (e) => {
-    setEngineForm({ name: e.name, description: e.description, is_active: e.is_active, sort_order: e.sort_order })
+    setEngineForm({ name: e.name, process_name: e.process_name, description: e.description, is_active: e.is_active, sort_order: e.sort_order })
     setEngineDialog(e)
   }
 
@@ -1964,6 +1964,12 @@ export default function Admin() {
                     ),
                   },
                   {
+                    field: 'process_name', headerName: 'PS Process Name', flex: 1, minWidth: 160,
+                    renderCell: (p) => (
+                      <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.72rem', color: 'primary.main' }}>{p.value}</Typography>
+                    ),
+                  },
+                  {
                     field: 'is_active', headerName: 'Status', width: 110,
                     renderCell: (p) => (
                       <Chip
@@ -2026,6 +2032,16 @@ export default function Admin() {
               sx={{ '& .MuiInputBase-root': { fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' } }}
             />
             <TextField
+              label="PeopleSoft process name *"
+              size="small"
+              fullWidth
+              placeholder="e.g. SM_DISCOVERY"
+              value={engineForm.process_name}
+              onChange={(e) => setEngineForm((p) => ({ ...p, process_name: e.target.value.toUpperCase() }))}
+              helperText="The exact process name used in the PeopleSoft trigger API body."
+              sx={{ '& .MuiInputBase-root': { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.82rem' } }}
+            />
+            <TextField
               label="Description"
               size="small"
               fullWidth
@@ -2057,7 +2073,7 @@ export default function Admin() {
           </Button>
           <Button
             onClick={handleSaveEngine}
-            disabled={engineLoading || !engineForm.name.trim()}
+            disabled={engineLoading || !engineForm.name.trim() || !engineForm.process_name.trim()}
             variant="contained"
             startIcon={engineLoading ? <CircularProgress size={14} /> : <SaveIcon sx={{ fontSize: 15 }} />}
             sx={{ bgcolor: 'primary.main', color: 'background.default', fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem' }}

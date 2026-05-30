@@ -145,7 +145,7 @@ try:
     from routers import conversations as _conv
     from routers import engines as _eng
     from database import get_db
-    from models import UserConfig, RunLog, AuditEvent
+    from models import UserConfig, UserConfigEngine, Engine, RunLog, AuditEvent
     from auth import get_current_user
     from encrypt import decrypt
 
@@ -198,42 +198,34 @@ try:
 
     from sqlalchemy.orm import Session
 
-    @app.post("/api/v2/run/{config_id}")
-    def run_v2(
-        config_id: int,
-        request: Request,
-        db: Session = Depends(get_db),
-        user=Depends(get_current_user),
-    ):
-        config = db.query(UserConfig).filter(
-            UserConfig.id == config_id, UserConfig.user_id == user.id
-        ).first()
-        if not config:
-            raise HTTPException(404, "Configuration not found")
+    def _run_one_engine(config, engine_process_name, engine_label, s, user, config_id, request, db):
+        """Trigger → Poll → Download → Parse for a single engine process name.
+        Returns (run_log, result_dict)."""
+        s_eng = SimpleNamespace(**vars(s))
+        s_eng.ps_process_name = engine_process_name
 
-        s = _config_to_ns(config)
         run_log = RunLog(
             user_id=user.id,
             config_id=config.id,
             config_name=config.name,
-            ps_process_name=s.ps_process_name,
+            ps_process_name=engine_process_name,
             status="running",
         )
         db.add(run_log)
         db.commit()
         db.refresh(run_log)
 
-        log.info("Run started  run_id=%d  config=%d (%s)  user=%s  process=%s  method=%s",
-                 run_log.id, config_id, config.name, user.id[:8], s.ps_process_name, s.retrieval_method)
+        log.info("Run started  run_id=%d  config=%d  engine=%r  process=%s  method=%s",
+                 run_log.id, config_id, engine_label, engine_process_name, s_eng.retrieval_method)
 
-        start = _time.time()
+        start      = _time.time()
         instance_id = ""
         report_id   = ""
         try:
             # ── Step 1: Trigger PeopleSoft ──────────────────────────────────
             t1 = _time.time()
             try:
-                trigger_result = trigger_engine(_settings=s)
+                trigger_result = trigger_engine(_settings=s_eng)
             except httpx.HTTPStatusError as exc:
                 run_log.failed_step = "trigger"
                 raise HTTPException(502, f"PeopleSoft API error: {exc}")
@@ -252,19 +244,15 @@ try:
             log.info("Run %d  step=trigger  %d ms", run_log.id, round((_time.time() - t1) * 1000))
 
             instance_id = str(trigger_result.get("InstanceID", ""))
-            report_id = ""
-
-            # Persist instance_id immediately so it survives any later failure
             if instance_id:
                 run_log.instance_id = instance_id
                 db.commit()
-                log.debug("Run %d  instance_id persisted  %s", run_log.id, instance_id)
 
             # ── Step 2: Poll status ─────────────────────────────────────────
-            if s.ps_status_endpoint and instance_id:
+            if s_eng.ps_status_endpoint and instance_id:
                 t2 = _time.time()
                 try:
-                    status_result = poll_status(instance_id, _settings=s)
+                    status_result = poll_status(instance_id, _settings=s_eng)
                     report_id = str(status_result.get("ReportID", ""))
                 except TimeoutError as exc:
                     run_log.failed_step = "poll"
@@ -274,59 +262,42 @@ try:
                     raise HTTPException(502, f"PeopleSoft status polling error: {exc}")
                 log.info("Run %d  step=poll  instance=%s  report=%s  %d ms",
                          run_log.id, instance_id, report_id, round((_time.time() - t2) * 1000))
-
-                # Persist report_id immediately so it survives any later failure
                 if report_id:
                     run_log.report_id = report_id
                     db.commit()
-                    log.debug("Run %d  report_id persisted  %s", run_log.id, report_id)
 
-            # ── Step 3: Download CSV (skip if retrieval not configured) ───
-            is_windows = s.retrieval_method in ("winrm", "smb", "win_ssh")
+            # ── Step 3: Download CSV (skip if retrieval not configured) ─────
+            is_windows     = s_eng.retrieval_method in ("winrm", "smb", "win_ssh")
             sftp_configured = (
-                bool(s.win_host and s.sftp_remote_path) if is_windows
-                else bool(s.sftp_host and s.sftp_remote_path)
+                bool(s_eng.win_host and s_eng.sftp_remote_path) if is_windows
+                else bool(s_eng.sftp_host and s_eng.sftp_remote_path)
             )
 
             if not sftp_configured:
                 duration_ms = int((_time.time() - start) * 1000)
                 run_log.status       = "success"
-                run_log.instance_id  = instance_id
-                run_log.report_id    = report_id
                 run_log.sftp_skipped = True
                 run_log.skip_reason  = "SFTP host or remote path not configured"
                 run_log.row_count    = 0
                 run_log.duration_ms  = duration_ms
                 run_log.completed_at = datetime.now(timezone.utc)
                 db.add(AuditEvent(
-                    user_id=user.id,
-                    event_type="run_completed",
-                    detail={
-                        "config_id": config_id,
-                        "instance_id": instance_id,
-                        "report_id": report_id,
-                        "sftp_skipped": True,
-                    },
+                    user_id=user.id, event_type="run_completed",
+                    detail={"config_id": config_id, "engine": engine_label,
+                            "instance_id": instance_id, "sftp_skipped": True},
                     ip_address=request.client.host if request.client else None,
                 ))
                 db.commit()
-                log.info("Run complete (SFTP skipped)  run_id=%d  instance=%s  report=%s  %d ms",
-                         run_log.id, instance_id, report_id, duration_ms)
-                return {
-                    "instance_id": instance_id,
-                    "report_id": report_id,
-                    "sftp_skipped": True,
-                    "message": (
-                        "PeopleSoft process completed successfully. "
-                        "SFTP retrieval was skipped — configure SFTP Host and Remote Path "
-                        "in Settings to enable CSV download and data analysis."
-                    ),
-                    "row_count": 0,
-                    "kpis": {},
-                    "chart_data": [],
+                result = {
+                    "engine_name": engine_label, "process_name": engine_process_name,
+                    "run_id": run_log.id, "instance_id": instance_id, "report_id": report_id,
+                    "sftp_skipped": True, "row_count": 0, "kpis": {}, "chart_data": [],
+                    "message": "PeopleSoft process completed. SFTP retrieval skipped.",
                 }
+                log.info("Run complete (SFTP skipped)  run_id=%d  %d ms", run_log.id, duration_ms)
+                return run_log, result
 
-            remote_path = s.sftp_remote_path
+            remote_path = s_eng.sftp_remote_path
             if report_id:
                 remote_path = remote_path.replace("{report_id}", report_id)
             if instance_id:
@@ -334,34 +305,33 @@ try:
 
             t3 = _time.time()
             _vpn_ctx = None
-            _is_windows_method = s.retrieval_method in ("winrm", "smb", "win_ssh")
+            _is_windows_method = s_eng.retrieval_method in ("winrm", "smb", "win_ssh")
             try:
-                # Establish VPN tunnel before Windows connections if configured
-                if _is_windows_method and getattr(s, "vpn_enabled", False):
+                if _is_windows_method and getattr(s_eng, "vpn_enabled", False):
                     try:
                         import vpn_client as _vpn
-                        _vpn_ctx = _vpn.vpn_connect(s)
-                        log.info("Run %d  VPN connected  type=%s", run_log.id, s.vpn_type)
+                        _vpn_ctx = _vpn.vpn_connect(s_eng)
+                        log.info("Run %d  VPN connected  type=%s", run_log.id, s_eng.vpn_type)
                     except Exception as vpn_exc:
                         run_log.failed_step = "vpn"
                         raise HTTPException(503, f"VPN connection failed: {vpn_exc}")
 
-                if s.retrieval_method == "scp":
-                    csv_bytes = scp_client.download_csv(remote_path=remote_path, _settings=s)
-                elif s.retrieval_method == "winrm":
+                if s_eng.retrieval_method == "scp":
+                    csv_bytes = scp_client.download_csv(remote_path=remote_path, _settings=s_eng)
+                elif s_eng.retrieval_method == "winrm":
                     import windows_client as _wc
-                    csv_bytes = _wc.download_csv(remote_path=remote_path, _settings=s)
-                elif s.retrieval_method == "smb":
+                    csv_bytes = _wc.download_csv(remote_path=remote_path, _settings=s_eng)
+                elif s_eng.retrieval_method == "smb":
                     import smb_client as _smbcli
-                    csv_bytes = _smbcli.download_csv(remote_path=remote_path, _settings=s)
-                elif s.retrieval_method == "win_ssh":
+                    csv_bytes = _smbcli.download_csv(remote_path=remote_path, _settings=s_eng)
+                elif s_eng.retrieval_method == "win_ssh":
                     import win_ssh_client as _winssh
-                    csv_bytes = _winssh.download_csv(remote_path=remote_path, _settings=s)
+                    csv_bytes = _winssh.download_csv(remote_path=remote_path, _settings=s_eng)
                 else:
-                    csv_bytes = sftp_client.download_csv(remote_path=remote_path, _settings=s)
+                    csv_bytes = sftp_client.download_csv(remote_path=remote_path, _settings=s_eng)
             except Exception as exc:
                 label = {"scp": "SSH/SCP", "winrm": "WinRM", "smb": "SMB", "win_ssh": "SSH"}.get(
-                    s.retrieval_method, "SFTP"
+                    s_eng.retrieval_method, "SFTP"
                 )
                 if not isinstance(exc, HTTPException):
                     run_log.failed_step = "download"
@@ -371,7 +341,6 @@ try:
                     try:
                         import vpn_client as _vpn
                         _vpn.vpn_disconnect(_vpn_ctx)
-                        log.info("Run %d  VPN disconnected", run_log.id)
                     except Exception as vpn_disc_exc:
                         log.warning("Run %d  VPN disconnect error: %s", run_log.id, vpn_disc_exc)
             log.info("Run %d  step=download  size=%d bytes  %d ms",
@@ -387,10 +356,6 @@ try:
             log.info("Run %d  step=parse  rows=%d  %d ms",
                      run_log.id, result.get("row_count", 0), round((_time.time() - t4) * 1000))
 
-            result["instance_id"] = instance_id
-            result["report_id"]   = report_id
-            result["sftp_skipped"] = False
-
             duration_ms = int((_time.time() - start) * 1000)
             run_log.status       = "success"
             run_log.instance_id  = instance_id
@@ -400,23 +365,21 @@ try:
             run_log.duration_ms  = duration_ms
             run_log.completed_at = datetime.now(timezone.utc)
             db.add(AuditEvent(
-                user_id=user.id,
-                event_type="run_completed",
-                detail={
-                    "config_id":  config_id,
-                    "instance_id": instance_id,
-                    "report_id":  report_id,
-                    "row_count":  result["row_count"],
-                },
+                user_id=user.id, event_type="run_completed",
+                detail={"config_id": config_id, "engine": engine_label,
+                        "instance_id": instance_id, "row_count": result["row_count"]},
                 ip_address=request.client.host if request.client else None,
             ))
             db.commit()
+            log.info("Run complete  run_id=%d  engine=%r  rows=%d  %d ms",
+                     run_log.id, engine_label, result["row_count"], duration_ms)
 
-            log.info("Run complete  run_id=%d  instance=%s  report=%s  rows=%d  total=%d ms",
-                     run_log.id, instance_id, report_id, result["row_count"], duration_ms)
-
-            _cache["last"] = result
-            return result
+            result.update({
+                "engine_name": engine_label, "process_name": engine_process_name,
+                "run_id": run_log.id, "instance_id": instance_id,
+                "report_id": report_id, "sftp_skipped": False,
+            })
+            return run_log, result
 
         except HTTPException as exc:
             duration_ms = int((_time.time() - start) * 1000)
@@ -424,28 +387,86 @@ try:
             run_log.error_detail = str(exc.detail)
             run_log.duration_ms  = duration_ms
             run_log.completed_at = datetime.now(timezone.utc)
-            # Carry forward any tracking IDs captured before the failure
             if instance_id and not run_log.instance_id:
                 run_log.instance_id = instance_id
             if report_id and not run_log.report_id:
                 run_log.report_id = report_id
-            # failed_step is already set at the raise site; persist it now
             db.add(AuditEvent(
-                user_id=user.id,
-                event_type="run_failed",
-                detail={
-                    "config_id":   config_id,
-                    "instance_id": instance_id or "",
-                    "report_id":   report_id or "",
-                    "failed_step": run_log.failed_step or "unknown",
-                    "error":       str(exc.detail),
-                },
+                user_id=user.id, event_type="run_failed",
+                detail={"config_id": config_id, "engine": engine_label,
+                        "failed_step": run_log.failed_step or "unknown", "error": str(exc.detail)},
                 ip_address=request.client.host if request.client else None,
             ))
             db.commit()
-            log.error("Run failed  run_id=%d  step=%s  status=%d  error=%s  total=%d ms",
-                      run_log.id, run_log.failed_step or "unknown", exc.status_code, exc.detail, duration_ms)
-            raise
+            log.error("Run failed  run_id=%d  engine=%r  step=%s  error=%s  %d ms",
+                      run_log.id, engine_label, run_log.failed_step or "unknown", exc.detail, duration_ms)
+            error_result = {
+                "engine_name": engine_label, "process_name": engine_process_name,
+                "run_id": run_log.id, "status": "error", "error": str(exc.detail),
+                "row_count": 0, "kpis": {}, "chart_data": [],
+            }
+            return run_log, error_result
+
+    @app.post("/api/v2/run/{config_id}")
+    def run_v2(
+        config_id: int,
+        request: Request,
+        db: Session = Depends(get_db),
+        user=Depends(get_current_user),
+    ):
+        config = db.query(UserConfig).filter(
+            UserConfig.id == config_id, UserConfig.user_id == user.id
+        ).first()
+        if not config:
+            raise HTTPException(404, "Configuration not found")
+
+        s = _config_to_ns(config)
+
+        # Resolve engines: prefer junction-table selection, fall back to config.ps_process_name
+        engine_rows = (
+            db.query(UserConfigEngine, Engine)
+            .join(Engine, UserConfigEngine.engine_id == Engine.id)
+            .filter(UserConfigEngine.config_id == config_id)
+            .order_by(UserConfigEngine.sort_order)
+            .all()
+        )
+
+        if engine_rows:
+            engines_to_run = [(e.process_name, e.name) for _, e in engine_rows]
+        else:
+            # Backward compat: no engines selected → use the config's ps_process_name
+            engines_to_run = [(s.ps_process_name or "SM_DISCOVERY", s.ps_process_name or "SM_DISCOVERY")]
+
+        log.info("Run dispatched  config=%d (%s)  user=%s  engines=%s  method=%s",
+                 config_id, config.name, user.id[:8],
+                 [p for p, _ in engines_to_run], s.retrieval_method)
+
+        results = []
+        last_ok  = None
+        for process_name, label in engines_to_run:
+            _, eng_result = _run_one_engine(
+                config, process_name, label, s, user, config_id, request, db
+            )
+            results.append(eng_result)
+            if eng_result.get("status") != "error":
+                last_ok = eng_result
+
+        # For dashboard compat: surface the last successful engine's kpis/chart_data
+        # as top-level keys alongside the full runs list.
+        base = last_ok or results[-1]
+        aggregate = {
+            "runs":          results,
+            "total_engines": len(results),
+            "success_count": sum(1 for r in results if r.get("status") != "error"),
+            "row_count":     sum(r.get("row_count", 0) for r in results),
+            "kpis":          base.get("kpis", {}),
+            "chart_data":    base.get("chart_data", []),
+            "instance_id":   base.get("instance_id", ""),
+            "report_id":     base.get("report_id", ""),
+            "sftp_skipped":  all(r.get("sftp_skipped") for r in results),
+        }
+        _cache["last"] = aggregate
+        return aggregate
 
 except Exception as _init_err:
     log.error("v2 endpoints disabled — import failed: %s", _init_err, exc_info=True)

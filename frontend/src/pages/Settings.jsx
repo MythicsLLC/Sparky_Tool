@@ -22,7 +22,7 @@ const WIN_DEFAULT_PORTS = { winrm: '5985', smb: '445', ssh: '22' }
 
 const EMPTY = {
   name: '',
-  engine_id: '',
+  engine_ids: [],
   ps_base_url: '', ps_auth_type: 'basic', ps_username: '', ps_password: '',
   ps_endpoint: '', ps_status_endpoint: '', ps_process_name: 'SM_DISCOVERY',
   retrieval_method: 'sftp',
@@ -170,7 +170,7 @@ export default function Settings() {
     setSelectedConfigId(configId)
     setForm({
       name:               config.name || '',
-      engine_id:          config.engine_id || '',
+      engine_ids:         config.engine_ids || [],
       ps_base_url:        config.ps_base_url || '',
       ps_auth_type:       config.ps_auth_type || 'basic',
       ps_username:        config.ps_username || '',
@@ -324,8 +324,7 @@ export default function Settings() {
     const trimmed = Object.fromEntries(
       Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
     )
-    // engine_id comes from Select as a number or empty string
-    trimmed.engine_id = form.engine_id ? Number(form.engine_id) : null
+    trimmed.engine_ids = form.engine_ids.map(Number)
     try {
       if (selectedConfigId) {
         await updateConfig(selectedConfigId, trimmed, token)
@@ -438,23 +437,84 @@ export default function Settings() {
             <TextField fullWidth size="small" value={form.name} onChange={set('name')} placeholder="e.g. Production HR, UAT Environment" sx={inputSx} />
           </Field>
           <Box sx={{ gridColumn: '1 / -1' }}>
-            <Field label="Engine">
-              <FormControl fullWidth size="small">
-                <Select value={form.engine_id || ''} onChange={set('engine_id')} sx={selectSx} displayEmpty>
-                  <MenuItem value=""><em style={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.85rem', color: 'text.disabled' }}>— Select an engine —</em></MenuItem>
-                  {engines.map((e) => (
-                    <MenuItem key={e.id} value={e.id}>
-                      <Box>
-                        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.85rem' }}>{e.name}</Typography>
-                        {e.description && <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: 'text.disabled' }}>{e.description}</Typography>}
+            <Field label="Engines to run">
+              {engines.length === 0 ? (
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.5 }}>
+                  No engines configured yet — ask an admin to add engines in the Admin Console.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+                  {engines.map((e, idx) => {
+                    const checked = form.engine_ids.includes(e.id)
+                    const toggle = () => {
+                      setForm((prev) => ({
+                        ...prev,
+                        engine_ids: checked
+                          ? prev.engine_ids.filter((id) => id !== e.id)
+                          : [...prev.engine_ids, e.id],
+                      }))
+                    }
+                    return (
+                      <Box
+                        key={e.id}
+                        onClick={toggle}
+                        sx={{
+                          display: 'flex', alignItems: 'center', gap: 1.5,
+                          px: 1.5, py: 1,
+                          border: '1px solid',
+                          borderColor: checked ? accent : 'divider',
+                          bgcolor: checked ? `${accent}08` : 'transparent',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          '&:hover': { borderColor: accent, bgcolor: `${accent}06` },
+                        }}
+                      >
+                        {/* Checkbox visual */}
+                        <Box sx={{
+                          width: 16, height: 16, borderRadius: '2px', flexShrink: 0,
+                          border: `1.5px solid ${checked ? accent : 'divider'}`,
+                          bgcolor: checked ? accent : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.12s ease',
+                        }}>
+                          {checked && (
+                            <Box component="span" sx={{ color: '#0b0c0e', fontSize: '10px', fontWeight: 700, lineHeight: 1 }}>✓</Box>
+                          )}
+                        </Box>
+                        {/* Order badge */}
+                        {checked && (
+                          <Box sx={{
+                            minWidth: 18, height: 18, borderRadius: '9px',
+                            bgcolor: accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>
+                            <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.6rem', fontWeight: 700, color: '#0b0c0e', lineHeight: 1 }}>
+                              {form.engine_ids.indexOf(e.id) + 1}
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', fontWeight: checked ? 700 : 400, color: checked ? 'text.primary' : 'text.secondary' }}>
+                            {e.name}
+                          </Typography>
+                          <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.6rem', color: accent, opacity: 0.75 }}>
+                            {e.process_name}
+                          </Typography>
+                          {e.description && (
+                            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.1 }}>
+                              {e.description}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              {engines.length === 0 && (
-                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.75 }}>
-                  No engines configured yet. Ask an admin to add engines in the Admin Console.
+                    )
+                  })}
+                </Box>
+              )}
+              {form.engine_ids.length > 1 && (
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', color: 'text.disabled', mt: 0.75, letterSpacing: '0.06em' }}>
+                  Engines will trigger sequentially in the order ticked (numbers shown).
                 </Typography>
               )}
             </Field>
@@ -502,10 +562,6 @@ export default function Settings() {
               helperText="GET {endpoint}/{InstanceID} is polled until STATUS = Success."
               FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
               sx={inputSx} />
-          </Field>
-
-          <Field label="Process name">
-            <TextField fullWidth size="small" value={form.ps_process_name} onChange={set('ps_process_name')} sx={inputSx} />
           </Field>
 
           {/* PS test row */}

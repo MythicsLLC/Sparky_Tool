@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, Text, TIMESTAMP, JSON, ForeignKey, Index, Numeric
+from sqlalchemy import Column, String, Integer, Boolean, Text, TIMESTAMP, JSON, ForeignKey, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
 
@@ -57,24 +57,37 @@ class UserConfig(Base):
     win_connection_type = Column(String, default="winrm")   # winrm | smb | ssh
     win_share           = Column(String, default="C$")       # SMB share (admin share by default)
     win_domain          = Column(String, default="")         # domain for SMB / Kerberos
-    engine_id           = Column(Integer, ForeignKey("engines.id", ondelete="SET NULL"), nullable=True)
     is_active           = Column(Boolean, default=True)
     created_at         = Column(TIMESTAMP(timezone=True), default=_now)
     updated_at         = Column(TIMESTAMP(timezone=True), default=_now)
 
 
 class Engine(Base):
-    """Named PeopleSoft environment managed by admins and selectable in user configs."""
+    """A PeopleSoft process name managed by admins and selectable per user config."""
     __tablename__ = "engines"
     __table_args__ = (Index("idx_engines_sort", "sort_order"),)
-    id          = Column(Integer, primary_key=True, autoincrement=True)
-    name        = Column(String(200), nullable=False)
-    description = Column(Text, default="")
-    is_active   = Column(Boolean, default=True)
-    sort_order  = Column(Integer, default=0)
-    created_by  = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
-    created_at  = Column(TIMESTAMP(timezone=True), default=_now)
-    updated_at  = Column(TIMESTAMP(timezone=True), default=_now)
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    name         = Column(String(200), nullable=False)          # human-readable label
+    process_name = Column(String(200), nullable=False)          # PS process name e.g. SM_DISCOVERY
+    description  = Column(Text, default="")
+    is_active    = Column(Boolean, default=True)
+    sort_order   = Column(Integer, default=0)
+    created_by   = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at   = Column(TIMESTAMP(timezone=True), default=_now)
+    updated_at   = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+class UserConfigEngine(Base):
+    """Many-to-many: which engines (process names) are selected for a config, and in what order."""
+    __tablename__ = "user_config_engines"
+    __table_args__ = (
+        Index("idx_uce_config_id", "config_id"),
+        UniqueConstraint("config_id", "engine_id", name="uq_config_engine"),
+    )
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    config_id  = Column(Integer, ForeignKey("user_configs.id", ondelete="CASCADE"), nullable=False)
+    engine_id  = Column(Integer, ForeignKey("engines.id", ondelete="CASCADE"), nullable=False)
+    sort_order = Column(Integer, default=0)
 
 
 class RunLog(Base):
