@@ -164,6 +164,24 @@ export default function Dashboard() {
 
   const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis']
 
+  const kpi = useMemo(() => {
+    if (!runs.length) return null
+    const completed  = runs.filter((r) => r.status === 'success' || r.status === 'error')
+    const successful = runs.filter((r) => r.status === 'success')
+    const withDur    = successful.filter((r) => r.duration_ms != null)
+    const avgMs      = withDur.length ? Math.round(withDur.reduce((s, r) => s + r.duration_ms, 0) / withDur.length) : null
+    const rate       = completed.length ? Math.round(successful.length / completed.length * 100) : null
+    return {
+      total:      runs.length,
+      rate,
+      avgMs,
+      successCnt: successful.length,
+      errorCnt:   runs.filter((r) => r.status === 'error').length,
+      runningCnt: runs.filter((r) => r.status === 'running').length,
+      lastRun:    runs[0] || null,
+    }
+  }, [runs])
+
   const handleRunsViewChange = (v) => {
     setRunsView(v)
     localStorage.setItem('dashboard_runs_view', v)
@@ -263,26 +281,6 @@ export default function Dashboard() {
       setRunning(false)
     }
   }
-
-  // ── KPIs derived from loaded runs ─────────────────────────────────────────
-
-  const kpi = useMemo(() => {
-    if (!runs.length) return null
-    const completed  = runs.filter((r) => r.status === 'success' || r.status === 'error')
-    const successful = runs.filter((r) => r.status === 'success')
-    const withDur    = successful.filter((r) => r.duration_ms != null)
-    const avgMs      = withDur.length ? Math.round(withDur.reduce((s, r) => s + r.duration_ms, 0) / withDur.length) : null
-    const rate       = completed.length ? Math.round(successful.length / completed.length * 100) : null
-    return {
-      total:      runs.length,
-      rate,
-      avgMs,
-      successCnt: successful.length,
-      errorCnt:   runs.filter((r) => r.status === 'error').length,
-      runningCnt: runs.filter((r) => r.status === 'running').length,
-      lastRun:    runs[0] || null,
-    }
-  }, [runs])
 
   // ── render ────────────────────────────────────────────────────────────────
 
