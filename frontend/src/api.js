@@ -85,56 +85,24 @@ export const checkConnectivity = (token)           => client.get('/v2/insights/h
 // File analysis (v2)
 export const listInsightModels = () => client.get('/v2/insights/ai-models')
 
-/**
- * Download a server-generated PDF as a Blob.
- * Returns the raw Response so the caller can stream it as a file download.
- */
-export async function downloadAnalysisPdf(payload, token) {
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const url  = `${base}/api/v2/insights/generate-pdf`
-  const res  = await fetch(url, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body:    JSON.stringify(payload),
-  })
-  if (!res.ok) throw new Error(`PDF generation failed: ${res.status}`)
-  return res.blob()
+export async function downloadAnalysisPdf(payload) {
+  const { data } = await client.post('/v2/insights/generate-pdf', payload, { responseType: 'blob' })
+  return data
 }
 
-export async function downloadRunPdf(payload, token) {
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const url  = `${base}/api/v2/insights/generate-run-pdf`
-  const res  = await fetch(url, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body:    JSON.stringify(payload),
-  })
-  if (!res.ok) throw new Error(`Run PDF generation failed: ${res.status}`)
-  return res.blob()
+export async function downloadRunPdf(payload) {
+  const { data } = await client.post('/v2/insights/generate-run-pdf', payload, { responseType: 'blob' })
+  return data
 }
 
-export async function downloadFunctionalPdf(payload, token) {
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const url  = `${base}/api/v2/insights/generate-functional-pdf`
-  const res  = await fetch(url, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body:    JSON.stringify(payload),
-  })
-  if (!res.ok) throw new Error(`Functional PDF generation failed: ${res.status}`)
-  return res.blob()
+export async function downloadFunctionalPdf(payload) {
+  const { data } = await client.post('/v2/insights/generate-functional-pdf', payload, { responseType: 'blob' })
+  return data
 }
 
-export async function downloadOperationalPdf(payload, token) {
-  const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-  const url  = `${base}/api/v2/insights/generate-operational-pdf`
-  const res  = await fetch(url, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body:    JSON.stringify(payload),
-  })
-  if (!res.ok) throw new Error(`Operational PDF generation failed: ${res.status}`)
-  return res.blob()
+export async function downloadOperationalPdf(payload) {
+  const { data } = await client.post('/v2/insights/generate-operational-pdf', payload, { responseType: 'blob' })
+  return data
 }
 
 export const analyzeFile = (file, aiModelId) => {

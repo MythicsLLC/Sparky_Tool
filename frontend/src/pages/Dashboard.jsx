@@ -199,18 +199,18 @@ export default function Dashboard() {
 
       if (dashTab === 0) {
         // Run Dashboard — send KPI + runs to Python backend
-        blob     = await downloadRunPdf({ kpi, runs }, token)
+        blob     = await downloadRunPdf({ kpi, runs })
         filename = `sparky_run_dashboard_${new Date().toISOString().slice(0, 10)}.pdf`
 
       } else if (dashTab === 1) {
         // Functional Dashboard — send parsed CoreHR data to Python backend
         if (!functionalState) throw new Error('No Functional Dashboard data loaded yet.')
-        blob     = await downloadFunctionalPdf(functionalState, token)
+        blob     = await downloadFunctionalPdf(functionalState)
         filename = `sparky_functional_${new Date().toISOString().slice(0, 10)}.pdf`
 
       } else if (dashTab === 2) {
         // Operational Dashboard — send run list to Python backend
-        blob     = await downloadOperationalPdf({ runs }, token)
+        blob     = await downloadOperationalPdf({ runs })
         filename = `sparky_operational_${new Date().toISOString().slice(0, 10)}.pdf`
       }
 

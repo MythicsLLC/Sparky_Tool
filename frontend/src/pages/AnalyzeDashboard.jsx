@@ -19,10 +19,8 @@ import UploadFileIcon    from '@mui/icons-material/UploadFile'
 import AutoAwesomeIcon   from '@mui/icons-material/AutoAwesome'
 import TableChartIcon    from '@mui/icons-material/TableChart'
 import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
-import { analyzeFile, listInsightModels } from '../api'
-import { useAuth } from '../AuthContext'
+import { analyzeFile, listInsightModels, downloadAnalysisPdf } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
-import mythicsLogoPng from '../assets/mythics-logo-color.png'
 
 // ── colour palette (matches backend prompt) ────────────────────────────────────
 const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
@@ -361,7 +359,6 @@ function SummaryBar({ result, filename }) {
 export default function AnalyzeDashboard() {
   const theme   = useTheme()
   const accent  = theme.palette.primary.main
-  const { token } = useAuth()
   const chartsRef = useRef(null)
   const [loading,         setLoading]         = useState(false)
   const [pdfLoading,      setPdfLoading]      = useState(false)
@@ -380,7 +377,7 @@ export default function AnalyzeDashboard() {
         if (def) setSelectedModelId(def.id)
       })
       .catch(() => {})
-  }, [token])
+  }, [])
 
   const handleFile = useCallback(async (file) => {
     setError(null)
@@ -401,110 +398,20 @@ export default function AnalyzeDashboard() {
     if (!result) return
     setPdfLoading(true)
     try {
-      const { jsPDF } = await import('jspdf')
-      const {
-        loadLogoBase64, extractRechartsImages,
-        drawPdfHeader, drawSectionHeading, drawParagraph, drawDivider,
-        drawChartBlock, addPageFooters,
-      } = await import('../utils/pdfUtils')
-
-      const chartSpecs = result.charts || []
-      const totalRows  = result.meta?.total_rows    ?? result.row_count
-      const totalCols  = result.meta?.total_columns ?? result.col_count
-      const piiCount   = result.meta?.pii_masked_count ?? 0
-
-      // ── 1. Load assets in parallel ────────────────────────────────────────
-      const [logo, chartImages] = await Promise.all([
-        loadLogoBase64(mythicsLogoPng),
-        chartsRef.current
-          ? extractRechartsImages(chartsRef.current, '#ffffff')
-          : Promise.resolve([]),
-      ])
-
-      // ── 2. Build PDF ──────────────────────────────────────────────────────
-      const pdf   = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const M     = 40                // margin
-      const CW    = pageW - M * 2     // content width
-
-      const today = new Date().toLocaleDateString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric',
+      const blob = await downloadAnalysisPdf({
+        filename: filename || 'report',
+        summary:  result.summary || '',
+        charts:   result.charts  || [],
+        meta:     result.meta    || {},
       })
-
-      // ── Header ───────────────────────────────────────────────────────────
-      let y = drawPdfHeader(pdf, {
-        logo,
-        title: 'AI Analysis Report',
-        metaLines: [
-          `File: ${(filename || 'report').replace(/\.[^.]+$/, '')}`,
-          `Generated: ${today}`,
-          `${totalRows?.toLocaleString() ?? '—'} rows  ·  ${totalCols ?? '—'} columns  ·  ${chartSpecs.length} charts`,
-          ...(piiCount > 0
-            ? [`PII protected: ${piiCount} sensitive value${piiCount !== 1 ? 's' : ''} masked before AI analysis`]
-            : []),
-        ],
-        pageW,
-        margin: M,
-      })
-
-      // ── Summary section ───────────────────────────────────────────────────
-      y = drawSectionHeading(pdf, 'AI ANALYSIS SUMMARY', M, y)
-      y = drawParagraph(pdf, result.summary, M, y, CW, { pageH, margin: M })
-      y += 18
-      y = drawDivider(pdf, M, y, CW)
-
-      // ── Charts section — 2 per row in equal-width columns ─────────────────
-      y = drawSectionHeading(pdf, 'DATA VISUALISATIONS', M, y)
-
-      const GAP      = 12
-      const SLOT_W   = (CW - GAP) / 2
-      const MAX_CH   = 175            // max chart image height per slot
-
-      for (let i = 0; i < chartSpecs.length; i++) {
-        const col   = i % 2
-        const spec  = chartSpecs[i]
-        const img   = chartImages[i] ?? null
-
-        // Estimate block height for this slot
-        const imgH  = img ? Math.min(SLOT_W * (img.h / img.w), MAX_CH) : 120
-        const bH    = 16 + imgH + (spec.description ? 20 : 8) + 8   // title+img+desc+pad
-
-        // Start a new row on the left column
-        if (col === 0) {
-          // Check if the row fits on this page
-          const rowH = bH  // approximate (right col might differ slightly)
-          if (y + rowH > pageH - M - 20) {
-            pdf.addPage()
-            y = M + 8
-          }
-        }
-
-        const x = M + col * (SLOT_W + GAP)
-        drawChartBlock(pdf, {
-          img,
-          title:       spec.title || `Chart ${i + 1}`,
-          description: spec.description,
-          x, y,
-          w:    SLOT_W,
-          maxH: MAX_CH,
-        })
-
-        // Advance Y after completing each row (right col) or the last chart
-        if (col === 1 || i === chartSpecs.length - 1) {
-          y += bH + GAP
-        }
-      }
-
-      // ── Footers on every page ─────────────────────────────────────────────
-      addPageFooters(pdf, pageW, pageH, M)
-
-      const safeName = (filename || 'report')
-        .replace(/\.[^.]+$/, '')
-        .replace(/[^a-z0-9_-]/gi, '_')
-      pdf.save(`${safeName}_analysis.pdf`)
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${(filename || 'report').replace(/\.[^.]+$/, '')}_analysis.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('PDF generation failed', err)
+      console.error('PDF download failed', err)
     } finally {
       setPdfLoading(false)
     }
