@@ -200,7 +200,7 @@ export default function StartupScreen({ onReady, authLoading = false }) {
           '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
           animation: 'fadeIn 0.8s ease 0s both',
         }}>
-          <MythicsLogo width={110} />
+          <MythicsLogo width={28} />
 
           {/* Vertical divider */}
           <Box sx={{

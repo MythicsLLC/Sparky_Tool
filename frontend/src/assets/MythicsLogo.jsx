@@ -7,7 +7,7 @@ import mythicsLogoPng from './mythics-logo-color.png'
  *   width  — pixel width (height scales proportionally). Default 120.
  *   style  — extra inline styles on the root element.
  */
-export default function MythicsLogo({ width = 120, style = {} }) {
+export default function MythicsLogo({ width = 30, style = {} }) {
   return (
     <img
       src={mythicsLogoPng}

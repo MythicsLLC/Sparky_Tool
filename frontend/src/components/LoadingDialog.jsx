@@ -107,7 +107,7 @@ export default function LoadingDialog({ open }) {
             },
             animation: 'logoBreathe 2.8s ease-in-out infinite',
           }}>
-            <MythicsLogo width={72} />
+            <MythicsLogo width={18} />
           </Box>
         </Box>
 

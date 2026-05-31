@@ -343,7 +343,7 @@ export default function Dashboard() {
             <Button
               startIcon={running
                 ? <CircularProgress size={13} sx={{ color: 'background.default' }} />
-                : <MythicsLogo width={22} />
+                : <MythicsLogo width={6} />
               }
               onClick={handleRun}
               disabled={running || pageLoading || !configs.length}
@@ -493,7 +493,7 @@ export default function Dashboard() {
           <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', p: 6, textAlign: 'center' }}>
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2.5 }}>
               <Box sx={{ position: 'relative', display: 'inline-block' }}>
-                <MythicsLogo width={100} style={{ opacity: 0.5 }} />
+                <MythicsLogo width={25} style={{ opacity: 0.5 }} />
                 <Box sx={{
                   position: 'absolute', bottom: -2, right: -2,
                   width: 22, height: 22, borderRadius: '50%',
