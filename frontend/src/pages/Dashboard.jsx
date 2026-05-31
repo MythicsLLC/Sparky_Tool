@@ -175,85 +175,126 @@ export default function Dashboard() {
   }
 
   const downloadTabPdf = useCallback(async () => {
-    if (!tabRef.current) return
     setPdfTabLoading(true)
     try {
-      const { default: html2canvas } = await import('html2canvas')
-      const { jsPDF }                = await import('jspdf')
+      const { jsPDF } = await import('jspdf')
+      const {
+        loadLogoBase64, extractRechartsImages,
+        drawPdfHeader, drawSectionHeading, drawDivider,
+        drawKpiCard, drawTable, drawChartBlock, addPageFooters,
+      } = await import('../utils/pdfUtils')
 
-      // Load Mythics logo at natural aspect ratio
-      const logo = await new Promise((resolve) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => {
-          const c = document.createElement('canvas')
-          c.width = img.naturalWidth; c.height = img.naturalHeight
-          c.getContext('2d').drawImage(img, 0, 0)
-          resolve({ data: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+      const today = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      })
+      const pdf   = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const M     = 40
+      const CW    = pageW - M * 2
+
+      const logo = await loadLogoBase64(mythicsLogoPng)
+
+      // ── TAB 0: Run Dashboard — fully programmatic from state ───────────────
+      if (dashTab === 0) {
+        let y = drawPdfHeader(pdf, {
+          logo,
+          title: 'Run Dashboard',
+          metaLines: [
+            `Generated: ${today}`,
+            `${runs.length} total run${runs.length !== 1 ? 's' : ''} recorded`,
+          ],
+          pageW, margin: M,
+        })
+
+        // KPI boxes
+        y = drawSectionHeading(pdf, 'PERFORMANCE OVERVIEW', M, y)
+        const kpiW = (CW - 9) / 4
+        const KPI_ITEMS = [
+          { label: 'Total Runs',   value: kpi?.total ?? '—' },
+          { label: 'Success Rate', value: kpi?.rate != null ? `${kpi.rate}%` : '—' },
+          { label: 'Avg Duration', value: kpi?.avgMs != null ? fmtMs(kpi.avgMs) : '—' },
+          { label: 'Last Run',     value: kpi?.lastRun ? timeAgo(kpi.lastRun.started_at) : '—' },
+        ]
+        KPI_ITEMS.forEach(({ label, value }, i) => {
+          drawKpiCard(pdf, { label, value, x: M + i * (kpiW + 3), y, w: kpiW, h: 42 })
+        })
+        y += 56
+        y = drawDivider(pdf, M, y, CW)
+
+        // Runs table
+        if (runs.length) {
+          y = drawSectionHeading(pdf, 'RECENT RUNS', M, y)
+          y = drawTable(pdf, {
+            headers:   ['Config', 'Instance ID', 'Report ID', 'Status', 'Rows', 'Duration', 'When'],
+            rows: runs.slice(0, 50).map((r) => [
+              r.config_name || '—',
+              r.instance_id || '—',
+              r.report_id   || '—',
+              r.status,
+              r.row_count != null ? r.row_count.toLocaleString() : '—',
+              fmtMs(r.duration_ms),
+              r.status === 'running' ? 'Running…' : timeAgo(r.started_at),
+            ]),
+            colWidths: [88, 98, 90, 55, 50, 58, 60],
+            x: M, y, pageH, margin: M,
+          })
         }
-        img.src = mythicsLogoPng
-      })
 
-      const canvas = await html2canvas(tabRef.current, {
-        scale: 2, useCORS: true, allowTaint: true,
-        backgroundColor: theme.palette.background.default,
-        logging: false,
-      })
+      // ── TABS 1, 2, 3 — header + recharts SVG extraction ────────────────────
+      } else {
+        let y = drawPdfHeader(pdf, {
+          logo,
+          title: TAB_NAMES[dashTab],
+          metaLines: [`Generated: ${today}`],
+          pageW, margin: M,
+        })
 
-      const pdf    = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-      const pageW  = pdf.internal.pageSize.getWidth()
-      const pageH  = pdf.internal.pageSize.getHeight()
-      const margin = 40
+        const chartImages = tabRef.current
+          ? await extractRechartsImages(tabRef.current, '#ffffff')
+          : []
 
-      // ── Header ──────────────────────────────────────────────────────────────
-      const logoW = 90
-      const logoH = logoW * (logo.h / logo.w)
-      pdf.addImage(logo.data, 'PNG', pageW - margin - logoW, margin * 0.8, logoW, logoH)
+        if (!chartImages.length) {
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(9)
+          pdf.setTextColor(150, 150, 150)
+          pdf.text('No charts available on this tab.', M, y + 20)
+        } else {
+          y = drawSectionHeading(pdf, 'CHARTS', M, y)
+          const GAP    = 12
+          const SLOT_W = (CW - GAP) / 2
+          const MAX_CH = 190
 
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(15)
-      pdf.setTextColor(24, 24, 24)
-      pdf.text(TAB_NAMES[dashTab], margin, margin + 14)
+          for (let i = 0; i < chartImages.length; i++) {
+            const col  = i % 2
+            const img  = chartImages[i]
+            const imgH = img ? Math.min(SLOT_W * (img.h / img.w), MAX_CH) : 120
+            const bH   = 16 + imgH + 24
 
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8.5)
-      pdf.setTextColor(110, 110, 110)
-      pdf.text(
-        `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
-        margin, margin + 30,
-      )
-
-      const headerBottom = margin + 46
-      pdf.setDrawColor(210, 210, 210)
-      pdf.setLineWidth(0.5)
-      pdf.line(margin, headerBottom, pageW - margin, headerBottom)
-
-      // ── Tab content image (multi-page) ──────────────────────────────────────
-      const imgData   = canvas.toDataURL('image/png')
-      const printW    = pageW - margin * 2
-      const imgH      = (canvas.height / canvas.width) * printW
-      let y           = headerBottom + 14
-
-      const page1Avail = pageH - y - margin
-      const extraPages = imgH > page1Avail
-        ? Math.ceil((imgH - page1Avail) / (pageH - margin * 2))
-        : 0
-
-      let imgStart = 0
-      for (let page = 0; page < 1 + extraPages; page++) {
-        if (page > 0) { pdf.addPage(); y = margin }
-        pdf.addImage(imgData, 'PNG', margin, y - imgStart, printW, imgH)
-        imgStart += page === 0 ? page1Avail : (pageH - margin * 2)
+            if (col === 0 && y + bH > pageH - M - 20) {
+              pdf.addPage()
+              y = M + 8
+            }
+            drawChartBlock(pdf, {
+              img,
+              title: `Chart ${i + 1}`,
+              x: M + col * (SLOT_W + GAP),
+              y, w: SLOT_W, maxH: MAX_CH,
+            })
+            if (col === 1 || i === chartImages.length - 1) y += bH + GAP
+          }
+        }
       }
 
-      const tabSlug = TAB_NAMES[dashTab].toLowerCase().replace(/\s+/g, '_')
-      pdf.save(`sparky_${tabSlug}_${new Date().toISOString().slice(0, 10)}.pdf`)
+      addPageFooters(pdf, pageW, pageH, M)
+      const slug = TAB_NAMES[dashTab].toLowerCase().replace(/\s+/g, '_')
+      pdf.save(`sparky_${slug}_${new Date().toISOString().slice(0, 10)}.pdf`)
     } catch (err) {
       console.error('PDF generation failed', err)
     } finally {
       setPdfTabLoading(false)
     }
-  }, [dashTab, theme])
+  }, [dashTab, kpi, runs])
 
   const selectedConfig = useMemo(
     () => configs.find((c) => c.id === activeConfigId) || null,

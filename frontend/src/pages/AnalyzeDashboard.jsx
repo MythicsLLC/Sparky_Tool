@@ -398,121 +398,110 @@ export default function AnalyzeDashboard() {
   }, [selectedModelId])
 
   const downloadPdf = useCallback(async () => {
-    if (!chartsRef.current || !result) return
+    if (!result) return
     setPdfLoading(true)
     try {
-      const { default: html2canvas } = await import('html2canvas')
-      const { jsPDF }                = await import('jspdf')
+      const { jsPDF } = await import('jspdf')
+      const {
+        loadLogoBase64, extractRechartsImages,
+        drawPdfHeader, drawSectionHeading, drawParagraph, drawDivider,
+        drawChartBlock, addPageFooters,
+      } = await import('../utils/pdfUtils')
 
-      // ── Load Mythics logo (preserve natural aspect ratio) ─────────────────
-      const logo = await new Promise((resolve) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => {
-          const c = document.createElement('canvas')
-          c.width = img.naturalWidth; c.height = img.naturalHeight
-          c.getContext('2d').drawImage(img, 0, 0)
-          resolve({ data: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight })
+      const chartSpecs = result.charts || []
+      const totalRows  = result.meta?.total_rows    ?? result.row_count
+      const totalCols  = result.meta?.total_columns ?? result.col_count
+      const piiCount   = result.meta?.pii_masked_count ?? 0
+
+      // ── 1. Load assets in parallel ────────────────────────────────────────
+      const [logo, chartImages] = await Promise.all([
+        loadLogoBase64(mythicsLogoPng),
+        chartsRef.current
+          ? extractRechartsImages(chartsRef.current, '#ffffff')
+          : Promise.resolve([]),
+      ])
+
+      // ── 2. Build PDF ──────────────────────────────────────────────────────
+      const pdf   = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const M     = 40                // margin
+      const CW    = pageW - M * 2     // content width
+
+      const today = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      })
+
+      // ── Header ───────────────────────────────────────────────────────────
+      let y = drawPdfHeader(pdf, {
+        logo,
+        title: 'AI Analysis Report',
+        metaLines: [
+          `File: ${(filename || 'report').replace(/\.[^.]+$/, '')}`,
+          `Generated: ${today}`,
+          `${totalRows?.toLocaleString() ?? '—'} rows  ·  ${totalCols ?? '—'} columns  ·  ${chartSpecs.length} charts`,
+          ...(piiCount > 0
+            ? [`PII protected: ${piiCount} sensitive value${piiCount !== 1 ? 's' : ''} masked before AI analysis`]
+            : []),
+        ],
+        pageW,
+        margin: M,
+      })
+
+      // ── Summary section ───────────────────────────────────────────────────
+      y = drawSectionHeading(pdf, 'AI ANALYSIS SUMMARY', M, y)
+      y = drawParagraph(pdf, result.summary, M, y, CW, { pageH, margin: M })
+      y += 18
+      y = drawDivider(pdf, M, y, CW)
+
+      // ── Charts section — 2 per row in equal-width columns ─────────────────
+      y = drawSectionHeading(pdf, 'DATA VISUALISATIONS', M, y)
+
+      const GAP      = 12
+      const SLOT_W   = (CW - GAP) / 2
+      const MAX_CH   = 175            // max chart image height per slot
+
+      for (let i = 0; i < chartSpecs.length; i++) {
+        const col   = i % 2
+        const spec  = chartSpecs[i]
+        const img   = chartImages[i] ?? null
+
+        // Estimate block height for this slot
+        const imgH  = img ? Math.min(SLOT_W * (img.h / img.w), MAX_CH) : 120
+        const bH    = 16 + imgH + (spec.description ? 20 : 8) + 8   // title+img+desc+pad
+
+        // Start a new row on the left column
+        if (col === 0) {
+          // Check if the row fits on this page
+          const rowH = bH  // approximate (right col might differ slightly)
+          if (y + rowH > pageH - M - 20) {
+            pdf.addPage()
+            y = M + 8
+          }
         }
-        img.src = mythicsLogoPng
-      })
 
-      // ── Screenshot charts grid only ───────────────────────────────────────
-      const chartsCanvas = await html2canvas(chartsRef.current, {
-        scale: 2, useCORS: true, allowTaint: true,
-        backgroundColor: theme.palette.background.default,
-        logging: false,
-      })
+        const x = M + col * (SLOT_W + GAP)
+        drawChartBlock(pdf, {
+          img,
+          title:       spec.title || `Chart ${i + 1}`,
+          description: spec.description,
+          x, y,
+          w:    SLOT_W,
+          maxH: MAX_CH,
+        })
 
-      const pdf    = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-      const pageW  = pdf.internal.pageSize.getWidth()
-      const pageH  = pdf.internal.pageSize.getHeight()
-      const margin = 40
-
-      // ── Page 1: Header ────────────────────────────────────────────────────
-      // Mythics logo — top right
-      const logoW = 90
-      const logoH = logoW * (logo.h / logo.w)
-      pdf.addImage(logo.data, 'PNG', pageW - margin - logoW, margin * 0.8, logoW, logoH)
-
-      // Report title — top left
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(15)
-      pdf.setTextColor(24, 24, 24)
-      pdf.text('AI Analysis Report', margin, margin + 14)
-
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8.5)
-      pdf.setTextColor(110, 110, 110)
-      const baseName = (filename || 'report').replace(/\.[^.]+$/, '')
-      pdf.text(`File: ${baseName}`, margin, margin + 28)
-      pdf.text(
-        `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
-        margin, margin + 40,
-      )
-      pdf.text(
-        `${result.row_count?.toLocaleString()} rows  ·  ${result.col_count} columns  ·  ${(result.charts || []).length} charts`,
-        margin, margin + 52,
-      )
-
-      // Divider
-      const headerBottom = margin + 66
-      pdf.setDrawColor(210, 210, 210)
-      pdf.setLineWidth(0.5)
-      pdf.line(margin, headerBottom, pageW - margin, headerBottom)
-
-      // ── Summary paragraph ─────────────────────────────────────────────────
-      let y = headerBottom + 18
-
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(9)
-      pdf.setTextColor(80, 80, 80)
-      pdf.text('AI ANALYSIS SUMMARY', margin, y)
-      y += 6
-
-      // Accent underline beneath heading
-      pdf.setDrawColor(180, 150, 60)
-      pdf.setLineWidth(1.2)
-      pdf.line(margin, y, margin + 68, y)
-      y += 14
-
-      // Full paragraph — splitTextToSize wraps at page width
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(9.5)
-      pdf.setTextColor(45, 45, 45)
-      const lineHeight    = 14
-      const summaryLines  = pdf.splitTextToSize(result.summary || '', pageW - margin * 2)
-      pdf.text(summaryLines, margin, y)
-      y += summaryLines.length * lineHeight + 22
-
-      // Divider before charts
-      pdf.setDrawColor(220, 220, 220)
-      pdf.setLineWidth(0.4)
-      pdf.line(margin, y, pageW - margin, y)
-      y += 14
-
-      // ── Charts image (multi-page) ─────────────────────────────────────────
-      const chartsData = chartsCanvas.toDataURL('image/png')
-      const printW     = pageW - margin * 2
-      const chartsH    = (chartsCanvas.height / chartsCanvas.width) * printW
-
-      // Available height for charts on page 1 (below header+summary)
-      const page1Avail = pageH - y - margin
-      // Pages needed: page 1 uses page1Avail, subsequent pages use (pageH - margin*2)
-      const extraPages = chartsH > page1Avail
-        ? Math.ceil((chartsH - page1Avail) / (pageH - margin * 2))
-        : 0
-      const totalPages = 1 + extraPages
-
-      let chartsStart = 0
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) { pdf.addPage(); y = margin }
-        // Position image so that the slice from chartsStart is visible at y
-        pdf.addImage(chartsData, 'PNG', margin, y - chartsStart, printW, chartsH)
-        chartsStart += page === 0 ? page1Avail : (pageH - margin * 2)
+        // Advance Y after completing each row (right col) or the last chart
+        if (col === 1 || i === chartSpecs.length - 1) {
+          y += bH + GAP
+        }
       }
 
-      const safeName = (filename || 'report').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '_')
+      // ── Footers on every page ─────────────────────────────────────────────
+      addPageFooters(pdf, pageW, pageH, M)
+
+      const safeName = (filename || 'report')
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^a-z0-9_-]/gi, '_')
       pdf.save(`${safeName}_analysis.pdf`)
     } catch (err) {
       console.error('PDF generation failed', err)
