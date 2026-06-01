@@ -366,8 +366,10 @@ export default function AnalyzeDashboard() {
   const [showSuccess,     setShowSuccess]     = useState(false)
   const [pdfSuccess,      setPdfSuccess]      = useState(false)
   const [error,           setError]           = useState(null)
+  const [retrying,        setRetrying]        = useState(false)
   const [result,          setResult]          = useState(null)
   const [filename,        setFilename]        = useState('')
+  const [pendingFile,     setPendingFile]     = useState(null)
   const [models,          setModels]          = useState([])
   const [selectedModelId, setSelectedModelId] = useState(null)
 
@@ -382,22 +384,50 @@ export default function AnalyzeDashboard() {
       .catch(() => {})
   }, [])
 
-  const handleFile = useCallback(async (file) => {
+  const _runAnalysis = useCallback(async (file, modelId) => {
     setError(null)
-    setResult(null)
-    setFilename(file.name)
+    setRetrying(false)
     setLoading(true)
+    let willRetry = false
     try {
-      const { data } = await analyzeFile(file, selectedModelId)
+      const { data } = await analyzeFile(file, modelId)
       setResult(data)
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 1600)
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Analysis failed — check the server logs.')
+      const isNetwork = !err.response && (err.message === 'Network Error' || err.code === 'ERR_NETWORK')
+      if (isNetwork) {
+        willRetry = true
+        setRetrying(true)
+        setError('The AI server is waking up — retrying in 8 seconds…')
+        setTimeout(async () => {
+          setError(null)
+          try {
+            const { data } = await analyzeFile(file, modelId)
+            setResult(data)
+            setShowSuccess(true)
+            setTimeout(() => setShowSuccess(false), 1600)
+          } catch (retryErr) {
+            setError(retryErr?.response?.data?.detail || 'Server still starting — please try again in a moment.')
+          } finally {
+            setRetrying(false)
+            setLoading(false)
+          }
+        }, 8000)
+      } else {
+        setError(err?.response?.data?.detail || err.message || 'Analysis failed — check the server logs.')
+      }
     } finally {
-      setLoading(false)
+      if (!willRetry) setLoading(false)
     }
-  }, [selectedModelId])
+  }, []) // eslint-disable-line
+
+  const handleFile = useCallback(async (file) => {
+    setResult(null)
+    setFilename(file.name)
+    setPendingFile(file)
+    await _runAnalysis(file, selectedModelId)
+  }, [selectedModelId, _runAnalysis])
 
   const downloadPdf = useCallback(async () => {
     if (!result) return
@@ -490,8 +520,15 @@ export default function AnalyzeDashboard() {
 
       {/* ── error ─────────────────────────────────────────────────────────── */}
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mt: 2 }}>
+        <Alert
+          severity={retrying ? 'info' : 'error'}
+          onClose={retrying ? undefined : () => setError(null)}
+          sx={{ mt: 2 }}
+        >
           {error}
+          {retrying && (
+            <CircularProgress size={12} sx={{ ml: 1.5, verticalAlign: 'middle' }} />
+          )}
         </Alert>
       )}
 

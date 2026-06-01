@@ -111,10 +111,9 @@ export const analyzeFile = (file, aiModelId) => {
   const form = new FormData()
   form.append('file', file)
   const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
-  return client.post('/v2/insights/analyze-file', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    params,
-  })
+  // Do NOT set Content-Type manually — Axios sets multipart/form-data with the
+  // correct boundary automatically when the body is FormData.
+  return client.post('/v2/insights/analyze-file', form, { params })
 }
 
 // AI Models admin (v2)
