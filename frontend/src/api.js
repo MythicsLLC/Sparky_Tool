@@ -69,13 +69,15 @@ export const saveSettings   = (data) => client.post('/settings', data)
 export const testRetrieval  = (data) => client.post('/test-retrieval', data)
 export const testPeoplesoft = (data) => client.post('/test-peoplesoft', data)
 
-// VPN tunnel
-export const testVpn       = (data) => client.post('/test-vpn', data)
-
 // Windows Server (WinRM)
 export const testWindows   = (data) => client.post('/test-windows', data)
 export const winBrowse     = (data) => client.post('/win-browse', data)
 export const winReadFile   = (data) => client.post('/win-read-file', data)
+
+// FTP / FTPS
+export const testFtp       = (data) => client.post('/test-ftp', data)
+export const ftpBrowse     = (data) => client.post('/ftp-browse', data)
+export const ftpReadFile   = (data) => client.post('/ftp-read-file', data)
 
 // Insights (v2)
 export const getCoreHRFiles    = (token)           => client.get('/v2/insights/corehr/files', { headers: auth(token) })
