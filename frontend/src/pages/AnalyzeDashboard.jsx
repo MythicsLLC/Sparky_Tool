@@ -503,7 +503,7 @@ export default function AnalyzeDashboard() {
           '@keyframes splashIn': { from: { opacity: 0, transform: 'scale(0.92)' }, to: { opacity: 1, transform: 'scale(1)' } },
           animation: 'splashIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both',
         }}>
-          <SuccessCheck size={96} color="#6b8f71" />
+          <SuccessCheck size={96} />
           <Box sx={{ textAlign: 'center' }}>
             <Typography sx={{
               fontFamily: '"Cormorant Garamond", serif', fontSize: '1.55rem',
@@ -532,14 +532,14 @@ export default function AnalyzeDashboard() {
               <Box sx={{
                 display: 'flex', alignItems: 'center', gap: 0.75,
                 px: 1, py: 0.3,
-                border: '1px solid rgba(107,143,113,0.35)',
+                border: `1px solid ${accent}59`,
                 borderRadius: '3px',
-                bgcolor: 'rgba(107,143,113,0.06)',
+                bgcolor: `${accent}0f`,
                 '@keyframes pdfBadgeIn': { from: { opacity: 0, transform: 'scale(0.85)' }, to: { opacity: 1, transform: 'scale(1)' } },
                 animation: 'pdfBadgeIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both',
               }}>
-                <SuccessCheck size={28} color="#6b8f71" />
-                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: '#6b8f71', letterSpacing: '0.06em' }}>
+                <SuccessCheck size={28} />
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: accent, letterSpacing: '0.06em' }}>
                   Downloaded
                 </Typography>
               </Box>

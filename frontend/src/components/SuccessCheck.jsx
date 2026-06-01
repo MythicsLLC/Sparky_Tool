@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { Box } from '@mui/material'
+import { useThemeContext } from '../ThemeContext'
 
 /**
  * Google-Pay-style animated success checkmark.
@@ -11,7 +12,9 @@ import { Box } from '@mui/material'
  *   550 – 850 ms: whole icon scales up then springs back (1.0 → 1.12 → 1.0)
  *   600 – 900 ms: 6 particles burst outward at 60° intervals then fade
  */
-export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
+export default function SuccessCheck({ size = 64, color }) {
+  const { accent } = useThemeContext()
+  const c   = color ?? accent
   const uid = useRef(`sc_${Math.random().toString(36).slice(2, 7)}`).current
 
   const r     = 36                       // SVG-space radius (viewBox 100×100)
@@ -93,14 +96,14 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
             <defs>
               {/* subtle drop-shadow filter for the ring */}
               <filter id={`${uid}_gf`} x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={color} floodOpacity="0.55" />
+                <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={c} floodOpacity="0.55" />
               </filter>
             </defs>
 
             {/* soft background circle — scales in first */}
             <circle
               cx={cx} cy={cy} r="46"
-              fill={color}
+              fill={c}
               fillOpacity="0.12"
               style={{ animation: `${uid}_bg 0.35s cubic-bezier(0.34,1.56,0.64,1) 0s both` }}
             />
@@ -108,7 +111,7 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
             {/* faint track ring (always visible, gives depth) */}
             <circle
               cx={cx} cy={cy} r={r}
-              stroke={color}
+              stroke={c}
               strokeOpacity="0.18"
               strokeWidth="3.5"
             />
@@ -116,7 +119,7 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
             {/* ── animated ring drawing clockwise from the top ── */}
             <circle
               cx={cx} cy={cy} r={r}
-              stroke={color}
+              stroke={c}
               strokeWidth="4.8"
               strokeLinecap="round"
               strokeDasharray={circ}
@@ -132,7 +135,7 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
             {/* secondary thin inner ring for depth */}
             <circle
               cx={cx} cy={cy} r={r - 6}
-              stroke={color}
+              stroke={c}
               strokeOpacity="0.1"
               strokeWidth="1"
               strokeDasharray={`${circ * 0.12} ${circ * 0.88}`}
@@ -146,7 +149,7 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
             {/* ── animated checkmark ── */}
             <path
               d="M 22 52 L 40 68 L 76 30"
-              stroke={color}
+              stroke={c}
               strokeWidth="5.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -182,7 +185,7 @@ export default function SuccessCheck({ size = 64, color = '#6b8f71' }) {
               width:  p.dot,
               height: p.dot,
               borderRadius: '50%',
-              bgcolor: `${color}${p.alpha}`,
+              bgcolor: `${c}${p.alpha}`,
               animation: `${uid}_p${i} 0.58s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${p.delay}s both`,
             }}
           />

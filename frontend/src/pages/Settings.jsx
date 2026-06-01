@@ -94,7 +94,7 @@ function SectionCard({ number, title, subtitle, complete, children }) {
         </Box>
         {complete && (
           <Tooltip title="Section complete" placement="left">
-            <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: '#6b8f71', boxShadow: '0 0 10px rgba(107,143,113,0.7)', flexShrink: 0, transition: 'all 0.3s ease' }} />
+            <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: accent, boxShadow: `0 0 10px ${accent}b3`, flexShrink: 0, transition: 'all 0.3s ease' }} />
           </Tooltip>
         )}
       </Box>
@@ -367,13 +367,13 @@ export default function Settings() {
       display: 'flex', alignItems: 'center', gap: 1.5,
       px: status.ok ? 1.2 : 2, py: status.ok ? 0.6 : 1.2,
       borderRadius: '3px', flex: 1, minWidth: 0,
-      border: status.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
-      bgcolor: status.ok ? 'rgba(107,143,113,0.05)' : 'rgba(143,74,74,0.06)',
+      border: status.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
+      bgcolor: status.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
       '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
       animation: 'resultIn 0.25s ease both',
     }}>
       {status.ok
-        ? <SuccessCheck size={44} color="#6b8f71" />
+        ? <SuccessCheck size={44} />
         : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
       }
       <Box sx={{ minWidth: 0 }}>{status.children}</Box>
@@ -581,20 +581,20 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', gap: 1.5,
                 px: psTestStatus.ok ? 1.2 : 2, py: psTestStatus.ok ? 0.5 : 1.2,
                 borderRadius: '3px', flex: 1, minWidth: 0,
-                border: psTestStatus.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
-                bgcolor: psTestStatus.ok ? 'rgba(107,143,113,0.05)' : 'rgba(143,74,74,0.06)',
+                border: psTestStatus.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
+                bgcolor: psTestStatus.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
                 '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
                 animation: 'resultIn 0.25s ease both',
               }}>
                 {psTestStatus.ok
-                  ? <SuccessCheck size={44} color="#6b8f71" />
+                  ? <SuccessCheck size={44} />
                   : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
                 }
                 <Box>
                   {psTestStatus.ok ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                       <Box>
-                        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#8fc99a', letterSpacing: '0.06em', mb: 0.2 }}>API test passed</Typography>
+                        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: accent, letterSpacing: '0.06em', mb: 0.2 }}>API test passed</Typography>
                         <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.04em' }}>
                           HTTP {psTestStatus.http_status}{psTestStatus.status_http_status != null ? ` · Status ${psTestStatus.status_http_status}` : ''}
                         </Typography>
@@ -692,18 +692,18 @@ export default function Settings() {
                   display: 'flex', alignItems: 'center', gap: 1.5,
                   px: testStatus.ok ? 1.2 : 2, py: testStatus.ok ? 0.5 : 1.2,
                   borderRadius: '3px', flex: 1, minWidth: 0,
-                  border: testStatus.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
-                  bgcolor: testStatus.ok ? 'rgba(107,143,113,0.05)' : 'rgba(143,74,74,0.06)',
+                  border: testStatus.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
+                  bgcolor: testStatus.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
                   '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
                   animation: 'resultIn 0.25s ease both',
                 }}>
                   {testStatus.ok
-                    ? <SuccessCheck size={44} color="#6b8f71" />
+                    ? <SuccessCheck size={44} />
                     : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
                   }
                   <Box>
                     {testStatus.ok ? (<>
-                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#8fc99a', letterSpacing: '0.06em', mb: 0.2 }}>Connection successful</Typography>
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: accent, letterSpacing: '0.06em', mb: 0.2 }}>Connection successful</Typography>
                       <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.04em' }}>
                         {form.sftp_remote_path}{testStatus.size_kb != null && <Box component="span" sx={{ ml: 1.5, color: accent }}>{testStatus.size_kb >= 1024 ? `${(testStatus.size_kb / 1024).toFixed(1)} MB` : `${testStatus.size_kb} KB`}</Box>}
                       </Typography>
@@ -846,19 +846,19 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', gap: 1.5,
                 px: winTestStatus.ok ? 1.2 : 2, py: winTestStatus.ok ? 0.5 : 1.2,
                 borderRadius: '3px', flex: 1, minWidth: 0,
-                border: winTestStatus.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
-                bgcolor: winTestStatus.ok ? 'rgba(107,143,113,0.05)' : 'rgba(143,74,74,0.06)',
+                border: winTestStatus.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
+                bgcolor: winTestStatus.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
                 '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
                 animation: 'resultIn 0.25s ease both',
               }}>
                 {winTestStatus.ok
-                  ? <SuccessCheck size={44} color="#6b8f71" />
+                  ? <SuccessCheck size={44} />
                   : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
                 }
                 <Box>
                   {winTestStatus.ok ? (
                     <Box>
-                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#8fc99a', letterSpacing: '0.06em', mb: 0.25 }}>
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: accent, letterSpacing: '0.06em', mb: 0.25 }}>
                         Connected — {winTestStatus.ComputerName}
                       </Typography>
                       <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.61rem', color: 'text.secondary' }}>
@@ -949,19 +949,19 @@ export default function Settings() {
                 display: 'flex', alignItems: 'center', gap: 1.5,
                 px: ftpTestStatus.ok ? 1.2 : 2, py: ftpTestStatus.ok ? 0.5 : 1.2,
                 borderRadius: '3px', flex: 1, minWidth: 0,
-                border: ftpTestStatus.ok ? '1px solid rgba(107,143,113,0.3)' : '1px solid rgba(143,74,74,0.3)',
-                bgcolor: ftpTestStatus.ok ? 'rgba(107,143,113,0.05)' : 'rgba(143,74,74,0.06)',
+                border: ftpTestStatus.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
+                bgcolor: ftpTestStatus.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
                 '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
                 animation: 'resultIn 0.25s ease both',
               }}>
                 {ftpTestStatus.ok
-                  ? <SuccessCheck size={44} color="#6b8f71" />
+                  ? <SuccessCheck size={44} />
                   : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
                 }
                 <Box>
                   {ftpTestStatus.ok ? (
                     <Box>
-                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#8fc99a', letterSpacing: '0.06em', mb: 0.25 }}>
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: accent, letterSpacing: '0.06em', mb: 0.25 }}>
                         Connected — {ftpTestStatus.ComputerName}
                       </Typography>
                       <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.61rem', color: 'text.secondary' }}>
@@ -1015,12 +1015,12 @@ export default function Settings() {
           <Box sx={{
             display: 'flex', alignItems: 'center', gap: 1,
             px: 1.2, py: 0.4,
-            bgcolor: 'rgba(107,143,113,0.06)', border: '1px solid rgba(107,143,113,0.3)', borderRadius: '3px',
+            bgcolor: `${accent}0f`, border: `1px solid ${accent}4d`, borderRadius: '3px',
             '@keyframes savedIn': { from: { opacity: 0, transform: 'scale(0.94)' }, to: { opacity: 1, transform: 'scale(1)' } },
             animation: 'savedIn 0.2s ease both',
           }}>
-            <SuccessCheck size={40} color="#6b8f71" />
-            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', color: isDark ? '#8fc99a' : '#4a7a50', letterSpacing: '0.04em' }}>
+            <SuccessCheck size={40} />
+            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', color: accent, letterSpacing: '0.04em' }}>
               Saved
             </Typography>
           </Box>
