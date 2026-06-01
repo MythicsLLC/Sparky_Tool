@@ -112,12 +112,16 @@ class _PageDressing:
         # ── Mythics logo (top right) ──────────────────────────────────────────
         if os.path.isfile(_LOGO):
             try:
-                reader   = ImageReader(_LOGO)
+                reader       = ImageReader(_LOGO)
                 lw_px, lh_px = reader.getSize()
-                logo_w   = 3.0 * cm
-                logo_h   = logo_w * (lh_px / lw_px)
-                logo_x   = w - MARGIN - logo_w
-                logo_y   = h - HEADER_H + (HEADER_H - logo_h) / 2 - 1*mm
+                logo_h_max   = HEADER_H - 4 * mm   # 2 mm padding top + bottom
+                logo_w_full  = 3.0 * cm
+                logo_h_full  = logo_w_full * (lh_px / lw_px)
+                scale        = min(1.0, logo_h_max / logo_h_full)
+                logo_w       = logo_w_full * scale
+                logo_h       = logo_h_full * scale
+                logo_x       = w - MARGIN - logo_w
+                logo_y       = h - HEADER_H + (HEADER_H - logo_h) / 2
                 canvas.drawImage(
                     _LOGO, logo_x, logo_y, width=logo_w, height=logo_h,
                     preserveAspectRatio=True, mask='auto',
