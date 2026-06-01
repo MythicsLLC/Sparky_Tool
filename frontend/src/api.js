@@ -148,9 +148,9 @@ export const analyzeFile = (file, aiModelId) => {
   const form = new FormData()
   form.append('file', file)
   const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
-  // Do NOT set Content-Type manually — Axios sets multipart/form-data with the
-  // correct boundary automatically when the body is FormData.
-  return client.post('/v2/insights/analyze-file', form, { params })
+  // null removes the instance-default 'application/json' so Axios 1.7.x does NOT
+  // JSON-serialize the FormData; the browser then sets the correct multipart boundary.
+  return client.post('/v2/insights/analyze-file', form, { params, headers: { 'Content-Type': null } })
 }
 
 // AI Models admin (v2)
