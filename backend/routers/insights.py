@@ -6,7 +6,8 @@ import time
 import datetime
 import httpx
 import pandas as pd
-import google.generativeai as genai
+from google import genai as _genai
+from google.genai import types as _genai_types
 from fastapi import APIRouter, Depends, File, Query, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -498,21 +499,21 @@ async def analyze_file(
 
     try:
         if provider == "gemini":
-            genai.configure(api_key=api_key)
-            gm = genai.GenerativeModel(
-                model_name=model_id,
-                generation_config=genai.GenerationConfig(
+            gc = _genai.Client(api_key=api_key)
+            response = gc.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=_genai_types.GenerateContentConfig(
                     temperature=0.2,
                     response_mime_type="application/json",
                 ),
             )
-            response = gm.generate_content(prompt)
             chart_spec = _extract_json(response.text)
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
+            if response.usage_metadata:
                 u = response.usage_metadata
-                prompt_tokens     = getattr(u, "prompt_token_count", 0) or 0
-                completion_tokens = getattr(u, "candidates_token_count", 0) or 0
-                cached_tokens     = getattr(u, "cached_content_token_count", 0) or 0
+                prompt_tokens     = u.prompt_token_count or 0
+                completion_tokens = u.candidates_token_count or 0
+                cached_tokens     = u.cached_content_token_count or 0
 
         elif provider in ("openai", "grok", "generic"):
             client_kwargs = {"api_key": api_key}
