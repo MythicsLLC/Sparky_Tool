@@ -225,15 +225,19 @@ def _init():
     url = _resolve_postgres_driver(url)
 
     # Neon requires SSL; pass it explicitly so it works even if stripped from URL
-    connect_args = {"sslmode": "require"} if "neon.tech" in url else {}
+    connect_args: dict = {"connect_timeout": 10}
+    if "neon.tech" in url:
+        connect_args["sslmode"] = "require"
 
     log.info("Connecting to database (driver: %s)", url.split("://")[0])
     _engine = create_engine(
         url,
         connect_args=connect_args,
-        pool_pre_ping=True,
+        pool_pre_ping=True,     # validate connections before handing them out
         pool_size=5,
         max_overflow=10,
+        pool_recycle=300,       # recycle connections every 5 min (avoids stale sockets)
+        pool_timeout=30,        # raise after 30 s if no connection available
     )
     _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=False)
 
@@ -263,13 +267,38 @@ def create_tables():
     _init()
 
 
-def health_check() -> bool:
-    """Returns True if a query can be executed against the DB."""
+def init_db(retries: int = 5, delay: float = 3.0) -> None:
+    """Eagerly initialise the database at startup with exponential back-off.
+
+    Call this from the FastAPI lifespan so connection failures surface
+    immediately with clear log messages rather than silently on the first
+    incoming request.
+    """
+    import time
+    for attempt in range(1, retries + 1):
+        try:
+            _init()
+            log.info("Database initialised successfully (attempt %d)", attempt)
+            return
+        except Exception as exc:
+            if attempt == retries:
+                log.error("Database init failed after %d attempts: %s", retries, exc)
+                raise
+            wait = delay * (2 ** (attempt - 1))   # 3 s, 6 s, 12 s, 24 s …
+            log.warning("Database init attempt %d/%d failed (%s) — retrying in %.0f s",
+                        attempt, retries, exc, wait)
+            time.sleep(wait)
+
+
+def health_check() -> dict:
+    """Return a dict with 'ok' bool and 'latency_ms' int."""
+    import time
+    t0 = time.monotonic()
     try:
         _init()
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return True
+        return {"ok": True, "latency_ms": round((time.monotonic() - t0) * 1000)}
     except Exception as exc:
         log.error("DB health check failed: %s", exc)
-        return False
+        return {"ok": False, "latency_ms": round((time.monotonic() - t0) * 1000), "error": str(exc)}

@@ -21,7 +21,8 @@ log = get_logger("smb_client")
 def _register(host: str, username: str, password: str,
               port: int = 445, domain: str = "") -> None:
     """Register (or refresh) an SMB session for this host."""
-    kw: dict = dict(username=username, password=password, port=port)
+    kw: dict = dict(username=username, password=password, port=port,
+                    connection_timeout=10)
     if domain:
         kw["domain"] = domain
     smbclient.register_session(host, **kw)

@@ -29,7 +29,7 @@ def _connect(host: str, username: str, password: str,
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(hostname=host, port=port, username=username, password=password,
-                timeout=10, banner_timeout=10)
+                timeout=30, banner_timeout=30)
     sftp = ssh.open_sftp()
     return ssh, sftp
 

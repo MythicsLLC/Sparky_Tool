@@ -17,18 +17,36 @@ log = get_logger("auth")
 security = HTTPBearer(auto_error=False)
 
 _jwks_cache: dict | None = None
+_jwks_fetched_at: float = 0.0
+_JWKS_TTL = 3600.0   # refresh signing keys every hour
 
 
-def _get_jwks() -> dict:
-    global _jwks_cache
-    if _jwks_cache is None:
-        settings = get_settings()
-        url = os.environ.get("CLERK_JWKS_URL", "") or settings.clerk_jwks_url
-        if not url:
-            raise RuntimeError("CLERK_JWKS_URL is not set")
-        resp = httpx.get(url, timeout=10)
-        resp.raise_for_status()
-        _jwks_cache = resp.json()
+def _fetch_jwks() -> dict:
+    """Fetch JWKS from Clerk with 2 attempts and a 10-second timeout each."""
+    settings = get_settings()
+    url = os.environ.get("CLERK_JWKS_URL", "") or settings.clerk_jwks_url
+    if not url:
+        raise RuntimeError("CLERK_JWKS_URL is not set")
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            resp = httpx.get(url, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            last_exc = exc
+            log.warning("JWKS fetch attempt %d failed: %s", attempt + 1, exc)
+    raise RuntimeError(f"JWKS unavailable after 2 attempts: {last_exc}")
+
+
+def _get_jwks(force_refresh: bool = False) -> dict:
+    global _jwks_cache, _jwks_fetched_at
+    import time
+    now = time.monotonic()
+    if _jwks_cache is None or force_refresh or (now - _jwks_fetched_at) > _JWKS_TTL:
+        _jwks_cache = _fetch_jwks()
+        _jwks_fetched_at = now
+        log.debug("JWKS refreshed  keys=%d", len(_jwks_cache.get("keys", [])))
     return _jwks_cache
 
 
@@ -38,6 +56,11 @@ def _verify_token(token: str) -> dict:
         kid = header.get("kid")
         jwks = _get_jwks()
         key = next((k for k in jwks["keys"] if k.get("kid") == kid), None)
+        if not key:
+            # kid not found — could be key rotation; refresh JWKS once and retry
+            log.info("JWT kid=%s not in cached JWKS, refreshing", kid)
+            jwks = _get_jwks(force_refresh=True)
+            key = next((k for k in jwks["keys"] if k.get("kid") == kid), None)
         if not key:
             log.warning("JWT rejected — signing key kid=%s not in JWKS", kid)
             raise HTTPException(401, "Token signing key not found in JWKS")

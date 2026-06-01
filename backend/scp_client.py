@@ -20,6 +20,8 @@ def download_csv(remote_path: str | None = None, _settings=None) -> bytes:
             port=settings.sftp_port,
             username=settings.sftp_username,
             password=settings.sftp_password,
+            timeout=30,
+            banner_timeout=30,
         )
         log.info("SSH authenticated — executing cat %s", path)
         _, stdout, stderr = client.exec_command(f"cat {path}")

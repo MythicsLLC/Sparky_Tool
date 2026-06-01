@@ -12,23 +12,9 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# ── Stage 2: Python backend + VPN clients ─────────────────────────────────────
+# ── Stage 2: Python backend ───────────────────────────────────────────────────
 FROM python:3.11-slim
 WORKDIR /app
-
-# Install VPN clients during image build (read-write filesystem here).
-# openfortivpn  = Fortinet FortiGate SSL VPN
-# openconnect   = Cisco AnyConnect / GlobalProtect / Pulse Secure
-# openvpn       = OpenVPN
-# wireguard-tools (wg-quick) = WireGuard
-# openssh-client = SSH tunnel
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openfortivpn \
-    openconnect \
-    openvpn \
-    wireguard-tools \
-    openssh-client \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

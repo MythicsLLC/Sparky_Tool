@@ -59,6 +59,8 @@ def _protocol(host: str, username: str, password: str,
         username=username,
         password=password,
         server_cert_validation="ignore",   # accept self-signed certs on HTTPS
+        operation_timeout_seconds=30,
+        read_timeout_seconds=35,
     )
     # Basic / plain-text transports cannot use WS-Man message encryption; tell
     # pywinrm not to attempt it so it doesn't refuse to send over plain HTTP.

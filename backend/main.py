@@ -4,9 +4,10 @@ import os as _os
 import time as _time
 import uuid as _uuid
 import paramiko
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -24,7 +25,46 @@ setup_logging()
 log = get_logger("main")
 
 settings = get_settings()
-app = FastAPI(title="Sparky Tool")
+_startup_ok = False   # set to True after successful lifespan startup
+
+
+def _check_required_env() -> None:
+    """Fail fast at startup if critical env vars are missing."""
+    missing = []
+    for var in ("DATABASE_URL", "CLERK_JWKS_URL", "ENCRYPTION_KEY"):
+        val = _os.environ.get(var, "") or getattr(settings, var.lower(), "")
+        if not val:
+            missing.append(var)
+    if missing:
+        raise RuntimeError(
+            f"Required environment variables not set: {', '.join(missing)}. "
+            "Configure them in the Render dashboard (Environment → Add Variable)."
+        )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _startup_ok
+    log.info("=" * 60)
+    log.info("Sparky Tool starting up")
+    log.info("=" * 60)
+
+    # Validate required env vars — crash the container immediately if missing
+    _check_required_env()
+    log.info("Environment: required vars present")
+
+    # Eagerly connect to DB with retries so a slow Neon cold-start doesn't
+    # manifest as a CORS-less 500 on the first real request.
+    from database import init_db
+    init_db(retries=5, delay=3.0)
+
+    _startup_ok = True
+    log.info("Startup complete  v2_routers=%s", _v2_enabled)
+    yield
+    log.info("Shutdown")
+
+
+app = FastAPI(title="Sparky Tool", lifespan=lifespan)
 
 # CORS — open to all origins.
 # Security is enforced via Clerk JWT on every authenticated endpoint,
@@ -454,27 +494,40 @@ try:
         return aggregate
 
 except Exception as _init_err:
-    log.error("v2 endpoints disabled — import failed: %s", _init_err, exc_info=True)
-
-
-@app.on_event("startup")
-async def on_startup():
-    log.info("=" * 60)
-    log.info("Sparky Tool starting up  v2_routers=%s", _v2_enabled)
-    log.info("=" * 60)
+    # Don't silently disable v2 and serve a broken app — crash at startup so
+    # Render restarts the container and surfaces the error in deploy logs.
+    log.critical("v2 router import failed — aborting startup: %s", _init_err, exc_info=True)
+    raise SystemExit(1) from _init_err
 
 
 # ── v1 endpoints (backward compat, no auth) ────────────────────────────────
 
 @app.get("/api/health")
-def health():
+def health(response: Response):
     from database import health_check as _db_health
-    db_ok = False
-    try:
-        db_ok = _db_health()
-    except Exception:
-        pass
-    return {"status": "ok", "db": "ok" if db_ok else "unavailable"}
+    result = _db_health()
+    if not result["ok"]:
+        response.status_code = 503
+    return {
+        "status": "ok" if result["ok"] else "degraded",
+        "db": "ok" if result["ok"] else "unavailable",
+        "db_latency_ms": result.get("latency_ms"),
+        "startup": "ok" if _startup_ok else "pending",
+    }
+
+
+@app.get("/api/ready")
+def ready(response: Response):
+    """Strict readiness probe — returns 503 until startup is complete and DB is reachable."""
+    from database import health_check as _db_health
+    if not _startup_ok:
+        response.status_code = 503
+        return {"ready": False, "reason": "startup_pending"}
+    result = _db_health()
+    if not result["ok"]:
+        response.status_code = 503
+        return {"ready": False, "reason": "db_unavailable", "db_latency_ms": result.get("latency_ms")}
+    return {"ready": True, "db_latency_ms": result.get("latency_ms")}
 
 
 @app.post("/api/run")
