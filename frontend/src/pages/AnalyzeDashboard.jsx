@@ -494,6 +494,7 @@ function RunOutputHistory({ onAnalyze, analysing }) {
 export default function AnalyzeDashboard() {
   const theme   = useTheme()
   const accent  = theme.palette.primary.main
+  const { getToken } = useAuth()
   const chartsRef = useRef(null)
   const [loading,         setLoading]         = useState(false)
   const [pdfLoading,      setPdfLoading]      = useState(false)
