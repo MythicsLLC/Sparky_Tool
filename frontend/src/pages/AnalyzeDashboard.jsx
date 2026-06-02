@@ -571,7 +571,8 @@ export default function AnalyzeDashboard() {
     setAnalysingOutput(output.id)
     setLoading(true)
     try {
-      const { data } = await analyzeRunOutput(output.id, selectedModelId)
+      const token = await getToken()
+      const { data } = await analyzeRunOutput(output.id, selectedModelId, token)
       setResult(data)
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 1600)
@@ -581,7 +582,7 @@ export default function AnalyzeDashboard() {
       setLoading(false)
       setAnalysingOutput(null)
     }
-  }, [selectedModelId])
+  }, [selectedModelId, getToken])
 
   const downloadPdf = useCallback(async () => {
     if (!result) return

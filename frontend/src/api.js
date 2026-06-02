@@ -156,9 +156,9 @@ export const analyzeFile = (file, aiModelId) => {
 // Run Outputs (v2)
 export const listRunOutputs    = (token, params = {})  => client.get('/v2/run-outputs/',               { headers: auth(token), params })
 export const deleteRunOutput   = (id, token)            => client.delete(`/v2/run-outputs/${id}`,       { headers: auth(token) })
-export const analyzeRunOutput  = (id, aiModelId)        => {
+export const analyzeRunOutput  = (id, aiModelId, token) => {
   const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
-  return client.post(`/v2/run-outputs/${id}/analyze`, null, { params })
+  return client.post(`/v2/run-outputs/${id}/analyze`, null, { params, headers: auth(token) })
 }
 
 // AI Models admin (v2)
