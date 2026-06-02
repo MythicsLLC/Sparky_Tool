@@ -511,6 +511,12 @@ export default function AnalyzeDashboard() {
   const [modelsError,     setModelsError]     = useState(null)
   const [analysingOutput, setAnalysingOutput] = useState(null)  // run-output id being analysed
 
+  // While the model selector is being fetched, show the same full-page
+  // Mythics loading screen used elsewhere so the UX is consistent.
+  if (modelsLoading && !result) {
+    return <MythicsLoader sx={{ flex: 1, minHeight: '100vh', bgcolor: 'background.default' }} />
+  }
+
   useEffect(() => {
     setModelsLoading(true)
     setModelsError(null)
