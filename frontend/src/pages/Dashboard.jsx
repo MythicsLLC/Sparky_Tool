@@ -29,6 +29,7 @@ import LoadingDialog         from '../components/LoadingDialog'
 import FunctionalDashboard  from './FunctionalDashboard'
 import OperationalDashboard from './OperationalDashboard'
 import AnalyzeDashboard     from './AnalyzeDashboard'
+import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
 import RunDiffDialog from '../components/RunDiffDialog'
@@ -290,7 +291,8 @@ export default function Dashboard() {
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
-    <Box sx={{ flex: 1, minHeight: '100%', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', minHeight: '100%', bgcolor: 'background.default' }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
 
       {/* accent line */}
       <Box sx={{ height: 2, background: `linear-gradient(90deg, ${accent}cc, transparent 70%)` }} />
@@ -746,6 +748,9 @@ export default function Dashboard() {
         {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
 
       </Box>
+
+      </Box>
+      <HistorySidebar runs={runs} runOutputs={runOutputs} accent={accent} />
 
       <LoadingDialog open={running} />
 
