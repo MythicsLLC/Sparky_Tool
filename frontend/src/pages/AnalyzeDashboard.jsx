@@ -514,7 +514,7 @@ export default function AnalyzeDashboard() {
   // While the model selector is being fetched, show the same full-page
   // Mythics loading screen used elsewhere so the UX is consistent.
   if (modelsLoading && !result) {
-    return <MythicsLoader sx={{ flex: 1, minHeight: '100vh', bgcolor: 'background.default' }} />
+    return <MythicsLoader sx={{ flex: 1, bgcolor: 'background.default' }} />
   }
 
   useEffect(() => {
