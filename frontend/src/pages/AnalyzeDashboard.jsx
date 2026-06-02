@@ -507,9 +507,13 @@ export default function AnalyzeDashboard() {
   const [pendingFile,     setPendingFile]     = useState(null)
   const [models,          setModels]          = useState([])
   const [selectedModelId, setSelectedModelId] = useState(null)
+  const [modelsLoading,   setModelsLoading]   = useState(true)
+  const [modelsError,     setModelsError]     = useState(null)
   const [analysingOutput, setAnalysingOutput] = useState(null)  // run-output id being analysed
 
   useEffect(() => {
+    setModelsLoading(true)
+    setModelsError(null)
     listInsightModels()
       .then(({ data }) => {
         const items = data.items ?? []
@@ -517,7 +521,10 @@ export default function AnalyzeDashboard() {
         const def = items.find((m) => m.is_default)
         if (def) setSelectedModelId(def.id)
       })
-      .catch(() => {})
+      .catch((err) => {
+        setModelsError(formatApiError(err, 'Unable to load models from the server.'))
+      })
+      .finally(() => setModelsLoading(false))
   }, [])
 
   const _runAnalysis = useCallback(async (file, modelId) => {
@@ -626,7 +633,12 @@ export default function AnalyzeDashboard() {
           — upload any CSV or Excel and AI auto-generates charts
         </Typography>
 
-        {models.length > 0 && (
+        {modelsLoading ? (
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CircularProgress size={18} />
+            <Typography sx={{ fontSize: '0.66rem', color: 'text.disabled' }}>Loading models…</Typography>
+          </Box>
+        ) : models.length > 0 ? (
           <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography sx={{
               fontSize: '0.55rem', letterSpacing: '0.16em', textTransform: 'uppercase',
@@ -668,14 +680,24 @@ export default function AnalyzeDashboard() {
               </Select>
             </FormControl>
           </Box>
-        )}
+        ) : null}
       </Box>
 
-      {/* ── drop zone (hidden once results arrive) ────────────────────────── */}
-      {!result && <DropZone onFile={handleFile} loading={loading} />}
+      {/* ── drop zone (hidden once results arrive) and until models loaded ── */}
+      {!result && (
+        modelsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <Typography sx={{ color: 'text.disabled' }}>Loading models…</Typography>
+          </Box>
+        ) : modelsError ? (
+          <Alert severity="error" sx={{ mt: 2 }}>{modelsError}</Alert>
+        ) : (
+          <DropZone onFile={handleFile} loading={loading} />
+        )
+      )}
 
-      {/* ── run history (shown while no results are displayed) ────────────── */}
-      {!result && !loading && (
+      {/* ── run history (shown while no results are displayed and models loaded) ─ */}
+      {!result && !loading && !modelsLoading && !modelsError && (
         <RunOutputHistory
           onAnalyze={handleOutputAnalyze}
           analysing={analysingOutput}
