@@ -510,13 +510,6 @@ export default function AnalyzeDashboard() {
   const [modelsLoading,   setModelsLoading]   = useState(true)
   const [modelsError,     setModelsError]     = useState(null)
   const [analysingOutput, setAnalysingOutput] = useState(null)  // run-output id being analysed
-
-  // While the model selector is being fetched, show the same full-page
-  // Mythics loading screen used elsewhere so the UX is consistent.
-  if (modelsLoading && !result) {
-    return <MythicsLoader sx={{ flex: 1, bgcolor: 'background.default' }} />
-  }
-
   useEffect(() => {
     setModelsLoading(true)
     setModelsError(null)
@@ -532,6 +525,12 @@ export default function AnalyzeDashboard() {
       })
       .finally(() => setModelsLoading(false))
   }, [])
+
+  // While the model selector is being fetched, show the same full-page
+  // Mythics loading screen used elsewhere so the UX is consistent.
+  if (modelsLoading && !result) {
+    return <MythicsLoader sx={{ flex: 1, bgcolor: 'background.default' }} />
+  }
 
   const _runAnalysis = useCallback(async (file, modelId) => {
     setError(null)
