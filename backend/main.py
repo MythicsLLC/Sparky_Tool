@@ -185,6 +185,7 @@ try:
     from routers import wide_events as _we, preferences as _pref, feature_flags as _ff
     from routers import conversations as _conv
     from routers import engines as _eng
+    from routers import run_outputs as _ro
     from database import get_db
     from models import UserConfig, UserConfigEngine, Engine, RunLog, AuditEvent
     from auth import get_current_user
@@ -200,6 +201,7 @@ try:
     app.include_router(_ff.router)
     app.include_router(_conv.router)
     app.include_router(_eng.router)
+    app.include_router(_ro.router)
     _v2_enabled = True
 
     def _config_to_ns(config: UserConfig) -> SimpleNamespace:
@@ -381,6 +383,22 @@ try:
                 raise HTTPException(422, f"CSV parse error: {exc}")
             log.info("Run %d  step=parse  rows=%d  %d ms",
                      run_log.id, result.get("row_count", 0), round((_time.time() - t4) * 1000))
+
+            # ── Save CSV to run_outputs for analysis history ────────────────
+            try:
+                from routers.run_outputs import save_run_output
+                save_run_output(
+                    db=db,
+                    user_id=user.id,
+                    run_log_id=run_log.id,
+                    csv_bytes=csv_bytes,
+                    config_name=config.name,
+                    engine_name=engine_label,
+                    process_name=engine_process_name,
+                    row_count=result.get("row_count", 0),
+                )
+            except Exception as _save_exc:
+                log.warning("save_run_output failed (non-fatal): %s", _save_exc)
 
             duration_ms = int((_time.time() - start) * 1000)
             run_log.status       = "success"

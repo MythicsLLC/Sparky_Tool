@@ -184,6 +184,22 @@ def _migrate_columns(engine) -> None:
             CONSTRAINT uq_config_engine UNIQUE (config_id, engine_id)
         )""",
         "CREATE INDEX IF NOT EXISTS idx_uce_config_id ON user_config_engines (config_id)",
+        # ── run_outputs ───────────────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS run_outputs (
+            id              SERIAL PRIMARY KEY,
+            user_id         VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            run_log_id      INTEGER REFERENCES run_logs(id) ON DELETE SET NULL,
+            display_name    VARCHAR(500) NOT NULL,
+            config_name     VARCHAR(255) DEFAULT '',
+            engine_name     VARCHAR(255) DEFAULT '',
+            process_name    VARCHAR(255) DEFAULT '',
+            row_count       INTEGER DEFAULT 0,
+            file_size_bytes INTEGER DEFAULT 0,
+            csv_content     BYTEA NOT NULL,
+            created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_run_outputs_user_id ON run_outputs (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_run_outputs_created  ON run_outputs (created_at)",
         # ── pg_notify trigger for wide_events (supports future LISTEN-based SSE) ──
         """CREATE OR REPLACE FUNCTION notify_wide_events_inserted()
         RETURNS trigger AS $$

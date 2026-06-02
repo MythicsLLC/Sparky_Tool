@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, Text, TIMESTAMP, JSON, ForeignKey, Index, Numeric, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Boolean, Text, TIMESTAMP, JSON, ForeignKey, Index, Numeric, UniqueConstraint, LargeBinary
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
 
@@ -236,6 +236,26 @@ class AiConversation(Base):
     estimated_cost_usd       = Column(Numeric(10, 6))
     created_at               = Column(TIMESTAMP(timezone=True), default=_now)
     updated_at               = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+class RunOutput(Base):
+    """CSV downloaded during a run, stored in DB so history survives Render restarts."""
+    __tablename__ = "run_outputs"
+    __table_args__ = (
+        Index("idx_run_outputs_user_id",  "user_id"),
+        Index("idx_run_outputs_created",  "created_at"),
+    )
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    run_log_id      = Column(Integer, ForeignKey("run_logs.id", ondelete="SET NULL"), nullable=True)
+    display_name    = Column(String(500), nullable=False)
+    config_name     = Column(String(255), default="")
+    engine_name     = Column(String(255), default="")
+    process_name    = Column(String(255), default="")
+    row_count       = Column(Integer, default=0)
+    file_size_bytes = Column(Integer, default=0)
+    csv_content     = Column(LargeBinary, nullable=False)
+    created_at      = Column(TIMESTAMP(timezone=True), default=_now)
 
 
 class AiMessage(Base):

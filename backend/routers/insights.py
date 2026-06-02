@@ -453,21 +453,12 @@ def list_active_ai_models(
     }
 
 
-@router.post("/analyze-file")
-async def analyze_file(
-    file:         UploadFile = File(...),
-    user:         User = Depends(get_current_user),
-    db:           Session = Depends(get_db),
-    ai_model_id:  int | None = Query(None),
-):
+def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_id: "int | None") -> dict:
     """
-    Accept a CSV or Excel upload, build a dataset profile, ask Gemini to
-    recommend charts, and return a chart-spec JSON ready for the frontend.
+    Core analysis pipeline — parse bytes, profile data, call AI, return chart spec.
+    Shared by the file-upload endpoint and the saved-output re-analyse endpoint.
     """
-    # ── read file ────────────────────────────────────────────────────────────
-    raw = await file.read()
-    fname = file.filename or "upload"
-    ext   = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
 
     try:
         if ext == "csv":
@@ -488,7 +479,15 @@ async def analyze_file(
             non_empty = {k: v for k, v in sheets.items() if not v.empty}
             df = next(iter(non_empty.values())) if len(non_empty) == 1 else non_empty
         else:
-            raise HTTPException(400, f"Unsupported file type: .{ext}  (use .csv / .xlsx / .xls)")
+            # Saved run outputs have no extension in display_name — treat as CSV
+            for _enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+                try:
+                    df = pd.read_csv(io.BytesIO(raw), encoding=_enc, on_bad_lines="skip")
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                raise HTTPException(422, f"Unsupported or unreadable file type: .{ext}")
     except HTTPException:
         raise
     except Exception as exc:
@@ -498,23 +497,17 @@ async def analyze_file(
     if is_empty:
         raise HTTPException(422, "File is empty or could not be read")
 
-    # ── build compact profile ────────────────────────────────────────────────
     profile = _build_profile(df, fname)
     sheet_count = profile.get("sheet_count", 1)
     log.info(
-        "analyze_file  user=%s  file=%s  rows=%d  cols=%d  sheets=%d",
+        "analyze  user=%s  file=%s  rows=%d  cols=%d  sheets=%d",
         user.id[:8], fname, profile["total_rows"], profile["total_columns"], sheet_count,
     )
 
-    # ── PII masking — protect sensitive values before they reach the LLM ─────
     masker = PIIMasker()
     masked_profile, n_masked = masker.mask_profile(profile)
-    log.info(
-        "analyze_file  pii_masked=%d  spacy=%s  user=%s",
-        n_masked, masker.spacy_active, user.id[:8],
-    )
+    log.info("analyze  pii_masked=%d  spacy=%s  user=%s", n_masked, masker.spacy_active, user.id[:8])
 
-    # ── resolve the active AI model ──────────────────────────────────────────
     if ai_model_id is not None:
         db_model = db.query(AiModel).filter(
             AiModel.id == ai_model_id, AiModel.is_active == True  # noqa: E712
@@ -527,30 +520,25 @@ async def analyze_file(
         ).first()
 
     if db_model:
-        provider  = db_model.provider
-        model_id  = db_model.model_id
-        api_key   = decrypt(db_model.api_key_enc) if db_model.api_key_enc else ""
-        base_url  = db_model.base_url or ""
+        provider = db_model.provider
+        model_id = db_model.model_id
+        api_key  = decrypt(db_model.api_key_enc) if db_model.api_key_enc else ""
+        base_url = db_model.base_url or ""
     else:
-        # fall back to environment variable (backwards-compat)
-        provider  = "gemini"
-        model_id  = "gemini-1.5-flash"
-        api_key   = os.environ.get("GEMINI_API_KEY", "").strip()
-        base_url  = ""
+        provider = "gemini"
+        model_id = "gemini-1.5-flash"
+        api_key  = os.environ.get("GEMINI_API_KEY", "").strip()
+        base_url = ""
 
     if not api_key:
         raise HTTPException(503, "No AI model API key configured. Add one in Admin → AI Models.")
 
-    # ── call the provider ────────────────────────────────────────────────────
     prompt = _CHART_PROMPT.format(
         profile=json.dumps(masked_profile, indent=2, default=str),
         colors=", ".join(_GEMINI_COLORS),
     )
 
-    prompt_tokens = 0
-    completion_tokens = 0
-    reasoning_tokens = 0
-    cached_tokens = 0
+    prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
     try:
         if provider == "gemini":
@@ -571,7 +559,7 @@ async def analyze_file(
                 cached_tokens     = u.cached_content_token_count or 0
 
         elif provider in ("openai", "grok", "generic"):
-            client_kwargs = {"api_key": api_key}
+            client_kwargs: dict = {"api_key": api_key}
             if base_url:
                 client_kwargs["base_url"] = base_url
             elif provider == "grok":
@@ -595,8 +583,7 @@ async def analyze_file(
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = msg.content[0].text
-            chart_spec = _extract_json(raw)
+            chart_spec = _extract_json(msg.content[0].text)
             if msg.usage:
                 prompt_tokens     = msg.usage.input_tokens or 0
                 completion_tokens = msg.usage.output_tokens or 0
@@ -607,18 +594,17 @@ async def analyze_file(
     except HTTPException:
         raise
     except json.JSONDecodeError as exc:
-        log.error("AI provider returned non-JSON for provider=%s", provider)
+        log.error("AI non-JSON provider=%s", provider)
         raise HTTPException(502, f"AI provider returned invalid JSON: {exc}") from exc
     except Exception as exc:
-        log.error("AI provider call failed provider=%s: %s", provider, exc)
+        log.error("AI call failed provider=%s: %s", provider, exc)
         raise HTTPException(502, f"AI provider error: {exc}") from exc
 
-    # ── De-anonymize — restore original values in the LLM response ───────────
     if masker.masked_count:
         chart_spec = masker.demask_obj(chart_spec)
-        log.info("analyze_file  pii_demasked=%d  user=%s", masker.masked_count, user.id[:8])
+        log.info("analyze  pii_demasked=%d  user=%s", masker.masked_count, user.id[:8])
 
-    # ── Record conversation + token usage ────────────────────────────────────
+    conversation_id = None
     try:
         from routers.conversations import record_analysis_conversation
         conv = record_analysis_conversation(
@@ -638,19 +624,17 @@ async def analyze_file(
         conversation_id = conv.id
     except Exception as exc:
         log.warning("conversation record failed (non-fatal): %s", exc)
-        conversation_id = None
 
-    # Attach metadata so the frontend can display it
     chart_spec["meta"] = {
-        "filename":        fname,
-        "total_rows":      profile["total_rows"],
-        "total_columns":   profile["total_columns"],
-        "sheet_count":     sheet_count,
-        "columns":         [c["name"] for c in profile["columns"]],
-        "conversation_id": conversation_id,
-        "pii_protected":   masker.masked_count > 0,
+        "filename":         fname,
+        "total_rows":       profile["total_rows"],
+        "total_columns":    profile["total_columns"],
+        "sheet_count":      sheet_count,
+        "columns":          [c["name"] for c in profile["columns"]],
+        "conversation_id":  conversation_id,
+        "pii_protected":    masker.masked_count > 0,
         "pii_masked_count": masker.masked_count,
-        "pii_spacy":       masker.spacy_active,
+        "pii_spacy":        masker.spacy_active,
         "token_usage": {
             "prompt":     prompt_tokens,
             "completion": completion_tokens,
@@ -659,10 +643,23 @@ async def analyze_file(
     }
 
     log.info(
-        "analyze_file  user=%s  charts_returned=%d  tokens=%d",
+        "analyze  user=%s  charts=%d  tokens=%d",
         user.id[:8], len(chart_spec.get("charts", [])), prompt_tokens + completion_tokens,
     )
     return chart_spec
+
+
+@router.post("/analyze-file")
+async def analyze_file(
+    file:        UploadFile = File(...),
+    user:        User = Depends(get_current_user),
+    db:          Session = Depends(get_db),
+    ai_model_id: int | None = Query(None),
+):
+    """Accept a CSV or Excel upload and return AI chart specs."""
+    raw   = await file.read()
+    fname = file.filename or "upload"
+    return _run_analysis(raw, fname, user, db, ai_model_id)
 
 
 # ── PDF generation endpoints ──────────────────────────────────────────────────

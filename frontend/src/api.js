@@ -153,6 +153,14 @@ export const analyzeFile = (file, aiModelId) => {
   return client.post('/v2/insights/analyze-file', form, { params, headers: { 'Content-Type': null } })
 }
 
+// Run Outputs (v2)
+export const listRunOutputs    = (token, params = {})  => client.get('/v2/run-outputs/',               { headers: auth(token), params })
+export const deleteRunOutput   = (id, token)            => client.delete(`/v2/run-outputs/${id}`,       { headers: auth(token) })
+export const analyzeRunOutput  = (id, aiModelId)        => {
+  const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
+  return client.post(`/v2/run-outputs/${id}/analyze`, null, { params })
+}
+
 // AI Models admin (v2)
 export const listAiModels      = (token)                => client.get('/v2/admin/ai-models',                    { headers: auth(token) })
 export const createAiModel     = (payload, token)       => client.post('/v2/admin/ai-models',         payload,  { headers: auth(token) })

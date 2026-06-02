@@ -19,7 +19,10 @@ import UploadFileIcon    from '@mui/icons-material/UploadFile'
 import AutoAwesomeIcon   from '@mui/icons-material/AutoAwesome'
 import TableChartIcon    from '@mui/icons-material/TableChart'
 import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
-import { analyzeFile, listInsightModels, downloadAnalysisPdf, formatApiError } from '../api'
+import HistoryIcon       from '@mui/icons-material/History'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import { analyzeFile, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError } from '../api'
+import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
 
@@ -363,6 +366,129 @@ function SummaryBar({ result, filename }) {
   )
 }
 
+// ── RunOutputHistory ───────────────────────────────────────────────────────────
+
+function RunOutputHistory({ onAnalyze, analysing }) {
+  const theme  = useTheme()
+  const accent = theme.palette.primary.main
+  const { getToken } = useAuth()
+  const [outputs,  setOutputs]  = useState([])
+  const [fetched,  setFetched]  = useState(false)
+  const [deleting, setDeleting] = useState(null)
+
+  useEffect(() => {
+    getToken().then((token) =>
+      listRunOutputs(token)
+        .then(({ data }) => setOutputs(data.items ?? []))
+        .catch(() => {})
+        .finally(() => setFetched(true))
+    )
+  }, []) // eslint-disable-line
+
+  const handleDelete = async (id) => {
+    setDeleting(id)
+    try {
+      const token = await getToken()
+      await deleteRunOutput(id, token)
+      setOutputs((prev) => prev.filter((o) => o.id !== id))
+    } catch {
+      // silent — item stays in list
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  if (!fetched || outputs.length === 0) return null
+
+  const fmtSize = (b) => b >= 1024 * 1024
+    ? `${(b / (1024 * 1024)).toFixed(1)} MB`
+    : `${(b / 1024).toFixed(1)} KB`
+
+  const fmtDate = (iso) => iso
+    ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—'
+
+  return (
+    <Box sx={{ mt: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <HistoryIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+        <Typography sx={{
+          fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+          fontSize: '0.58rem', letterSpacing: '0.2em',
+          textTransform: 'uppercase', color: 'text.disabled',
+        }}>
+          Run History
+        </Typography>
+      </Box>
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {outputs.map((o) => (
+          <Card key={o.id} variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              {/* info */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{
+                  fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+                  fontSize: '0.75rem', mb: 0.25,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {o.display_name}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {[
+                    o.config_name && `Config: ${o.config_name}`,
+                    o.engine_name && `Engine: ${o.engine_name}`,
+                    o.row_count   && `${o.row_count.toLocaleString()} rows`,
+                    o.file_size_bytes && fmtSize(o.file_size_bytes),
+                    fmtDate(o.created_at),
+                  ].filter(Boolean).map((label) => (
+                    <Typography key={label} sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                      {label}
+                    </Typography>
+                  ))}
+                </Box>
+              </Box>
+
+              {/* actions */}
+              <Box sx={{ display: 'flex', gap: 0.75, flexShrink: 0 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={!!analysing || analysing === o.id}
+                  onClick={() => onAnalyze(o)}
+                  startIcon={analysing === o.id ? <CircularProgress size={11} /> : <AutoAwesomeIcon sx={{ fontSize: 13 }} />}
+                  sx={{
+                    borderColor: `${accent}44`, color: accent,
+                    fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem',
+                    letterSpacing: '0.08em', textTransform: 'uppercase', height: 28,
+                    '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
+                  }}
+                >
+                  {analysing === o.id ? 'Analysing…' : 'Analyse'}
+                </Button>
+                <Button
+                  size="small"
+                  disabled={deleting === o.id}
+                  onClick={() => handleDelete(o.id)}
+                  sx={{
+                    minWidth: 0, width: 28, height: 28, p: 0,
+                    color: 'text.disabled',
+                    '&:hover': { color: '#b45050' },
+                  }}
+                >
+                  {deleting === o.id
+                    ? <CircularProgress size={11} />
+                    : <DeleteOutlineIcon sx={{ fontSize: 15 }} />}
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
+    </Box>
+  )
+}
+
 // ── AnalyzeDashboard ───────────────────────────────────────────────────────────
 
 export default function AnalyzeDashboard() {
@@ -380,6 +506,7 @@ export default function AnalyzeDashboard() {
   const [pendingFile,     setPendingFile]     = useState(null)
   const [models,          setModels]          = useState([])
   const [selectedModelId, setSelectedModelId] = useState(null)
+  const [analysingOutput, setAnalysingOutput] = useState(null)  // run-output id being analysed
 
   useEffect(() => {
     listInsightModels()
@@ -436,6 +563,25 @@ export default function AnalyzeDashboard() {
     setPendingFile(file)
     await _runAnalysis(file, selectedModelId)
   }, [selectedModelId, _runAnalysis])
+
+  const handleOutputAnalyze = useCallback(async (output) => {
+    setResult(null)
+    setError(null)
+    setFilename(output.display_name)
+    setAnalysingOutput(output.id)
+    setLoading(true)
+    try {
+      const { data } = await analyzeRunOutput(output.id, selectedModelId)
+      setResult(data)
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1600)
+    } catch (err) {
+      setError(formatApiError(err, 'Analysis failed — check the server logs.'))
+    } finally {
+      setLoading(false)
+      setAnalysingOutput(null)
+    }
+  }, [selectedModelId])
 
   const downloadPdf = useCallback(async () => {
     if (!result) return
@@ -525,6 +671,14 @@ export default function AnalyzeDashboard() {
 
       {/* ── drop zone (hidden once results arrive) ────────────────────────── */}
       {!result && <DropZone onFile={handleFile} loading={loading} />}
+
+      {/* ── run history (shown while no results are displayed) ────────────── */}
+      {!result && !loading && (
+        <RunOutputHistory
+          onAnalyze={handleOutputAnalyze}
+          analysing={analysingOutput}
+        />
+      )}
 
       {/* ── error ─────────────────────────────────────────────────────────── */}
       {error && (
