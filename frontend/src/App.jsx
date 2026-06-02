@@ -9,7 +9,7 @@ import Preferences from './pages/Preferences'
 import SchedulesPage from './pages/SchedulesPage'
 import SignInPage from './pages/SignIn'
 import ErrorBoundary from './components/ErrorBoundary'
-import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog'
+import ShortcutsFab from './components/ShortcutsFab'
 import { useAuth } from './AuthContext'
 
 const VALID_ROUTES = ['dashboard', 'settings', 'admin', 'preferences', 'schedules']
@@ -102,7 +102,11 @@ export default function App() {
           </ErrorBoundary>
         </Box>
       </Box>
-      <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ShortcutsFab
+        open={shortcutsOpen}
+        onOpen={() => setShortcutsOpen(true)}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </ErrorBoundary>
   )
 }
