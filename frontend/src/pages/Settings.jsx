@@ -20,6 +20,7 @@ import WinServerBrowser from '../components/WinServerBrowser'
 import FtpBrowser from '../components/FtpBrowser'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
+import DataQualityPanel from '../components/DataQualityPanel'
 
 const WIN_DEFAULT_PORTS = { winrm: '5985', smb: '445', ssh: '22' }
 const FTP_DEFAULT_PORTS = { ftp: '21', ftps: '21' }
@@ -992,6 +993,13 @@ export default function Settings() {
         ftpConnectionType={form.ftp_connection_type}
         ftpPassive={form.ftp_passive}
       />
+
+      {/* ── Data Quality Rules ───────────────────────────────────────────────── */}
+      {selectedConfigId && (
+        <Box sx={{ border: `1px solid ${accent}22`, borderRadius: '6px', p: 2.5, mb: 2 }}>
+          <DataQualityPanel configId={selectedConfigId} />
+        </Box>
+      )}
 
       {/* ── Sticky save footer ────────────────────────────────────────────────── */}
       <Box sx={{

@@ -6,11 +6,12 @@ import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import Preferences from './pages/Preferences'
+import SchedulesPage from './pages/SchedulesPage'
 import SignInPage from './pages/SignIn'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useAuth } from './AuthContext'
 
-const VALID_ROUTES = ['dashboard', 'settings', 'admin', 'preferences']
+const VALID_ROUTES = ['dashboard', 'settings', 'admin', 'preferences', 'schedules']
 const KEEP_ALIVE_MS = 10 * 60 * 1000  // ping every 10 min; Render sleeps after 15
 
 function getRoute() {
@@ -66,6 +67,7 @@ export default function App() {
             {route === 'settings'    && <Settings />}
             {route === 'admin'       && <Admin />}
             {route === 'preferences' && <Preferences />}
+            {route === 'schedules'   && <SchedulesPage />}
           </ErrorBoundary>
         </Box>
       </Box>

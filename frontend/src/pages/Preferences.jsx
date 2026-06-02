@@ -3,14 +3,14 @@ import {
   Box, Typography, Card, CardContent, Grid,
   Switch, FormControlLabel, Select, MenuItem,
   FormControl, InputLabel, Slider, Button,
-  CircularProgress, Alert, Divider, Chip,
+  CircularProgress, Alert, Divider, Chip, TextField,
 } from '@mui/material'
 import TuneIcon         from '@mui/icons-material/Tune'
 import SaveIcon         from '@mui/icons-material/Save'
 import RestoreIcon      from '@mui/icons-material/Restore'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import { useAuth } from '../AuthContext'
-import { getPreferences, updatePreferences, formatApiError } from '../api'
+import { getPreferences, updatePreferences, getNotificationSettings, updateNotificationSettings, formatApiError } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
 
 const DEFAULTS = {
@@ -59,20 +59,30 @@ function Row({ label, sub, children }) {
   )
 }
 
+const NOTIF_DEFAULTS = {
+  notify_on_success: true, notify_on_failure: true,
+  email_enabled: false, email_address: '',
+  slack_webhook_url: '', teams_webhook_url: '',
+}
+
 export default function Preferences() {
   const { token } = useAuth()
-  const [prefs,   setPrefs]   = useState(DEFAULTS)
-  const [loading, setLoading] = useState(true)
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [error,   setError]   = useState(null)
+  const [prefs,        setPrefs]        = useState(DEFAULTS)
+  const [notif,        setNotif]        = useState(NOTIF_DEFAULTS)
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [savingNotif,  setSavingNotif]  = useState(false)
+  const [savedNotif,   setSavedNotif]   = useState(false)
+  const [error,        setError]        = useState(null)
 
   const load = useCallback(async () => {
     if (!token) return
     setLoading(true)
     try {
-      const res = await getPreferences(token)
-      setPrefs({ ...DEFAULTS, ...res.data })
+      const [prefsRes, notifRes] = await Promise.all([getPreferences(token), getNotificationSettings(token)])
+      setPrefs({ ...DEFAULTS, ...prefsRes.data })
+      setNotif({ ...NOTIF_DEFAULTS, ...notifRes.data })
     } catch (e) {
       setError(formatApiError(e, 'Failed to load preferences'))
     } finally {
@@ -83,6 +93,7 @@ export default function Preferences() {
   useEffect(() => { load() }, [load])
 
   const set = (key) => (val) => setPrefs((p) => ({ ...p, [key]: val }))
+  const setN = (key) => (val) => setNotif((p) => ({ ...p, [key]: val }))
 
   const handleSave = async () => {
     setSaving(true); setError(null); setSaved(false)
@@ -94,6 +105,19 @@ export default function Preferences() {
       setError(formatApiError(e, 'Failed to save preferences'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSaveNotif = async () => {
+    setSavingNotif(true); setSavedNotif(false)
+    try {
+      await updateNotificationSettings(notif, token)
+      setSavedNotif(true)
+      setTimeout(() => setSavedNotif(false), 2500)
+    } catch (e) {
+      setError(formatApiError(e, 'Failed to save notification settings'))
+    } finally {
+      setSavingNotif(false)
     }
   }
 
@@ -223,6 +247,62 @@ export default function Preferences() {
           <Row label="Compact mode" sub="Reduce spacing in tables and cards">
             <Switch checked={prefs.compactMode} onChange={(e) => set('compactMode')(e.target.checked)} size="small" />
           </Row>
+        </SectionCard>
+
+        {/* Email & Webhook notifications */}
+        <SectionCard title="Email & Webhook Notifications">
+          <Row label="Notify on success" sub="Send notification when a run completes successfully">
+            <Switch checked={notif.notify_on_success} onChange={(e) => setN('notify_on_success')(e.target.checked)} size="small" />
+          </Row>
+          <Divider sx={{ borderColor: 'divider', my: 0.5 }} />
+          <Row label="Notify on failure" sub="Send notification when a run fails">
+            <Switch checked={notif.notify_on_failure} onChange={(e) => setN('notify_on_failure')(e.target.checked)} size="small" />
+          </Row>
+          <Divider sx={{ borderColor: 'divider', my: 0.5 }} />
+          <Row label="Send email" sub="Requires SMTP_HOST env var on the backend">
+            <Switch checked={notif.email_enabled} onChange={(e) => setN('email_enabled')(e.target.checked)} size="small" />
+          </Row>
+          {notif.email_enabled && (
+            <Box sx={{ mt: 1.5 }}>
+              <TextField
+                fullWidth size="small" label="Email address (blank = use account email)"
+                value={notif.email_address}
+                onChange={(e) => setN('email_address')(e.target.value)}
+                InputProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' } }}
+                InputLabelProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem' } }}
+              />
+            </Box>
+          )}
+          <Divider sx={{ borderColor: 'divider', my: 1 }} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <TextField
+              fullWidth size="small" label="Slack webhook URL (optional)"
+              value={notif.slack_webhook_url}
+              onChange={(e) => setN('slack_webhook_url')(e.target.value)}
+              placeholder="https://hooks.slack.com/services/…"
+              InputProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' } }}
+              InputLabelProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem' } }}
+            />
+            <TextField
+              fullWidth size="small" label="Teams webhook URL (optional)"
+              value={notif.teams_webhook_url}
+              onChange={(e) => setN('teams_webhook_url')(e.target.value)}
+              placeholder="https://outlook.office.com/webhook/…"
+              InputProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' } }}
+              InputLabelProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem' } }}
+            />
+          </Box>
+          <Box sx={{ mt: 2 }}>
+            <Button
+              size="small" onClick={handleSaveNotif} disabled={savingNotif}
+              startIcon={savedNotif ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : savingNotif ? <CircularProgress size={13} /> : <SaveIcon sx={{ fontSize: 14 }} />}
+              sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem',
+                bgcolor: savedNotif ? '#6b8f71' : 'primary.main', color: 'background.default', px: 2 }}
+              variant="contained"
+            >
+              {savedNotif ? 'Saved!' : 'Save notification settings'}
+            </Button>
+          </Box>
         </SectionCard>
 
       </Box>

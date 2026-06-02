@@ -258,6 +258,81 @@ class RunOutput(Base):
     created_at      = Column(TIMESTAMP(timezone=True), default=_now)
 
 
+# ── Scheduled Runs ───────────────────────────────────────────────────────────
+
+class ScheduledRun(Base):
+    __tablename__ = "scheduled_runs"
+    __table_args__ = (
+        Index("idx_scheduled_runs_user_id",  "user_id"),
+        Index("idx_scheduled_runs_next_run", "next_run_at"),
+    )
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    user_id       = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    config_id     = Column(Integer, ForeignKey("user_configs.id", ondelete="CASCADE"), nullable=False)
+    label         = Column(String(255), default="")
+    frequency     = Column(String(20), nullable=False, default="daily")   # daily | weekly | monthly
+    run_hour      = Column(Integer, default=0)    # 0-23 UTC
+    run_minute    = Column(Integer, default=0)    # 0-59
+    day_of_week   = Column(Integer, default=0)    # 0=Mon … 6=Sun (weekly only)
+    day_of_month  = Column(Integer, default=1)    # 1-31 (monthly only)
+    is_active     = Column(Boolean, default=True)
+    next_run_at   = Column(TIMESTAMP(timezone=True))
+    last_run_at   = Column(TIMESTAMP(timezone=True))
+    last_status   = Column(String(20), default="")   # success | error | running
+    created_at    = Column(TIMESTAMP(timezone=True), default=_now)
+    updated_at    = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+# ── Notification Settings ─────────────────────────────────────────────────────
+
+class NotificationSetting(Base):
+    __tablename__ = "notification_settings"
+    user_id           = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    notify_on_success = Column(Boolean, default=True)
+    notify_on_failure = Column(Boolean, default=True)
+    email_enabled     = Column(Boolean, default=False)
+    email_address     = Column(String(255), default="")   # blank → use user.email
+    slack_webhook_url = Column(Text, default="")
+    teams_webhook_url = Column(Text, default="")
+    updated_at        = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+# ── Data Quality Rules + Results ──────────────────────────────────────────────
+
+class DataQualityRule(Base):
+    __tablename__ = "data_quality_rules"
+    __table_args__ = (
+        Index("idx_dq_rules_config_id", "config_id"),
+        Index("idx_dq_rules_user_id",   "user_id"),
+    )
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    config_id  = Column(Integer, ForeignKey("user_configs.id", ondelete="CASCADE"), nullable=False)
+    name       = Column(String(255), nullable=False)
+    rule_type  = Column(String(50), nullable=False)   # row_count_gt | row_count_lt | row_count_between | column_not_null | value_must_exist | column_unique
+    parameters = Column(JSON, default=dict)
+    is_active  = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), default=_now)
+    updated_at = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+class DataQualityResult(Base):
+    __tablename__ = "data_quality_results"
+    __table_args__ = (
+        Index("idx_dq_results_run_log_id", "run_log_id"),
+        Index("idx_dq_results_rule_id",    "rule_id"),
+    )
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    run_log_id   = Column(Integer, ForeignKey("run_logs.id",           ondelete="CASCADE"), nullable=False)
+    rule_id      = Column(Integer, ForeignKey("data_quality_rules.id", ondelete="CASCADE"), nullable=False)
+    rule_name    = Column(String(255), default="")
+    rule_type    = Column(String(50),  default="")
+    passed       = Column(Boolean, nullable=False)
+    actual_value = Column(String(500), default="")
+    message      = Column(Text, default="")
+    checked_at   = Column(TIMESTAMP(timezone=True), default=_now)
+
+
 class AiMessage(Base):
     """One row per turn (user prompt or assistant reply) within an AiConversation."""
     __tablename__ = "ai_messages"

@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     clerk_api_secret: str = ""
     encryption_key: str = ""
 
+    # SMTP — for run completion email notifications
+    smtp_host:     str  = ""
+    smtp_port:     int  = 587
+    smtp_user:     str  = ""
+    smtp_password: str  = ""
+    smtp_from:     str  = ""
+    smtp_use_tls:  bool = True
+
     model_config = {"env_file": ".env", "case_sensitive": False}
 
 @lru_cache

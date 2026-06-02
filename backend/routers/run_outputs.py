@@ -1,4 +1,5 @@
 import datetime
+import io
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -123,6 +124,125 @@ def delete_run_output(
     db.delete(row)
     db.commit()
     log.info("delete_run_output  id=%d  user=%s", output_id, user.id[:8])
+
+
+@router.get("/diff")
+def diff_run_outputs(
+    a:          int             = Query(..., description="Base (older) run output ID"),
+    b:          int             = Query(..., description="Comparison (newer) run output ID"),
+    key_column: str | None      = Query(None, description="Column to use as row key"),
+    user:       User            = Depends(get_current_user),
+    db:         Session         = Depends(get_db),
+):
+    """Compare two saved run outputs row-by-row. Returns added/removed/changed counts and rows."""
+    import pandas as pd
+
+    row_a = db.query(RunOutput).filter(RunOutput.id == a, RunOutput.user_id == user.id).first()
+    row_b = db.query(RunOutput).filter(RunOutput.id == b, RunOutput.user_id == user.id).first()
+    if not row_a or not row_b:
+        raise HTTPException(404, "One or both run outputs not found")
+
+    df_a = pd.read_csv(io.BytesIO(row_a.csv_content), low_memory=False, dtype=str).fillna("")
+    df_b = pd.read_csv(io.BytesIO(row_b.csv_content), low_memory=False, dtype=str).fillna("")
+
+    # Auto-detect key column if not provided
+    if not key_column:
+        candidates = ["EMPLID", "EMPLOYEE_ID", "EMP_ID", "ID", "KEY", "PERSON_ID", "OPRID"]
+        upper_a = {c.upper(): c for c in df_a.columns}
+        for cand in candidates:
+            if cand in upper_a:
+                key_column = upper_a[cand]
+                break
+
+    meta = {
+        "run_a": {"id": row_a.id, "display_name": row_a.display_name, "created_at": row_a.created_at.isoformat() if row_a.created_at else None, "row_count": row_a.row_count},
+        "run_b": {"id": row_b.id, "display_name": row_b.display_name, "created_at": row_b.created_at.isoformat() if row_b.created_at else None, "row_count": row_b.row_count},
+        "key_column": key_column,
+    }
+
+    _MAX_ROWS = 500   # cap to avoid huge payloads
+
+    if key_column and key_column in df_a.columns and key_column in df_b.columns:
+        keys_a = set(df_a[key_column])
+        keys_b = set(df_b[key_column])
+        added_keys   = keys_b - keys_a
+        removed_keys = keys_a - keys_b
+        common_keys  = keys_a & keys_b
+
+        added_rows   = df_b[df_b[key_column].isin(added_keys)].head(_MAX_ROWS).to_dict("records")
+        removed_rows = df_a[df_a[key_column].isin(removed_keys)].head(_MAX_ROWS).to_dict("records")
+
+        # Changed rows — same key but at least one column differs
+        changed_rows = []
+        merged = df_a[df_a[key_column].isin(common_keys)].set_index(key_column).join(
+            df_b[df_b[key_column].isin(common_keys)].set_index(key_column),
+            lsuffix="_before", rsuffix="_after",
+        )
+        for key, row in merged.iterrows():
+            diff_cols = {}
+            for col in df_a.columns:
+                if col == key_column:
+                    continue
+                before_col = f"{col}_before"
+                after_col  = f"{col}_after"
+                if before_col in row and after_col in row:
+                    if str(row[before_col]) != str(row[after_col]):
+                        diff_cols[col] = {"before": str(row[before_col]), "after": str(row[after_col])}
+            if diff_cols:
+                changed_rows.append({key_column: key, "changes": diff_cols})
+            if len(changed_rows) >= _MAX_ROWS:
+                break
+
+        return {
+            "meta": meta,
+            "summary": {
+                "added_count":   len(added_keys),
+                "removed_count": len(removed_keys),
+                "changed_count": len(changed_rows),
+                "unchanged_count": len(common_keys) - len(changed_rows),
+            },
+            "added_rows":   added_rows,
+            "removed_rows": removed_rows,
+            "changed_rows": changed_rows,
+        }
+
+    # Fallback: index-based diff
+    cols_a = set(df_a.columns)
+    cols_b = set(df_b.columns)
+    added_cols   = list(cols_b - cols_a)
+    removed_cols = list(cols_a - cols_b)
+    min_len = min(len(df_a), len(df_b))
+    common_cols = [c for c in df_a.columns if c in cols_b]
+
+    changed_rows = []
+    for i in range(min_len):
+        diff_cols = {
+            col: {"before": str(df_a.iloc[i][col]), "after": str(df_b.iloc[i][col])}
+            for col in common_cols
+            if str(df_a.iloc[i][col]) != str(df_b.iloc[i][col])
+        }
+        if diff_cols:
+            changed_rows.append({"row_index": i, "changes": diff_cols})
+        if len(changed_rows) >= _MAX_ROWS:
+            break
+
+    added_rows   = df_b.iloc[len(df_a):].head(_MAX_ROWS).to_dict("records") if len(df_b) > len(df_a) else []
+    removed_rows = df_a.iloc[len(df_b):].head(_MAX_ROWS).to_dict("records") if len(df_a) > len(df_b) else []
+
+    return {
+        "meta": meta,
+        "summary": {
+            "added_count":    len(df_b) - len(df_a) if len(df_b) > len(df_a) else 0,
+            "removed_count":  len(df_a) - len(df_b) if len(df_a) > len(df_b) else 0,
+            "changed_count":  len(changed_rows),
+            "unchanged_count": min_len - len(changed_rows),
+            "added_columns":   added_cols,
+            "removed_columns": removed_cols,
+        },
+        "added_rows":   added_rows,
+        "removed_rows": removed_rows,
+        "changed_rows": changed_rows,
+    }
 
 
 @router.post("/{output_id}/analyze")

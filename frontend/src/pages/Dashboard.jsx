@@ -30,7 +30,10 @@ import FunctionalDashboard  from './FunctionalDashboard'
 import OperationalDashboard from './OperationalDashboard'
 import AnalyzeDashboard     from './AnalyzeDashboard'
 import { useAuth } from '../AuthContext'
-import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError } from '../api'
+import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
+import RunDiffDialog from '../components/RunDiffDialog'
+import CompareArrows from '@mui/icons-material/CompareArrows'
+import VerifiedIcon  from '@mui/icons-material/VerifiedUser'
 
 // ── formatters ────────────────────────────────────────────────────────────────
 
@@ -160,6 +163,8 @@ export default function Dashboard() {
   )
   const [pdfTabLoading,    setPdfTabLoading]    = useState(false)
   const [functionalState,  setFunctionalState]  = useState(null) // {filename, data}
+  const [runOutputs,       setRunOutputs]       = useState([])
+  const [diffOpen,         setDiffOpen]         = useState(false)
   const tabRef = useRef(null)
 
   const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis']
@@ -242,12 +247,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token) return
     setPageLoading(true)
-    Promise.all([listConfigs(token), listRuns(token)])
-      .then(([configsRes, runsRes]) => {
+    Promise.all([listConfigs(token), listRuns(token), listRunOutputs(token)])
+      .then(([configsRes, runsRes, outputsRes]) => {
         const saved = configsRes.data
         setConfigs(saved)
         if (saved.length && !activeConfigId) setActiveConfigId(saved[0].id)
         setRuns(runsRes.data.items)
+        setRunOutputs(outputsRes.data.items || [])
       })
       .catch((err) => setError(formatApiError(err, 'Unable to load dashboard data')))
       .finally(() => setPageLoading(false))
@@ -271,9 +277,8 @@ export default function Dashboard() {
     try {
       const response = await runConfig(activeConfigId, token)
       setLastResult(response.data)
-      // Await the final refresh so the completed row (with report_id) is visible
-      // before the loading dialog dismisses.
       await refreshRuns()
+      listRunOutputs(token).then((r) => setRunOutputs(r.data.items || [])).catch(() => {})
     } catch (err) {
       setError(formatApiError(err, 'Run failed unexpectedly'))
       await refreshRuns()
@@ -531,7 +536,25 @@ export default function Dashboard() {
                 Recent Runs
               </Typography>
               <Chip label={runs.length} size="small" sx={{ height: 16, fontSize: '0.55rem', fontFamily: '"JetBrains Mono", monospace', bgcolor: `${accent}18`, color: 'primary.main' }} />
-              <Box sx={{ ml: 'auto' }}>
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                {runOutputs.length >= 2 && (
+                  <Tooltip title="Compare two runs side by side" arrow>
+                    <Button
+                      size="small"
+                      startIcon={<CompareArrows sx={{ fontSize: 13 }} />}
+                      onClick={() => setDiffOpen(true)}
+                      sx={{
+                        fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', fontWeight: 700,
+                        letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: accent, borderColor: `${accent}44`, px: 1.5, py: 0.5,
+                        '&:hover': { bgcolor: `${accent}0a`, borderColor: accent },
+                      }}
+                      variant="outlined"
+                    >
+                      Compare
+                    </Button>
+                  </Tooltip>
+                )}
                 <ViewToggle value={runsView} onChange={handleRunsViewChange} />
               </Box>
             </Box>
@@ -653,6 +676,37 @@ export default function Dashboard() {
               ))}
             </Grid>
 
+            {/* DQ results */}
+            {lastResult.dq_results?.length > 0 && (
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <VerifiedIcon sx={{ fontSize: 14, color: lastResult.dq_results.some((r) => !r.passed) ? '#c9a84c' : '#6b8f71' }} />
+                  <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'text.disabled' }}>
+                    Data Quality
+                  </Typography>
+                  <Chip
+                    label={`${lastResult.dq_results.filter((r) => !r.passed).length} failed / ${lastResult.dq_results.length} rules`}
+                    size="small"
+                    sx={{ height: 16, fontSize: '0.55rem',
+                      bgcolor: lastResult.dq_results.some((r) => !r.passed) ? 'rgba(201,168,76,0.14)' : 'rgba(107,143,113,0.14)',
+                      color: lastResult.dq_results.some((r) => !r.passed) ? '#c9a84c' : '#6b8f71',
+                      fontFamily: '"JetBrains Mono", monospace' }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                  {lastResult.dq_results.map((r) => (
+                    <Box key={r.rule_id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1,
+                      borderRadius: '4px', bgcolor: r.passed ? 'rgba(107,143,113,0.06)' : 'rgba(201,168,76,0.08)',
+                      border: `1px solid ${r.passed ? 'rgba(107,143,113,0.2)' : 'rgba(201,168,76,0.2)'}` }}>
+                      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: r.passed ? '#6b8f71' : '#c9a84c', flexShrink: 0 }} />
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', color: 'text.primary', flex: 1 }}>{r.rule_name}</Typography>
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: r.passed ? '#6b8f71' : '#c9a84c' }}>{r.message}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+
             {/* SFTP-skipped notice or full results */}
             {lastResult.sftp_skipped ? (
               <Alert severity="info" sx={{ bgcolor: 'rgba(100,149,180,0.08)', border: '1px solid rgba(100,149,180,0.2)', color: '#8ab4cc', '& .MuiAlert-icon': { color: '#6495b4' } }}>
@@ -694,6 +748,8 @@ export default function Dashboard() {
       </Box>
 
       <LoadingDialog open={running} />
+
+      <RunDiffDialog open={diffOpen} onClose={() => setDiffOpen(false)} runOutputs={runOutputs} />
     </Box>
   )
 }

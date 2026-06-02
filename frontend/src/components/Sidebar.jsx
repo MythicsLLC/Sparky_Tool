@@ -1,12 +1,13 @@
 import { Box, Typography, Button } from '@mui/material'
-import GridViewIcon from '@mui/icons-material/GridView'
-import TuneIcon from '@mui/icons-material/Tune'
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord'
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import GridViewIcon             from '@mui/icons-material/GridView'
+import TuneIcon                 from '@mui/icons-material/Tune'
+import ScheduleIcon             from '@mui/icons-material/Schedule'
+import AdminPanelSettingsIcon   from '@mui/icons-material/AdminPanelSettings'
 
 const NAV_BASE = [
-  { id: 'dashboard', label: 'Dashboard', icon: GridViewIcon },
-  { id: 'settings', label: 'Configuration', icon: TuneIcon },
+  { id: 'dashboard', label: 'Dashboard',    icon: GridViewIcon  },
+  { id: 'settings',  label: 'Configuration', icon: TuneIcon      },
+  { id: 'schedules', label: 'Schedules',    icon: ScheduleIcon  },
 ]
 
 export default function Sidebar({ route, navigate, user, onSignOut }) {

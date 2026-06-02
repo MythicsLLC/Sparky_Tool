@@ -200,6 +200,65 @@ def _migrate_columns(engine) -> None:
         )""",
         "CREATE INDEX IF NOT EXISTS idx_run_outputs_user_id ON run_outputs (user_id)",
         "CREATE INDEX IF NOT EXISTS idx_run_outputs_created  ON run_outputs (created_at)",
+        # ── scheduled_runs ────────────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS scheduled_runs (
+            id            SERIAL PRIMARY KEY,
+            user_id       VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            config_id     INTEGER NOT NULL REFERENCES user_configs(id) ON DELETE CASCADE,
+            label         VARCHAR(255) DEFAULT '',
+            frequency     VARCHAR(20) NOT NULL DEFAULT 'daily',
+            run_hour      INTEGER DEFAULT 0,
+            run_minute    INTEGER DEFAULT 0,
+            day_of_week   INTEGER DEFAULT 0,
+            day_of_month  INTEGER DEFAULT 1,
+            is_active     BOOLEAN DEFAULT TRUE,
+            next_run_at   TIMESTAMP WITH TIME ZONE,
+            last_run_at   TIMESTAMP WITH TIME ZONE,
+            last_status   VARCHAR(20) DEFAULT '',
+            created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_scheduled_runs_user_id  ON scheduled_runs (user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_scheduled_runs_next_run ON scheduled_runs (next_run_at)",
+        # ── notification_settings ─────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS notification_settings (
+            user_id           VARCHAR PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            notify_on_success BOOLEAN DEFAULT TRUE,
+            notify_on_failure BOOLEAN DEFAULT TRUE,
+            email_enabled     BOOLEAN DEFAULT FALSE,
+            email_address     VARCHAR(255) DEFAULT '',
+            slack_webhook_url TEXT DEFAULT '',
+            teams_webhook_url TEXT DEFAULT '',
+            updated_at        TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        # ── data_quality_rules ────────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS data_quality_rules (
+            id         SERIAL PRIMARY KEY,
+            user_id    VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            config_id  INTEGER NOT NULL REFERENCES user_configs(id) ON DELETE CASCADE,
+            name       VARCHAR(255) NOT NULL,
+            rule_type  VARCHAR(50) NOT NULL,
+            parameters JSONB DEFAULT '{}',
+            is_active  BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_dq_rules_config_id ON data_quality_rules (config_id)",
+        "CREATE INDEX IF NOT EXISTS idx_dq_rules_user_id   ON data_quality_rules (user_id)",
+        # ── data_quality_results ──────────────────────────────────────────────────
+        """CREATE TABLE IF NOT EXISTS data_quality_results (
+            id           SERIAL PRIMARY KEY,
+            run_log_id   INTEGER NOT NULL REFERENCES run_logs(id) ON DELETE CASCADE,
+            rule_id      INTEGER NOT NULL REFERENCES data_quality_rules(id) ON DELETE CASCADE,
+            rule_name    VARCHAR(255) DEFAULT '',
+            rule_type    VARCHAR(50) DEFAULT '',
+            passed       BOOLEAN NOT NULL,
+            actual_value VARCHAR(500) DEFAULT '',
+            message      TEXT DEFAULT '',
+            checked_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_dq_results_run_log_id ON data_quality_results (run_log_id)",
+        "CREATE INDEX IF NOT EXISTS idx_dq_results_rule_id    ON data_quality_results (rule_id)",
         # ── pg_notify trigger for wide_events (supports future LISTEN-based SSE) ──
         """CREATE OR REPLACE FUNCTION notify_wide_events_inserted()
         RETURNS trigger AS $$

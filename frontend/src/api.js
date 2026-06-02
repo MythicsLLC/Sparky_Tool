@@ -266,3 +266,24 @@ export const getConversation    = (id, token)          => client.get(`/v2/conver
 export const deleteConversation = (id, token)          => client.delete(`/v2/conversations/${id}`,    { headers: auth(token) })
 export const adminConvStats     = (token)              => client.get('/v2/conversations/admin/stats', { headers: auth(token) })
 export const adminListConvs     = (token, params = {}) => client.get('/v2/conversations/admin/all',   { headers: auth(token), params })
+
+// Scheduled Runs (v2)
+export const listSchedules    = (token)                  => client.get('/v2/schedules/',                  { headers: auth(token) })
+export const createSchedule   = (payload, token)         => client.post('/v2/schedules/',       payload,  { headers: auth(token) })
+export const updateSchedule   = (id, payload, token)     => client.patch(`/v2/schedules/${id}`, payload,  { headers: auth(token) })
+export const deleteSchedule   = (id, token)              => client.delete(`/v2/schedules/${id}`,          { headers: auth(token) })
+
+// Notifications (v2)
+export const getNotificationSettings    = (token)          => client.get('/v2/notifications/settings',        { headers: auth(token) })
+export const updateNotificationSettings = (payload, token) => client.put('/v2/notifications/settings', payload, { headers: auth(token) })
+
+// Data Quality (v2)
+export const listDqRules    = (token, configId)          => client.get('/v2/data-quality/rules',            { headers: auth(token), params: configId ? { config_id: configId } : {} })
+export const createDqRule   = (payload, token)           => client.post('/v2/data-quality/rules',  payload, { headers: auth(token) })
+export const updateDqRule   = (id, payload, token)       => client.patch(`/v2/data-quality/rules/${id}`, payload, { headers: auth(token) })
+export const deleteDqRule   = (id, token)                => client.delete(`/v2/data-quality/rules/${id}`,   { headers: auth(token) })
+export const listDqResults  = (token, params = {})       => client.get('/v2/data-quality/results',          { headers: auth(token), params })
+
+// Run Diff (v2)
+export const diffRunOutputs = (aId, bId, keyColumn, token) =>
+  client.get('/v2/run-outputs/diff', { headers: auth(token), params: { a: aId, b: bId, ...(keyColumn ? { key_column: keyColumn } : {}) } })
