@@ -583,7 +583,7 @@ export default function AnalyzeDashboard() {
       setLoading(false)
       setAnalysingOutput(null)
     }
-  }, [selectedModelId, getToken])
+  }, [selectedModelId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadPdf = useCallback(async () => {
     if (!result) return
