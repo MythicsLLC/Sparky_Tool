@@ -15,6 +15,11 @@ vi.mock('recharts', () => ({
 // Pass the health check immediately in all tests unless a test overrides it
 beforeEach(() => {
   vi.spyOn(api, 'checkHealth').mockResolvedValue({ data: { status: 'ok' } })
+  // Dashboard data hooks — return empty lists by default
+  vi.spyOn(api, 'listConfigs').mockResolvedValue({ data: [] })
+  vi.spyOn(api, 'listRuns').mockResolvedValue({ data: { items: [] } })
+  vi.spyOn(api, 'listRunOutputs').mockResolvedValue({ data: { items: [] } })
+  vi.spyOn(api, 'runConfig').mockResolvedValue({ data: {} })
 })
 
 afterEach(() => {
@@ -46,26 +51,26 @@ test('renders main UI after health check passes', async () => {
 // ── Main app ──────────────────────────────────────────────────────────────────
 
 test('disables button and shows loading text while running', async () => {
-  vi.spyOn(api, 'runEngine').mockImplementation(() => new Promise(() => {}))
+  vi.spyOn(api, 'runConfig').mockImplementation(() => new Promise(() => {}))
   render(<App />)
-  await waitFor(() => screen.getByRole('button', { name: /run engine/i }))
-  fireEvent.click(screen.getByRole('button', { name: /run engine/i }))
-  expect(screen.getByText('Running...')).toBeInTheDocument()
+  await waitFor(() => screen.getByRole('button', { name: /run/i }))
+  fireEvent.click(screen.getByRole('button', { name: /run/i }))
+  expect(screen.getByText(/running/i)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /running/i, hidden: true })).toBeDisabled()
 })
 
 test('shows error banner on run failure', async () => {
-  vi.spyOn(api, 'runEngine').mockRejectedValue({
+  vi.spyOn(api, 'runConfig').mockRejectedValue({
     response: { data: { detail: 'PeopleSoft error: 502' } },
   })
   render(<App />)
-  await waitFor(() => screen.getByRole('button', { name: /run engine/i }))
-  fireEvent.click(screen.getByRole('button', { name: /run engine/i }))
+  await waitFor(() => screen.getByRole('button', { name: /run/i }))
+  fireEvent.click(screen.getByRole('button', { name: /run/i }))
   await waitFor(() => expect(screen.getByText('PeopleSoft error: 502')).toBeInTheDocument())
 })
 
 test('renders dashboard sections on success', async () => {
-  vi.spyOn(api, 'runEngine').mockResolvedValue({
+  vi.spyOn(api, 'runConfig').mockResolvedValue({
     data: {
       row_count: 1,
       columns: ['name', 'age'],
@@ -77,8 +82,8 @@ test('renders dashboard sections on success', async () => {
     },
   })
   render(<App />)
-  await waitFor(() => screen.getByRole('button', { name: /run engine/i }))
-  fireEvent.click(screen.getByRole('button', { name: /run engine/i }))
+  await waitFor(() => screen.getByRole('button', { name: /run/i }))
+  fireEvent.click(screen.getByRole('button', { name: /run/i }))
   await waitFor(() => expect(screen.getByText('KPIs')).toBeInTheDocument())
   expect(screen.getByText('Charts')).toBeInTheDocument()
   expect(screen.getByText(/Data \(1 rows\)/)).toBeInTheDocument()
