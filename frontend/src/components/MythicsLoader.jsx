@@ -24,7 +24,7 @@ export default function MythicsLoader({ size = 80, sx = {} }) {
           position: 'absolute', inset: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <MythicsLogo width={Math.round(size * 0.58)} />
+          <MythicsLogo width={Math.round(size * 0.65)} />
         </Box>
       </Box>
     </Box>

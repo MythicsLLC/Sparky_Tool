@@ -41,7 +41,7 @@ export default function SignInPage() {
             '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } },
             animation: 'fadeIn 0.8s ease both',
           }}>
-            <MythicsLogo width={35} />
+            <MythicsLogo width={48} />
           </Box>
         </Box>
         <Typography sx={{
