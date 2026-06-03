@@ -1,6 +1,7 @@
 import { Box, Typography } from '@mui/material'
 import { SignIn } from '@clerk/clerk-react'
 import MythicsLogo from '../assets/MythicsLogo'
+import SparkyWordmark from '../components/SparkyWordmark'
 import { useThemeContext } from '../ThemeContext'
 
 export default function SignInPage() {
@@ -44,7 +45,7 @@ export default function SignInPage() {
             <MythicsLogo width={48} />
           </Box>
         </Box>
-        <Typography sx={{
+        <Typography component="div" sx={{
           fontFamily: '"Cormorant Garamond", serif',
           fontSize: '1.6rem',
           fontWeight: 700,
@@ -52,8 +53,9 @@ export default function SignInPage() {
           color: accent,
           textTransform: 'uppercase',
           mb: 0.5,
+          userSelect: 'none',
         }}>
-          Sparky Tool
+          <SparkyWordmark text="Sparky Tool" accent={accent} />
         </Typography>
         <Box sx={{ height: '1px', width: 120, background: `linear-gradient(90deg, transparent, ${accent}66, transparent)`, mx: 'auto', mb: 0.5 }} />
         <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.55rem', letterSpacing: '0.35em', color: 'text.disabled', textTransform: 'uppercase' }}>
