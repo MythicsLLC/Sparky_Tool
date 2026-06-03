@@ -33,7 +33,6 @@ import { analyzeFile, analyzeRunOutput, listRunOutputs, deleteRunOutput, listIns
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
-import KbdHint, { IS_MAC, MOD } from '../components/KbdHint'
 
 // ── colour palette (matches backend prompt) ────────────────────────────────────
 const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
@@ -913,29 +912,10 @@ function DropZone({ onFile, loading, browseRef }) {
               fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', fontWeight: 700,
               letterSpacing: '0.14em', textTransform: 'uppercase', px: 3.5, py: 1,
               '&:hover': { borderColor: accent, bgcolor: `${accent}12` },
-              display: 'inline-flex', alignItems: 'center', gap: 0.85,
             }}
           >
             Browse file
-            <KbdHint keys={`${MOD}+O`} />
           </Button>
-
-          {/* shortcut legend */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mt: 2.5, flexWrap: 'wrap' }}>
-            {[
-              [`${MOD}+O`, 'browse'],
-              [`${MOD}+D`, 'PDF'],
-              ['Esc',       'reset'],
-              [`${MOD}+↵`,  're-run'],
-            ].map(([keys, label]) => (
-              <Box key={keys} sx={{ display: 'flex', alignItems: 'center', gap: 0.55 }}>
-                <KbdHint keys={keys} />
-                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.06em' }}>
-                  {label}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
         </Box>
       )}
     </Box>
@@ -1393,11 +1373,7 @@ export default function AnalyzeDashboard() {
                 '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
               }}
             >
-              {pdfLoading ? 'Generating…' : (
-                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.85 }}>
-                  Download PDF<KbdHint keys={`${MOD}+D`} />
-                </Box>
-              )}
+              {pdfLoading ? 'Generating…' : 'Download PDF'}
             </Button>
           </Box>
 
@@ -1453,9 +1429,7 @@ export default function AnalyzeDashboard() {
                 '&:hover': { color: accent },
               }}
             >
-              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.85 }}>
-                Upload another file<KbdHint keys="Esc" />
-              </Box>
+              Upload another file
             </Button>
           </Box>
         </Box>

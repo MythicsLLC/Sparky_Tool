@@ -21,7 +21,6 @@ import FtpBrowser from '../components/FtpBrowser'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
 import DataQualityPanel from '../components/DataQualityPanel'
-import KbdHint, { MOD } from '../components/KbdHint'
 
 const WIN_DEFAULT_PORTS = { winrm: '5985', smb: '445', ssh: '22' }
 const FTP_DEFAULT_PORTS = { ftp: '21', ftps: '21' }
@@ -436,7 +435,7 @@ export default function Settings() {
           </Typography>
           <Button onClick={() => { setSelectedConfigId(null); setForm(EMPTY) }} variant="outlined" size="small"
             sx={{ color: accent, borderColor: `${accent}33`, borderRadius: '3px', fontFamily: '"Raleway"', fontSize: '0.6rem', letterSpacing: '0.15em', fontWeight: 700, py: 0.4, px: 1.5, minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>
-            New<KbdHint keys="N" />
+            New
           </Button>
           {selectedConfigId && (
             <Button onClick={handleDeleteConfig} variant="outlined" size="small"
@@ -1061,12 +1060,7 @@ export default function Settings() {
             '&:disabled': { opacity: 0.5 },
             transition: 'all 0.2s ease',
           }}>
-          {saving ? 'Saving…' : (
-            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.85 }}>
-              {selectedConfigId ? 'Update configuration' : 'Create configuration'}
-              <KbdHint keys={`${MOD}+S`} />
-            </Box>
-          )}
+          {saving ? 'Saving…' : (selectedConfigId ? 'Update configuration' : 'Create configuration')}
         </Button>
       </Box>
 

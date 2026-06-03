@@ -12,7 +12,6 @@ import SuccessCheck     from '../components/SuccessCheck'
 import { useAuth } from '../AuthContext'
 import { getPreferences, updatePreferences, getNotificationSettings, updateNotificationSettings, formatApiError } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
-import KbdHint, { MOD } from '../components/KbdHint'
 
 const DEFAULTS = {
   dateFormat:                'YYYY-MM-DD',
@@ -159,7 +158,7 @@ export default function Preferences() {
             onClick={handleReset}
             sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', borderColor: 'divider', color: 'text.secondary' }}
           >
-            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>Reset<KbdHint keys={`${MOD}+Shift+R`} /></Box>
+            Reset
           </Button>
           <Button
             size="small"
@@ -169,7 +168,7 @@ export default function Preferences() {
             disabled={saving}
             sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', bgcolor: 'primary.main', color: 'background.default' }}
           >
-            {saved ? 'Saved!' : <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>Save<KbdHint keys={`${MOD}+S`} /></Box>}
+            {saved ? 'Saved!' : 'Save'}
           </Button>
           {saved && <SuccessCheck size={30} />}
         </Box>

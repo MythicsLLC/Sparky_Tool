@@ -35,7 +35,6 @@ import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf
 import RunDiffDialog from '../components/RunDiffDialog'
 import CompareArrows from '@mui/icons-material/CompareArrows'
 import VerifiedIcon  from '@mui/icons-material/VerifiedUser'
-import KbdHint       from '../components/KbdHint'
 
 // ── formatters ────────────────────────────────────────────────────────────────
 
@@ -390,7 +389,7 @@ export default function Dashboard() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {running ? 'Running…' : <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.85 }}>Run<KbdHint keys="R" /></Box>}
+              {running ? 'Running…' : 'Run'}
             </Button>
           </Box>
         </Box>
@@ -415,10 +414,10 @@ export default function Dashboard() {
               '& .MuiTabs-indicator': { bgcolor: accent },
             }}
           >
-            <Tab label={<Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>Run<KbdHint keys="1" /></Box>} />
-            <Tab label={<Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>Functional<KbdHint keys="2" /></Box>} />
-            <Tab label={<Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>Operational<KbdHint keys="3" /></Box>} />
-            <Tab label={<Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>Analyse<KbdHint keys="4" /></Box>} />
+            <Tab label="Run" />
+            <Tab label="Functional" />
+            <Tab label="Operational" />
+            <Tab label="Analyse" />
           </Tabs>
 
           {/* PDF download button — hidden on the AI Analysis tab (it has its own) */}
@@ -572,7 +571,7 @@ export default function Dashboard() {
                       }}
                       variant="outlined"
                     >
-                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>Compare<KbdHint keys="C" /></Box>
+                      Compare
                     </Button>
                   </Tooltip>
                 )}
