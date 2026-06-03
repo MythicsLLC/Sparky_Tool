@@ -153,6 +153,16 @@ export const analyzeFile = (file, aiModelId) => {
   return client.post('/v2/insights/analyze-file', form, { params, headers: { 'Content-Type': null } })
 }
 
+// Analysis review + prompt reference library (v2)
+export const submitAnalysisReview  = (resultId, status, comment, token) =>
+  client.post(`/v2/insights/results/${resultId}/review`, { status, comment }, { headers: auth(token) })
+
+export const listPromptReferences  = (token, params = {}) =>
+  client.get('/v2/insights/references', { headers: auth(token), params })
+
+export const deletePromptReference = (refId, token) =>
+  client.delete(`/v2/insights/references/${refId}`, { headers: auth(token) })
+
 // Run Outputs (v2)
 export const listRunOutputs    = (token, params = {})  => client.get('/v2/run-outputs/',               { headers: auth(token), params })
 export const deleteRunOutput   = (id, token)            => client.delete(`/v2/run-outputs/${id}`,       { headers: auth(token) })

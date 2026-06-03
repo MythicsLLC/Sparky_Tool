@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Box, Typography, Alert, CircularProgress, Grid, Card, CardContent,
-  Button, Chip, Select, MenuItem, FormControl, Tooltip,
+  Button, Chip, Select, MenuItem, FormControl, Tooltip, TextField,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import {
@@ -26,7 +26,10 @@ import ViewColumnIcon    from '@mui/icons-material/ViewColumn'
 import BarChartIcon      from '@mui/icons-material/BarChart'
 import FlashOnIcon       from '@mui/icons-material/FlashOn'
 import LockIcon          from '@mui/icons-material/Lock'
-import { analyzeFile, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError } from '../api'
+import ThumbUpAltIcon    from '@mui/icons-material/ThumbUpAlt'
+import ThumbDownAltIcon  from '@mui/icons-material/ThumbDownAlt'
+import CheckCircleIcon   from '@mui/icons-material/CheckCircle'
+import { analyzeFile, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError, submitAnalysisReview } from '../api'
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
@@ -607,6 +610,239 @@ function SectionDivider({ label }) {
         {label}
       </Typography>
       <Box sx={{ flex: 1, height: '1px', bgcolor: `${accent}1c` }} />
+    </Box>
+  )
+}
+
+// ── ReviewPanel ────────────────────────────────────────────────────────────────
+// Appears at the bottom of the results section, below the chart grid.
+// Three-step state machine:
+//   idle       → "Was this analysis helpful?" + Approve / Reject buttons
+//   commenting → chosen status chip + optional note textarea + Submit button
+//   done       → confirmation message (auto-collapses after 4 s)
+//
+// When the user approves, the backend creates a PromptReference row — this
+// analysis joins the "good prompt" library and can be referenced in future runs.
+
+function ReviewPanel({ analysisResultId, getToken }) {
+  const theme  = useTheme()
+  const accent = theme.palette.primary.main
+  const dark   = theme.palette.mode === 'dark'
+
+  const [step,        setStep]        = useState('idle')       // idle | commenting | done
+  const [chosen,      setChosen]      = useState(null)         // 'approved' | 'rejected'
+  const [comment,     setComment]     = useState('')
+  const [submitting,  setSubmitting]  = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+
+  // Don't render if the backend didn't return a result ID (save failure, etc.)
+  if (!analysisResultId) return null
+
+  const chooseStatus = (status) => {
+    setChosen(status)
+    setStep('commenting')
+    setSubmitError(null)
+  }
+
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const token = await getToken()
+      await submitAnalysisReview(analysisResultId, chosen, comment.trim(), token)
+      setStep('done')
+    } catch (err) {
+      setSubmitError(
+        err?.response?.data?.detail || 'Could not save your review — please try again.'
+      )
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const approveColor  = '#6b8f71'
+  const rejectColor   = '#b45050'
+  const chosenColor   = chosen === 'approved' ? approveColor : rejectColor
+
+  // ── done state ───────────────────────────────────────────────────────────────
+  if (step === 'done') {
+    return (
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5,
+        px: 2.5, py: 1.75,
+        border: `1px solid ${chosenColor}30`,
+        borderRadius: 1.5,
+        bgcolor: `${chosenColor}08`,
+        '@keyframes reviewDone': { from: { opacity: 0, transform: 'translateY(6px)' }, to: { opacity: 1, transform: 'none' } },
+        animation: 'reviewDone 0.28s ease both',
+      }}>
+        <CheckCircleIcon sx={{ fontSize: 18, color: chosenColor, flexShrink: 0 }} />
+        <Box>
+          <Typography sx={{
+            fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+            fontSize: '0.78rem', color: chosenColor,
+          }}>
+            {chosen === 'approved'
+              ? 'Analysis approved — added to your reference library'
+              : 'Feedback noted — this analysis was flagged for review'}
+          </Typography>
+          {comment.trim() && (
+            <Typography sx={{
+              fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem',
+              color: 'text.secondary', mt: 0.25, fontStyle: 'italic',
+            }}>
+              "{comment.trim()}"
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    )
+  }
+
+  // ── commenting state ─────────────────────────────────────────────────────────
+  if (step === 'commenting') {
+    return (
+      <Card variant="outlined" sx={{
+        borderColor: `${chosenColor}35`,
+        bgcolor: dark ? `${chosenColor}08` : `${chosenColor}04`,
+        '@keyframes reviewSlide': { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } },
+        animation: 'reviewSlide 0.25s ease both',
+      }}>
+        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+          {/* chosen status chip */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            {chosen === 'approved'
+              ? <ThumbUpAltIcon  sx={{ fontSize: 15, color: chosenColor }} />
+              : <ThumbDownAltIcon sx={{ fontSize: 15, color: chosenColor }} />}
+            <Typography sx={{
+              fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+              fontSize: '0.7rem', color: chosenColor, letterSpacing: '0.06em',
+            }}>
+              {chosen === 'approved' ? 'Marking as a good reference' : 'Flagging for review'}
+            </Typography>
+            <Button
+              size="small"
+              onClick={() => setStep('idle')}
+              sx={{
+                ml: 'auto', fontSize: '0.58rem', color: 'text.disabled',
+                fontFamily: '"Raleway", sans-serif', letterSpacing: '0.06em',
+                minWidth: 0, px: 1,
+                '&:hover': { color: 'text.secondary' },
+              }}
+            >
+              Change
+            </Button>
+          </Box>
+
+          {/* optional comment ── users explain WHY this was good/bad, which
+              makes the reference library more useful for future analyses      */}
+          <TextField
+            multiline
+            minRows={2}
+            maxRows={5}
+            fullWidth
+            placeholder={chosen === 'approved'
+              ? 'Why was this a good analysis? (optional — e.g. "Clear breakdown of regional trends")'
+              : 'What was wrong? (optional — e.g. "Charts were too generic for this payroll data")'}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            size="small"
+            sx={{
+              mb: 2,
+              '& .MuiOutlinedInput-root': {
+                fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem',
+                '& fieldset': { borderColor: `${chosenColor}30` },
+                '&:hover fieldset': { borderColor: `${chosenColor}60` },
+                '&.Mui-focused fieldset': { borderColor: chosenColor },
+              },
+              '& .MuiInputBase-input::placeholder': {
+                fontSize: '0.72rem', color: 'text.disabled',
+              },
+            }}
+          />
+
+          {submitError && (
+            <Alert severity="error" sx={{ mb: 1.5, fontSize: '0.72rem' }}>{submitError}</Alert>
+          )}
+
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+            <Button
+              size="small"
+              onClick={() => setStep('idle')}
+              sx={{
+                color: 'text.disabled', fontFamily: '"Raleway", sans-serif',
+                fontSize: '0.62rem', letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleSubmit}
+              disabled={submitting}
+              startIcon={submitting ? <CircularProgress size={11} /> : null}
+              sx={{
+                borderColor: `${chosenColor}55`, color: chosenColor,
+                fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                '&:hover': { borderColor: chosenColor, bgcolor: `${chosenColor}0e` },
+              }}
+            >
+              {submitting ? 'Saving…' : 'Submit feedback'}
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ── idle state ───────────────────────────────────────────────────────────────
+  return (
+    <Box sx={{
+      display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+      px: 2.5, py: 1.75,
+      border: `1px solid ${accent}18`,
+      borderRadius: 1.5,
+      bgcolor: dark ? `${accent}06` : `${accent}03`,
+    }}>
+      <Typography sx={{
+        fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+        fontSize: '0.7rem', color: 'text.secondary',
+        letterSpacing: '0.04em', flex: 1,
+      }}>
+        Was this analysis helpful?
+      </Typography>
+
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<ThumbUpAltIcon sx={{ fontSize: 14 }} />}
+        onClick={() => chooseStatus('approved')}
+        sx={{
+          borderColor: `${approveColor}50`, color: approveColor,
+          fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem',
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+          '&:hover': { borderColor: approveColor, bgcolor: `${approveColor}0e` },
+        }}
+      >
+        Approve — add to reference library
+      </Button>
+
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<ThumbDownAltIcon sx={{ fontSize: 14 }} />}
+        onClick={() => chooseStatus('rejected')}
+        sx={{
+          borderColor: `${rejectColor}40`, color: rejectColor,
+          fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem',
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+          '&:hover': { borderColor: rejectColor, bgcolor: `${rejectColor}0e` },
+        }}
+      >
+        Flag for review
+      </Button>
     </Box>
   )
 }
@@ -1192,6 +1428,18 @@ export default function AnalyzeDashboard() {
               ))}
             </Grid>
           </Box>
+
+          {/* ── review panel ────────────────────────────────────────────────
+              Shown when the backend returned an analysis_result_id.
+              Lets the user approve (→ PromptReference) or flag the result. */}
+          {result.meta?.analysis_result_id && (
+            <Box sx={{ mt: 3 }}>
+              <ReviewPanel
+                analysisResultId={result.meta.analysis_result_id}
+                getToken={getToken}
+              />
+            </Box>
+          )}
 
           {/* upload another */}
           <Box sx={{ mt: 4, pt: 3, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>

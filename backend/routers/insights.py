@@ -18,7 +18,7 @@ from database import get_db
 from encrypt import decrypt
 from openai import OpenAI
 import anthropic as _anthropic_sdk
-from models import User, UserConfig, AiModel
+from models import User, UserConfig, AiModel, AnalysisResult, PromptReference
 from logger import get_logger
 from pii_masker import PIIMasker
 from pdf_generator import (
@@ -665,6 +665,33 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
         "analyze  user=%s  charts=%d  tokens=%d",
         user.id[:8], len(chart_spec.get("charts", [])), prompt_tokens + completion_tokens,
     )
+
+    # Persist the full response so the user can review it and promote to the
+    # "good prompt" reference library.  Non-fatal: a save failure must never
+    # block the analysis response reaching the frontend.
+    analysis_result_id = None
+    try:
+        ar = AnalysisResult(
+            user_id=user.id,
+            conversation_id=conversation_id,
+            filename=fname,
+            provider=provider,
+            model_id_str=model_id,
+            prompt_snippet=prompt[:2000],
+            response_json=chart_spec,       # full chart spec at this point
+            chart_count=len(chart_spec.get("charts", [])),
+            sheet_count=sheet_count,
+            total_rows=profile["total_rows"],
+            total_columns=profile["total_columns"],
+        )
+        db.add(ar)
+        db.commit()
+        analysis_result_id = ar.id
+        log.info("analysis_result saved  id=%d  user=%s", ar.id, user.id[:8])
+    except Exception as exc:
+        log.warning("analysis_result save failed (non-fatal): %s", exc)
+
+    chart_spec["meta"]["analysis_result_id"] = analysis_result_id
     return chart_spec
 
 
@@ -789,3 +816,113 @@ def generate_operational_pdf_endpoint(
         media_type="application/pdf",
         headers={"Content-Disposition": 'attachment; filename="operational_dashboard.pdf"'},
     )
+
+
+# ── Analysis review + prompt reference library ────────────────────────────────
+
+class ReviewRequest(BaseModel):
+    status:  str        # "approved" | "rejected"
+    comment: str = ""
+
+
+@router.post("/results/{result_id}/review")
+def submit_analysis_review(
+    result_id: int,
+    body:      ReviewRequest,
+    user:      User    = Depends(get_current_user),
+    db:        Session = Depends(get_db),
+):
+    """
+    Submit a user review for an AnalysisResult.
+    Approving automatically creates a PromptReference (good-prompt library entry).
+    """
+    if body.status not in ("approved", "rejected"):
+        raise HTTPException(400, "status must be 'approved' or 'rejected'")
+
+    ar = db.query(AnalysisResult).filter(
+        AnalysisResult.id      == result_id,
+        AnalysisResult.user_id == user.id,
+    ).first()
+    if not ar:
+        raise HTTPException(404, "Analysis result not found")
+    if ar.review_status != "pending":
+        raise HTTPException(409, f"Already reviewed as '{ar.review_status}'")
+
+    ar.review_status  = body.status
+    ar.review_comment = body.comment
+    ar.reviewed_at    = datetime.datetime.now(datetime.timezone.utc)
+
+    if body.status == "approved":
+        ref = PromptReference(
+            analysis_result_id=ar.id,
+            user_id=user.id,
+            filename=ar.filename,
+            summary=(ar.response_json or {}).get("summary", ""),
+            chart_count=ar.chart_count,
+            sheet_count=ar.sheet_count,
+            total_rows=ar.total_rows,
+            total_columns=ar.total_columns,
+            provider=ar.provider,
+            model_id_str=ar.model_id_str,
+            review_comment=body.comment,
+            response_json=ar.response_json,
+        )
+        db.add(ref)
+
+    db.commit()
+    log.info(
+        "analysis_review  result_id=%d  status=%s  user=%s",
+        result_id, body.status, user.id[:8],
+    )
+    return {"status": body.status, "analysis_result_id": result_id}
+
+
+@router.get("/references")
+def list_prompt_references(
+    limit:  int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    user:   User    = Depends(get_current_user),
+    db:     Session = Depends(get_db),
+):
+    """Return the caller's library of approved (good-prompt) references, newest first."""
+    q     = db.query(PromptReference).filter(PromptReference.user_id == user.id)
+    total = q.count()
+    refs  = q.order_by(PromptReference.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "items": [
+            {
+                "id":                 r.id,
+                "analysis_result_id": r.analysis_result_id,
+                "filename":           r.filename,
+                "summary":            r.summary,
+                "chart_count":        r.chart_count,
+                "sheet_count":        r.sheet_count,
+                "total_rows":         r.total_rows,
+                "total_columns":      r.total_columns,
+                "provider":           r.provider,
+                "model_id_str":       r.model_id_str,
+                "review_comment":     r.review_comment,
+                "created_at":         r.created_at,
+            }
+            for r in refs
+        ],
+    }
+
+
+@router.delete("/references/{ref_id}", status_code=204)
+def delete_prompt_reference(
+    ref_id: int,
+    user:   User    = Depends(get_current_user),
+    db:     Session = Depends(get_db),
+):
+    """Remove a reference from the good-prompt library."""
+    ref = db.query(PromptReference).filter(
+        PromptReference.id      == ref_id,
+        PromptReference.user_id == user.id,
+    ).first()
+    if not ref:
+        raise HTTPException(404, "Reference not found")
+    db.delete(ref)
+    db.commit()
+    log.info("prompt_reference deleted  id=%d  user=%s", ref_id, user.id[:8])

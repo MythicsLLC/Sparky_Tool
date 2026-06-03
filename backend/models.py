@@ -333,6 +333,58 @@ class DataQualityResult(Base):
     checked_at   = Column(TIMESTAMP(timezone=True), default=_now)
 
 
+class AnalysisResult(Base):
+    """Full AI analysis response stored per run, with a user review status."""
+    __tablename__ = "analysis_results"
+    __table_args__ = (
+        Index("idx_analysis_results_user_id", "user_id"),
+        Index("idx_analysis_results_created",  "created_at"),
+        Index("idx_analysis_results_review",   "review_status"),
+    )
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(Integer, ForeignKey("ai_conversations.id", ondelete="SET NULL"))
+    filename        = Column(String(500), nullable=False)
+    provider        = Column(String(50),  default="")
+    model_id_str    = Column(String(255), default="")
+    # First 2 000 chars of the prompt sent to the AI — enough to understand the
+    # data profile used, without storing the full (potentially large) blob.
+    prompt_snippet  = Column(Text, default="")
+    response_json   = Column(JSON)          # complete chart spec returned by AI
+    chart_count     = Column(Integer, default=0)
+    sheet_count     = Column(Integer, default=1)
+    total_rows      = Column(Integer, default=0)
+    total_columns   = Column(Integer, default=0)
+    review_status   = Column(String(20), default="pending")  # pending | approved | rejected
+    review_comment  = Column(Text, default="")
+    reviewed_at     = Column(TIMESTAMP(timezone=True))
+    created_at      = Column(TIMESTAMP(timezone=True), default=_now)
+
+
+class PromptReference(Base):
+    """Approved analyses — the 'good prompt' library.
+    Created automatically when a user approves an AnalysisResult."""
+    __tablename__ = "prompt_references"
+    __table_args__ = (
+        Index("idx_prompt_refs_user_id", "user_id"),
+        Index("idx_prompt_refs_created", "created_at"),
+    )
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    analysis_result_id = Column(Integer, ForeignKey("analysis_results.id", ondelete="CASCADE"), nullable=False)
+    user_id            = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
+    filename           = Column(String(500), nullable=False)
+    summary            = Column(Text, default="")
+    chart_count        = Column(Integer, default=0)
+    sheet_count        = Column(Integer, default=1)
+    total_rows         = Column(Integer, default=0)
+    total_columns      = Column(Integer, default=0)
+    provider           = Column(String(50),  default="")
+    model_id_str       = Column(String(255), default="")
+    review_comment     = Column(Text, default="")
+    response_json      = Column(JSON)   # copy of the approved chart spec
+    created_at         = Column(TIMESTAMP(timezone=True), default=_now)
+
+
 class AiMessage(Base):
     """One row per turn (user prompt or assistant reply) within an AiConversation."""
     __tablename__ = "ai_messages"
