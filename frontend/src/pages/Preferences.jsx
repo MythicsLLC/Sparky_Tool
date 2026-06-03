@@ -8,7 +8,7 @@ import {
 import TuneIcon         from '@mui/icons-material/Tune'
 import SaveIcon         from '@mui/icons-material/Save'
 import RestoreIcon      from '@mui/icons-material/Restore'
-import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
+import SuccessCheck     from '../components/SuccessCheck'
 import { useAuth } from '../AuthContext'
 import { getPreferences, updatePreferences, getNotificationSettings, updateNotificationSettings, formatApiError } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
@@ -151,7 +151,7 @@ export default function Preferences() {
             Preferences
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center' }}>
           <Button
             size="small"
             variant="outlined"
@@ -164,13 +164,14 @@ export default function Preferences() {
           <Button
             size="small"
             variant="contained"
-            startIcon={saved ? <CheckCircleIcon sx={{ fontSize: 15 }} /> : saving ? <CircularProgress size={14} /> : <SaveIcon sx={{ fontSize: 15 }} />}
+            startIcon={saving ? <CircularProgress size={14} /> : <SaveIcon sx={{ fontSize: 15 }} />}
             onClick={handleSave}
             disabled={saving}
-            sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', bgcolor: saved ? '#6b8f71' : 'primary.main', color: 'background.default' }}
+            sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', bgcolor: 'primary.main', color: 'background.default' }}
           >
             {saved ? 'Saved!' : <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>Save<KbdHint keys={`${MOD}+S`} /></Box>}
           </Button>
+          {saved && <SuccessCheck size={30} />}
         </Box>
       </Box>
 
@@ -306,16 +307,17 @@ export default function Preferences() {
               InputLabelProps={{ sx: { fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem' } }}
             />
           </Box>
-          <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Button
               size="small" onClick={handleSaveNotif} disabled={savingNotif}
-              startIcon={savedNotif ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : savingNotif ? <CircularProgress size={13} /> : <SaveIcon sx={{ fontSize: 14 }} />}
+              startIcon={savingNotif ? <CircularProgress size={13} /> : <SaveIcon sx={{ fontSize: 14 }} />}
               sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem',
-                bgcolor: savedNotif ? '#6b8f71' : 'primary.main', color: 'background.default', px: 2 }}
+                bgcolor: 'primary.main', color: 'background.default', px: 2 }}
               variant="contained"
             >
               {savedNotif ? 'Saved!' : 'Save notification settings'}
             </Button>
+            {savedNotif && <SuccessCheck size={28} />}
           </Box>
         </SectionCard>
 
