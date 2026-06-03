@@ -24,6 +24,7 @@ import InfoOutlinedIcon       from '@mui/icons-material/InfoOutlined'
 import TuneOutlinedIcon       from '@mui/icons-material/TuneOutlined'
 import { useThemeContext, ACCENT_OPTIONS } from '../ThemeContext'
 import SparkyDog from '../assets/SparkyDog'
+import SparkyWordmark from './SparkyWordmark'
 
 const NAV_BASE = [
   { id: 'dashboard', label: 'Dashboard',     icon: GridViewIcon },
@@ -139,8 +140,8 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
             onClick={() => navigate('dashboard')}
             sx={{ display: { xs: 'none', sm: 'block' }, cursor: 'pointer' }}
           >
-            <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontWeight: 700, fontSize: '1rem', letterSpacing: '0.2em', color: accent, textTransform: 'uppercase', lineHeight: 1 }}>
-              Sparky Tool
+            <Typography component="div" sx={{ fontFamily: '"Cormorant Garamond", serif', fontWeight: 700, fontSize: '1rem', letterSpacing: '0.2em', color: accent, textTransform: 'uppercase', lineHeight: 1, userSelect: 'none' }}>
+              <SparkyWordmark text="Sparky Tool" accent={accent} />
             </Typography>
             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontWeight: 400, fontSize: '0.48rem', letterSpacing: '0.25em', color: 'text.disabled', textTransform: 'uppercase' }}>
               Analytics Platform

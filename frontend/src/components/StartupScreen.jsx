@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Box, Typography, Button } from '@mui/material'
 import SparkyDog from '../assets/SparkyDog'
+import SparkyWordmark from './SparkyWordmark'
 import MythicsLogo from '../assets/MythicsLogo'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
 import { checkHealth } from '../api'
@@ -212,16 +213,22 @@ export default function StartupScreen({ onReady, authLoading = false }) {
 
           {/* Sparky Tool wordmark */}
           <Box sx={{ textAlign: 'left' }}>
-            <Typography sx={{
+            <Typography component="div" sx={{
               fontFamily: '"Cormorant Garamond", serif',
               fontSize: '1.9rem',
               fontWeight: 700,
               letterSpacing: '0.18em',
-              color: 'text.primary',
               textTransform: 'uppercase',
               lineHeight: 1.1,
+              userSelect: 'none',
             }}>
-              Sparky <Box component="span" sx={{ color: accent }}>Tool</Box>
+              <Box component="span" sx={{ color: 'text.primary' }}>
+                <SparkyWordmark text="Sparky" accent={accent} />
+              </Box>
+              <span style={{ display: 'inline-block', width: '0.3em' }} />
+              <Box component="span" sx={{ color: accent }}>
+                <SparkyWordmark text="Tool" accent={accent} />
+              </Box>
             </Typography>
             <Typography sx={{
               fontFamily: '"Raleway", sans-serif',
