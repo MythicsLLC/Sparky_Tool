@@ -51,7 +51,7 @@ function groupItems(items, dateKey, configKey) {
 }
 
 export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
-  const [collapsed,   setCollapsed]   = useState(false)
+  const [collapsed,   setCollapsed]   = useState(true)
   const [tab,         setTab]         = useState(0)
   const [openPeriods, setOpenPeriods] = useState(
     () => new Set(['Today', 'Yesterday', 'This Week', 'out:Today', 'out:Yesterday', 'out:This Week'])
