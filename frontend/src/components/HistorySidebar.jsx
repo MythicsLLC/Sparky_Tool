@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import {
   Box, Typography, Tabs, Tab, Tooltip, IconButton,
 } from '@mui/material'
+import { timeAgo } from '../utils/time'
 import HistoryIcon            from '@mui/icons-material/History'
 import ChevronLeftIcon        from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon       from '@mui/icons-material/ChevronRight'
@@ -20,17 +21,6 @@ function getPeriod(dateStr) {
   if (days < 7)  return 'This Week'
   if (days < 30) return 'This Month'
   return 'Older'
-}
-
-function timeAgo(ts) {
-  if (!ts) return '—'
-  const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
-  if (s < 60) return `${s}s ago`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
 }
 
 function groupItems(items, dateKey, configKey) {
@@ -234,6 +224,7 @@ export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
           <IconButton
             size="small"
             onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? 'Open history sidebar' : 'Close history sidebar'}
             sx={{ p: 0.4, color: 'text.disabled', '&:hover': { color: accent, bgcolor: `${accent}12` } }}
           >
             {collapsed

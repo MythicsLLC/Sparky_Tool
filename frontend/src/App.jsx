@@ -1,16 +1,25 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Box } from '@mui/material'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { Box, CircularProgress } from '@mui/material'
 import StartupScreen from './components/StartupScreen'
 import Topbar from './components/Topbar'
 import Dashboard from './pages/Dashboard'
-import Settings from './pages/Settings'
-import Admin from './pages/Admin'
-import Preferences from './pages/Preferences'
-import SchedulesPage from './pages/SchedulesPage'
 import SignInPage from './pages/SignIn'
 import ErrorBoundary from './components/ErrorBoundary'
 import ShortcutsFab from './components/ShortcutsFab'
 import { useAuth } from './AuthContext'
+
+const Settings     = lazy(() => import('./pages/Settings'))
+const Admin        = lazy(() => import('./pages/Admin'))
+const Preferences  = lazy(() => import('./pages/Preferences'))
+const SchedulesPage = lazy(() => import('./pages/SchedulesPage'))
+
+function PageFallback() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 10 }}>
+      <CircularProgress size={28} />
+    </Box>
+  )
+}
 
 const VALID_ROUTES = ['dashboard', 'settings', 'admin', 'preferences', 'schedules']
 const KEEP_ALIVE_MS = 10 * 60 * 1000  // ping every 10 min; Render sleeps after 15
@@ -94,11 +103,13 @@ export default function App() {
         <Topbar route={route} navigate={navigate} user={user} onSignOut={signOut} />
         <Box component="main" sx={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           <ErrorBoundary>
-            {route === 'dashboard'   && <Dashboard />}
-            {route === 'settings'    && <Settings />}
-            {route === 'admin'       && <Admin />}
-            {route === 'preferences' && <Preferences />}
-            {route === 'schedules'   && <SchedulesPage />}
+            <Suspense fallback={<PageFallback />}>
+              {route === 'dashboard'   && <Dashboard />}
+              {route === 'settings'    && <Settings />}
+              {route === 'admin'       && <Admin />}
+              {route === 'preferences' && <Preferences />}
+              {route === 'schedules'   && <SchedulesPage />}
+            </Suspense>
           </ErrorBoundary>
         </Box>
       </Box>

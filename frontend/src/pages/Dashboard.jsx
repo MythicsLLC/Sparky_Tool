@@ -32,6 +32,7 @@ import AnalyzeDashboard     from './AnalyzeDashboard'
 import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
+import { timeAgo } from '../utils/time'
 import RunDiffDialog from '../components/RunDiffDialog'
 import CompareArrows from '@mui/icons-material/CompareArrows'
 import VerifiedIcon  from '@mui/icons-material/VerifiedUser'
@@ -42,18 +43,6 @@ function fmtMs(ms) {
   if (ms == null) return '—'
   if (ms < 1000) return `${ms} ms`
   return `${(ms / 1000).toFixed(1)} s`
-}
-
-function timeAgo(ts) {
-  if (!ts) return '—'
-  const diff = Date.now() - new Date(ts).getTime()
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return `${s}s ago`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
 }
 
 // ── MonoCopy ──────────────────────────────────────────────────────────────────
@@ -68,7 +57,7 @@ function MonoCopy({ val }) {
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
       <Typography component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.7rem', color: 'primary.main' }}>{val}</Typography>
       <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
-        <IconButton size="small" onClick={copy} sx={{ p: 0.25, opacity: 0.35, '&:hover': { opacity: 1 } }}>
+        <IconButton size="small" onClick={copy} aria-label={copied ? 'Copied' : `Copy ${val}`} sx={{ p: 0.25, opacity: 0.35, '&:hover': { opacity: 1 } }}>
           {copied ? <CheckIcon sx={{ fontSize: 10, color: '#6b8f71' }} /> : <ContentCopyIcon sx={{ fontSize: 10 }} />}
         </IconButton>
       </Tooltip>
@@ -229,7 +218,7 @@ export default function Dashboard() {
         URL.revokeObjectURL(url)
       }
     } catch (err) {
-      console.error('PDF generation failed', err)
+      setError(formatApiError(err, 'PDF generation failed. Please try again.'))
     } finally {
       setPdfTabLoading(false)
     }
@@ -428,6 +417,7 @@ export default function Dashboard() {
                   onClick={downloadTabPdf}
                   disabled={pdfTabLoading || pageLoading}
                   size="small"
+                  aria-label={`Download ${TAB_NAMES[dashTab]} as PDF`}
                   sx={{
                     mr: 0.5,
                     color: pdfTabLoading ? 'text.disabled' : 'text.secondary',
@@ -563,6 +553,7 @@ export default function Dashboard() {
                       size="small"
                       startIcon={<CompareArrows sx={{ fontSize: 13 }} />}
                       onClick={() => setDiffOpen(true)}
+                      aria-label="Compare two runs side by side"
                       sx={{
                         fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', fontWeight: 700,
                         letterSpacing: '0.1em', textTransform: 'uppercase',

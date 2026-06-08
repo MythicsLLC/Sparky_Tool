@@ -90,6 +90,16 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
+
+@app.middleware("http")
 async def log_requests(request: Request, call_next):
     t0 = _time.time()
     request_id = str(_uuid.uuid4())
