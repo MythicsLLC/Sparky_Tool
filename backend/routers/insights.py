@@ -427,6 +427,44 @@ def _build_profile(
     }
 
 
+def _classify_ai_error(exc: Exception, provider: str) -> str:
+    """Translate raw AI SDK exceptions into short, actionable user messages."""
+    cls = type(exc).__name__.lower()
+    msg = str(exc).lower()
+
+    if "timeout" in cls or "deadline" in msg or "timed out" in msg:
+        return (
+            f"The {provider} model timed out (> 90 s). "
+            "Try a smaller file, fewer sheets, or switch to a faster model."
+        )
+    if "ratelimit" in cls or "quota" in msg or "resource_exhausted" in msg or "429" in msg or "too many" in msg:
+        return (
+            f"The {provider} API quota is exceeded. "
+            "Wait a moment and try again, or choose a different model in Admin → AI Models."
+        )
+    if "authentication" in cls or "api_key" in msg or "invalid key" in msg or "permission" in msg or "403" in msg or "401" in msg:
+        return (
+            f"Invalid {provider} API key. "
+            "Update it in Admin → AI Models."
+        )
+    if "notfound" in cls or "model_not_found" in msg or "does not exist" in msg or "no such model" in msg:
+        return (
+            f"The {provider} model ID was not found. "
+            "Check the model ID in Admin → AI Models."
+        )
+    if "connection" in cls or "connect" in msg or "unreachable" in msg or "network" in msg:
+        return (
+            f"Cannot reach the {provider} API. "
+            "Check the provider’s service status and try again."
+        )
+    if "context" in msg or "token limit" in msg or "too large" in msg or "maximum" in msg:
+        return (
+            "File too large for the selected model. "
+            "Try a smaller file or a model with a larger context window."
+        )
+    return f"{provider} error: {str(exc)[:200]}"
+
+
 def _extract_json(text: str) -> dict:
     """Strip optional markdown fences and parse JSON from Gemini response."""
     # Remove ```json ... ``` or ``` ... ``` wrappers
@@ -548,9 +586,11 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
+    _AI_TIMEOUT = 90  # seconds; applied at the SDK client level for all providers
+
     try:
         if provider == "gemini":
-            gc = _genai.Client(api_key=api_key)
+            gc = _genai.Client(api_key=api_key, http_options={"timeout": _AI_TIMEOUT})
             response = gc.models.generate_content(
                 model=model_id,
                 contents=prompt,
@@ -567,7 +607,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 cached_tokens     = u.cached_content_token_count or 0
 
         elif provider in ("openai", "grok", "generic"):
-            client_kwargs: dict = {"api_key": api_key}
+            client_kwargs: dict = {"api_key": api_key, "timeout": _AI_TIMEOUT}
             if base_url:
                 client_kwargs["base_url"] = base_url
             elif provider == "grok":
@@ -585,7 +625,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 completion_tokens = resp.usage.completion_tokens or 0
 
         elif provider == "anthropic":
-            ant = _anthropic_sdk.Anthropic(api_key=api_key)
+            ant = _anthropic_sdk.Anthropic(api_key=api_key, timeout=float(_AI_TIMEOUT))
             msg = ant.messages.create(
                 model=model_id,
                 max_tokens=4096,
@@ -603,10 +643,11 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
         raise
     except json.JSONDecodeError as exc:
         log.error("AI non-JSON provider=%s", provider)
-        raise HTTPException(502, f"AI provider returned invalid JSON: {exc}") from exc
+        raise HTTPException(502, "AI provider returned a response that could not be parsed as JSON. Try again.") from exc
     except Exception as exc:
-        log.error("AI call failed provider=%s: %s", provider, exc)
-        raise HTTPException(502, f"AI provider error: {exc}") from exc
+        msg = _classify_ai_error(exc, provider)
+        log.error("AI call failed provider=%s class=%s: %s", provider, type(exc).__name__, exc)
+        raise HTTPException(502, msg) from exc
 
     if masker.masked_count:
         chart_spec = masker.demask_obj(chart_spec)

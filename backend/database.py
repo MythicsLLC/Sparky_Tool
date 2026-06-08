@@ -299,10 +299,17 @@ def _init():
     _validate_database_url(url)
     url = _resolve_postgres_driver(url)
 
-    # Neon requires SSL; pass it explicitly so it works even if stripped from URL
+    # Neon requires SSL; TCP keepalives keep the socket alive during idle periods
+    # so Neon's 5-min serverless timeout doesn't drop pool connections silently.
     connect_args: dict = {"connect_timeout": 10}
     if "neon.tech" in url:
-        connect_args["sslmode"] = "require"
+        connect_args.update({
+            "sslmode":            "require",
+            "keepalives":         1,
+            "keepalives_idle":    30,   # start probes after 30 s idle
+            "keepalives_interval": 10,  # probe every 10 s
+            "keepalives_count":   5,    # give up after 5 failed probes
+        })
 
     log.info("Connecting to database (driver: %s)", url.split("://")[0])
     _engine = create_engine(
@@ -311,7 +318,7 @@ def _init():
         pool_pre_ping=True,     # validate connections before handing them out
         pool_size=5,
         max_overflow=10,
-        pool_recycle=300,       # recycle connections every 5 min (avoids stale sockets)
+        pool_recycle=120,       # recycle every 2 min — safely under Neon's 5-min idle timeout
         pool_timeout=30,        # raise after 30 s if no connection available
     )
     _SessionLocal = sessionmaker(bind=_engine, autocommit=False, autoflush=False)

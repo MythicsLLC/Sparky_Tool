@@ -56,11 +56,21 @@ client.interceptors.response.use(
  */
 export function formatApiError(err, fallback = 'An unexpected error occurred.') {
   if (!err) return fallback
-  const status  = err?.response?.status
-  const detail  = err?.response?.data?.detail
+  const status = err?.response?.status
+  const detail = err?.response?.data?.detail
 
-  if (status === 503) return 'The server is temporarily unavailable — it may be starting up. Please try again in a moment.'
   if (status === 401) return 'Your session has expired. Please reload the page to sign in again.'
+  if (status === 503) return 'The server is temporarily unavailable — it may be starting up. Please try again in a moment.'
+  if (status === 504) return 'The request timed out. For large or multi-sheet files, try again or switch to a faster model.'
+  if (status === 502) {
+    if (!detail) return 'The AI provider returned an error. Try again or switch models in Admin → AI Models.'
+    if (/timed out/i.test(detail))   return detail
+    if (/quota|rate limit/i.test(detail)) return detail
+    if (/api key|invalid key/i.test(detail)) return detail
+    if (/model.*(not found|id)/i.test(detail)) return detail
+    if (/cannot reach/i.test(detail)) return detail
+    return detail
+  }
   if (typeof detail === 'string' && detail) return detail
   if (err.message === 'Network Error' || err.code === 'ERR_NETWORK')
     return 'Cannot reach the server. Check your connection or try again shortly.'

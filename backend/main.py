@@ -107,7 +107,7 @@ async def log_requests(request: Request, call_next):
     elapsed = round((_time.time() - t0) * 1000)
     path = request.url.path
 
-    _silent = {"/favicon.ico", "/api/ping"}
+    _silent = {"/favicon.ico", "/api/ping", "/api/health"}
     if not path.startswith("/assets/") and path not in _silent:
         log.info("%-6s %-55s %3d  %d ms", request.method, path, response.status_code, elapsed)
 

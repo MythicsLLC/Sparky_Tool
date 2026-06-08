@@ -15,6 +15,9 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     plan: free
+    # /api/ping returns instantly with no DB call — safe to hit every few seconds.
+    # /api/health does a live SELECT 1 and must NOT be the health-check target.
+    healthCheckPath: /api/ping
 
     envVars:
       # ── Database ─────────────────────────────────────────────────────────────
