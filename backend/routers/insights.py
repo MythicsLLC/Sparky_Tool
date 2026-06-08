@@ -434,7 +434,7 @@ def _classify_ai_error(exc: Exception, provider: str) -> str:
 
     if "timeout" in cls or "deadline" in msg or "timed out" in msg:
         return (
-            f"The {provider} model timed out (> 90 s). "
+            f"The {provider} model timed out (> 180 s). "
             "Try a smaller file, fewer sheets, or switch to a faster model."
         )
     if "ratelimit" in cls or "quota" in msg or "resource_exhausted" in msg or "429" in msg or "too many" in msg:
@@ -586,7 +586,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
-    _AI_TIMEOUT = 90  # seconds; applied at the SDK client level for all providers
+    _AI_TIMEOUT = 180  # seconds; applied at the SDK client level for all providers
 
     try:
         if provider == "gemini":

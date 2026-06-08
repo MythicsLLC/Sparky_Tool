@@ -892,7 +892,7 @@ function DropZone({ onFile, loading, browseRef }) {
             Analysing your data…
           </Typography>
           <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem', color: 'text.secondary', mt: 0.25 }}>
-            Usually 15 – 30 seconds · multi-sheet files may take longer
+            Usually 15 – 60 seconds · large or multi-sheet files may take up to 3 minutes
           </Typography>
         </Box>
       ) : (
