@@ -93,8 +93,10 @@ class UserConfigEngine(Base):
 class RunLog(Base):
     __tablename__ = "run_logs"
     __table_args__ = (
-        Index("idx_run_logs_user_id", "user_id"),
-        Index("idx_run_logs_started", "started_at"),
+        Index("idx_run_logs_user_id",   "user_id"),
+        Index("idx_run_logs_started",   "started_at"),
+        Index("idx_run_logs_status",    "status"),
+        Index("idx_run_logs_config_id", "config_id"),
     )
     id              = Column(Integer, primary_key=True, autoincrement=True)
     user_id         = Column(String, ForeignKey("users.id"), nullable=False)
@@ -117,8 +119,9 @@ class RunLog(Base):
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (
-        Index("idx_audit_user_id", "user_id"),
-        Index("idx_audit_created", "created_at"),
+        Index("idx_audit_user_id",    "user_id"),
+        Index("idx_audit_created",    "created_at"),
+        Index("idx_audit_event_type", "event_type"),
     )
     id         = Column(Integer, primary_key=True, autoincrement=True)
     user_id    = Column(String, ForeignKey("users.id", ondelete="SET NULL"))

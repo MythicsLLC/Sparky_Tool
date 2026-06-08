@@ -385,7 +385,12 @@ def list_all_runs(
     if user_id: q = q.filter(RunLog.user_id == user_id)
     total = q.count()
     logs  = q.order_by(RunLog.started_at.desc()).offset(offset).limit(limit).all()
-    user_map = {u.id: u.email for u in db.query(User).all()}
+    # Fetch only the users that appear on this page — avoids loading the full user table.
+    page_user_ids = {l.user_id for l in logs}
+    user_map = (
+        {u.id: u.email for u in db.query(User.id, User.email).filter(User.id.in_(page_user_ids)).all()}
+        if page_user_ids else {}
+    )
     log.debug("admin list_all_runs  total=%d  returned=%d", total, len(logs))
     return {
         "total": total,
@@ -428,8 +433,14 @@ def get_audit_logs(
         q = q.filter(AuditEvent.event_type == event_type)
     total  = q.count()
     events = q.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit).all()
-    user_map = {u.id: f"{u.first_name} {u.last_name}".strip() or u.email
-                for u in db.query(User).all()}
+    # Fetch only the users that appear on this page — avoids loading the full user table.
+    page_user_ids = {e.user_id for e in events if e.user_id}
+    user_map = (
+        {u.id: f"{u.first_name} {u.last_name}".strip() or u.email
+         for u in db.query(User.id, User.first_name, User.last_name, User.email)
+                    .filter(User.id.in_(page_user_ids)).all()}
+        if page_user_ids else {}
+    )
     log.debug("admin audit_logs  total=%d  filter=%r", total, event_type)
     return {
         "total": total,
