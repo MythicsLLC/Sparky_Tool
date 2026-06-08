@@ -60,6 +60,7 @@ export function formatApiError(err, fallback = 'An unexpected error occurred.') 
   const detail = err?.response?.data?.detail
 
   if (status === 401) return 'Your session has expired. Please reload the page to sign in again.'
+  if (status === 413) return typeof detail === 'string' && detail ? detail : 'File is too large. The maximum allowed size is 50 MB.'
   if (status === 503) return 'The server is temporarily unavailable — it may be starting up. Please try again in a moment.'
   if (status === 504) return 'The request timed out. For large or multi-sheet files, try again or switch to a faster model.'
   if (status === 502) {

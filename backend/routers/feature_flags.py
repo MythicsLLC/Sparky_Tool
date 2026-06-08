@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +13,18 @@ from logger import get_logger
 log = get_logger("feature_flags")
 
 router = APIRouter(tags=["feature_flags"])
+
+# In-process cache for active flags — avoids a DB round-trip on every request.
+# TTL is intentionally short (60 s) so flag changes propagate quickly.
+_FLAG_CACHE: dict | None = None
+_FLAG_CACHE_TS: float = 0.0
+_FLAG_CACHE_TTL: float = 60.0
+
+
+def _invalidate_flag_cache() -> None:
+    global _FLAG_CACHE, _FLAG_CACHE_TS
+    _FLAG_CACHE = None
+    _FLAG_CACHE_TS = 0.0
 
 
 def _serialize(f: FeatureFlag) -> dict:
@@ -35,12 +48,20 @@ def list_active_flags(
     db:   Session = Depends(get_db),
 ):
     """Return all active flags as a {key: enabled} map."""
+    global _FLAG_CACHE, _FLAG_CACHE_TS
+    now = time.monotonic()
+    if _FLAG_CACHE is not None and (now - _FLAG_CACHE_TS) < _FLAG_CACHE_TTL:
+        return _FLAG_CACHE
+
     flags = (
         db.query(FeatureFlag)
         .filter(FeatureFlag.status == "active")
         .all()
     )
-    return {f.key: f.enabled for f in flags}
+    result = {f.key: f.enabled for f in flags}
+    _FLAG_CACHE = result
+    _FLAG_CACHE_TS = now
+    return result
 
 
 # ── Admin CRUD ────────────────────────────────────────────────────────────────
@@ -94,6 +115,7 @@ def admin_create_flag(
     db.add(f)
     db.commit()
     db.refresh(f)
+    _invalidate_flag_cache()
     log.info("feature_flag created  key=%s  by=%s", key, admin.id[:8])
     return _serialize(f)
 
@@ -119,6 +141,7 @@ def admin_update_flag(
 
     f.updated_at = datetime.now(timezone.utc)
     db.commit()
+    _invalidate_flag_cache()
     log.info("feature_flag updated  key=%s  by=%s", f.key, admin.id[:8])
     return _serialize(f)
 
@@ -135,6 +158,7 @@ def admin_toggle_flag(
     f.enabled    = not f.enabled
     f.updated_at = datetime.now(timezone.utc)
     db.commit()
+    _invalidate_flag_cache()
     log.info("feature_flag toggled  key=%s  enabled=%s  by=%s", f.key, f.enabled, admin.id[:8])
     return _serialize(f)
 
@@ -151,4 +175,5 @@ def admin_delete_flag(
     key = f.key
     db.delete(f)
     db.commit()
+    _invalidate_flag_cache()
     log.info("feature_flag deleted  key=%s  by=%s", key, admin.id[:8])

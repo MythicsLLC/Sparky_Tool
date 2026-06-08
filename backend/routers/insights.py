@@ -736,6 +736,9 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
     return chart_spec
 
 
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
 @router.post("/analyze-file")
 async def analyze_file(
     file:        UploadFile = File(...),
@@ -744,7 +747,9 @@ async def analyze_file(
     ai_model_id: int | None = Query(None),
 ):
     """Accept a CSV or Excel upload and return AI chart specs."""
-    raw   = await file.read()
+    raw   = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File exceeds the 50 MB limit. Reduce the file size and try again.")
     fname = file.filename or "upload"
     return _run_analysis(raw, fname, user, db, ai_model_id)
 

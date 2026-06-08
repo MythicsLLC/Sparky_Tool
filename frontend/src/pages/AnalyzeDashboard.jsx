@@ -856,8 +856,14 @@ function DropZone({ onFile, loading, browseRef }) {
 
   if (browseRef) browseRef.current = () => inputRef.current?.click()
 
+  const MAX_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
   const pick = useCallback((f) => {
-    if (f) onFile(f)
+    if (!f) return
+    if (f.size > MAX_FILE_BYTES) {
+      onFile({ _sizeError: true, name: f.name, size: f.size })
+      return
+    }
+    onFile(f)
   }, [onFile])
 
   return (
@@ -1126,6 +1132,11 @@ export default function AnalyzeDashboard() {
 
   const handleFile = useCallback(async (file) => {
     setResult(null)
+    if (file._sizeError) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1)
+      setError(`File is too large (${mb} MB). The maximum allowed size is 50 MB.`)
+      return
+    }
     setFilename(file.name)
     setPendingFile(file)
     await _runAnalysis(file, selectedModelId)
