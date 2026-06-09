@@ -9,7 +9,7 @@ function fmt(n) {
   return n.toFixed(2)
 }
 
-export default function KPICards({ kpis }) {
+export default function KPICards({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 

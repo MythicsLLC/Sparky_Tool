@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { useThemeContext } from '../ThemeContext'
 
-export default function Charts({ kpis }) {
+export default function Charts({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 

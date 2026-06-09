@@ -45,7 +45,7 @@ function Toolbar({ rowCount, filteredCount }) {
 }
 
 // ── Card view ─────────────────────────────────────────────────────────────────
-function CsvCardGrid({ rows, columns }) {
+function CsvCardGrid({ rows = [], columns = [] }) {
   const { accent } = useThemeContext()
   const [search, setSearch] = useState('')
 
@@ -124,7 +124,7 @@ function CsvCardGrid({ rows, columns }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function DataTable({ rows, columns }) {
+export default function DataTable({ rows = [], columns = [] }) {
   const { accent, mode } = useThemeContext()
   const [viewMode, setViewMode] = useState(
     () => localStorage.getItem('datatable_view') || 'table'
