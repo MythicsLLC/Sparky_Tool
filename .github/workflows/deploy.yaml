@@ -1,0 +1,47 @@
+name: Deploy React to OCI Object Storage
+
+on:
+  push:
+    branches:
+      - main # Triggers when you push to the main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Grab your code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Use your React app's Node version
+
+      # 3. Install dependencies and Build the React app
+      - name: Install and Build
+        run: |
+          npm install
+          npm run build
+
+      # 4. Setup OCI CLI to talk to Oracle Cloud
+      - name: Setup OCI CLI
+        uses: oracle-actions/setup-oci-cli@v1.1.1
+        with:
+          user: ${{ secrets.OCI_USER_OCID }}
+          tenancy: ${{ secrets.OCI_TENANCY_OCID }}
+          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+          private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+          region: ${{ secrets.OCI_REGION }}
+
+      # 5. Upload the compiled build folder to your OCI Bucket
+      - name: Upload to OCI Bucket
+        run: |
+          # Replace <YOUR_NAMESPACE> and <YOUR_BUCKET_NAME> below!
+          oci os object bulk-upload \
+            --namespace <YOUR_NAMESPACE> \
+            --bucket-name <YOUR_BUCKET_NAME> \
+            --src-dir build/ \
+            --overwrite \
+            --content-type auto
