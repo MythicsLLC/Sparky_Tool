@@ -88,8 +88,9 @@ def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_inte
     base_url = _build_url(settings.ps_base_url, settings.ps_status_endpoint)
     url = f"{base_url.rstrip('/')}/{instance_id}"
     auth, headers = _build_auth(settings)
+    body = {"processname": settings.ps_process_name} if settings.ps_process_name else {}
 
-    log.info("Polling status  GET %s  (max wait: %ds, interval: %ds)", url, max_wait, poll_interval)
+    log.info("Polling status  POST %s  (max wait: %ds, interval: %ds)", url, max_wait, poll_interval)
     elapsed = 0
 
     with httpx.Client(timeout=30, follow_redirects=False) as client:
@@ -97,7 +98,7 @@ def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_inte
             time.sleep(poll_interval)
             elapsed += poll_interval
             t0 = time.time()
-            response = client.get(url, auth=auth, headers=headers)
+            response = client.post(url, auth=auth, headers=headers, json=body)
             rtt = round((time.time() - t0) * 1000)
 
             # PeopleSoft returns 5xx while the process is still queued or running.
