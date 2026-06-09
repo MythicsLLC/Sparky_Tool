@@ -26,7 +26,7 @@ jobs:
           npm install
           npm run build
 
-      # 4. Install and Configure OCI CLI manually
+# 4. Install and Configure OCI CLI manually
       - name: Install OCI CLI
         run: pip install oci-cli
 
@@ -40,7 +40,10 @@ jobs:
           echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
           echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          
+          # Fix security permissions for BOTH files so Oracle is happy
           chmod 600 ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/config
 
 
       # 5. Upload the compiled build folder to your OCI Bucket
