@@ -50,6 +50,6 @@ jobs:
           oci os object bulk-upload \
             --namespace iddsu14hgang \
             --bucket-name sparky_tool \
-            --src-dir build/ \
+            --src-dir ./frontend/build/ \
             --overwrite \
             --content-type auto
