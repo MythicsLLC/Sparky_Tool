@@ -30,35 +30,57 @@ def _build_auth(settings):
     return None, {}
 
 
-def trigger_engine(_settings=None) -> dict:
+def trigger_engine(_settings=None, max_retries: int = 6, retry_delay: int = 10) -> dict:
     settings = _settings or get_settings()
     url = _build_url(settings.ps_base_url, settings.ps_endpoint)
     auth, headers = _build_auth(settings)
     body = {"processname": settings.ps_process_name} if settings.ps_process_name else {}
 
     log.info("Triggering PeopleSoft engine  POST %s  (process: %s)", url, settings.ps_process_name)
-    t0 = time.time()
 
+    # PeopleSoft Integration Gateway returns 5xx while the process is still
+    # being queued / the service is starting up — same as during poll_status.
+    # Retry up to max_retries times before treating the error as fatal.
     with httpx.Client(timeout=300, follow_redirects=False) as client:
-        response = client.post(url, auth=auth, headers=headers, json=body)
-        elapsed = round((time.time() - t0) * 1000)
+        for attempt in range(1, max_retries + 1):
+            t0 = time.time()
+            response = client.post(url, auth=auth, headers=headers, json=body)
+            elapsed = round((time.time() - t0) * 1000)
 
-        if response.is_redirect:
-            location = response.headers.get("location", "")
-            log.warning("PeopleSoft trigger returned redirect → %s (auth failure?)", location)
-            raise httpx.HTTPStatusError(
-                f"Authentication failed — PeopleSoft returned a login redirect (302). "
-                f"Verify PS_USERNAME, PS_PASSWORD, and PS_AUTH_TYPE in Settings. "
-                f"Redirect location: {location}",
-                request=response.request,
-                response=response,
+            if response.is_redirect:
+                location = response.headers.get("location", "")
+                log.warning("PeopleSoft trigger returned redirect → %s (auth failure?)", location)
+                raise httpx.HTTPStatusError(
+                    f"Authentication failed — PeopleSoft returned a login redirect (302). "
+                    f"Verify PS_USERNAME, PS_PASSWORD, and PS_AUTH_TYPE in Settings. "
+                    f"Redirect location: {location}",
+                    request=response.request,
+                    response=response,
+                )
+
+            log.info(
+                "PeopleSoft trigger  attempt=%d/%d  HTTP %s  (%d ms)",
+                attempt, max_retries, response.status_code, elapsed,
             )
 
-        log.info("PeopleSoft trigger response  HTTP %s  (%d ms)", response.status_code, elapsed)
-        response.raise_for_status()
-        data = response.json()
-        log.info("Trigger complete — InstanceID: %s", data.get("InstanceID", "(none)"))
-        return data
+            if response.status_code >= 500:
+                if attempt < max_retries:
+                    log.warning(
+                        "Trigger returned HTTP %s — PS may still be queuing (attempt %d/%d), "
+                        "retrying in %ds",
+                        response.status_code, attempt, max_retries, retry_delay,
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                # All retries exhausted — surface the error
+                response.raise_for_status()
+
+            response.raise_for_status()  # 4xx → raise immediately (auth/config error)
+            data = response.json()
+            log.info("Trigger complete — InstanceID: %s", data.get("InstanceID", "(none)"))
+            return data
+
+    raise TimeoutError(f"PeopleSoft trigger did not succeed after {max_retries} attempts")
 
 
 def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_interval: int = 5) -> dict:
