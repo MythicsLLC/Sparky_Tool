@@ -42,25 +42,14 @@ jobs:
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
-      # 5. Upload the compiled build folder to your OCI Bucket
-      - name: Upload to OCI Bucket
-        run: |
-          # Replace <YOUR_NAMESPACE> and <YOUR_BUCKET_NAME> below!
-          # Notice we point to frontend/build/ now!
-          oci os object bulk-upload \
-            --namespace <YOUR_NAMESPACE> \
-            --bucket-name <YOUR_BUCKET_NAME> \
-            --src-dir frontend/build/ \
-            --overwrite \
-            --content-type auto
 
       # 5. Upload the compiled build folder to your OCI Bucket
       - name: Upload to OCI Bucket
         run: |
           # Replace <YOUR_NAMESPACE> and <YOUR_BUCKET_NAME> below!
           oci os object bulk-upload \
-            --namespace <YOUR_NAMESPACE> \
-            --bucket-name <YOUR_BUCKET_NAME> \
+            --namespace iddsu14hgang \
+            --bucket-name sparky_tool \
             --src-dir build/ \
             --overwrite \
             --content-type auto
