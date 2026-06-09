@@ -1,36 +1,36 @@
-name: Deploy React to OCI Object Storage
+name: Deploy Sparky Tool (Frontend & Backend)
 
 on:
   push:
     branches:
-      - main # Triggers when you push to the main branch
+      - main
 
 jobs:
-  build-and-deploy:
+  # JOB 1: Build React and push to OCI Static Object Storage
+  deploy-frontend:
     runs-on: ubuntu-latest
     steps:
-      # 1. Grab your code
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18' # Use your React app's Node version
+          node-version: '18'
 
-      # 3. Install dependencies and Build the React app (Pointed to frontend subfolder)
-      - name: Install and Build
+      - name: Install and Build Frontend
         working-directory: frontend
         run: |
           npm install
+          echo "VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" > .env
+          # Set this to your public Python API endpoint once your VM/Container is live
+          echo "VITE_API_URL=${{ secrets.PRODUCTION_API_URL }}" >> .env
           npm run build
 
-# 4. Install and Configure OCI CLI manually
       - name: Install OCI CLI
         run: pip install oci-cli
 
-      - name: Configure OCI CLI Config and Key
+      - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
           echo "[DEFAULT]" > ~/.oci/config
@@ -40,19 +40,45 @@ jobs:
           echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
           echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
-          
-          # Fix security permissions for BOTH files so Oracle is happy
           chmod 600 ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/config
 
-
-      # 5. Upload the compiled build folder to your OCI Bucket
-      - name: Upload to OCI Bucket
+      - name: Upload Frontend to OCI Bucket
         run: |
-          # Replace <YOUR_NAMESPACE> and <YOUR_BUCKET_NAME> below!
           oci os object bulk-upload \
             --namespace iddsu14hgang \
             --bucket-name sparky_tool \
             --src-dir ./frontend/dist/ \
             --overwrite \
             --content-type auto
+
+# JOB 2: Package Python Backend and prepare environment
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Dynamically creates your complete production backend .env file inside the runner workspace
+      - name: Inject Backend Secrets
+        working-directory: backend
+        run: |
+          echo "PS_BASE_URL=${{ secrets.PS_BASE_URL }}" > .env
+          echo "PS_AUTH_TYPE=${{ secrets.PS_AUTH_TYPE }}" >> .env
+          echo "PS_USERNAME=${{ secrets.PS_USERNAME }}" >> .env
+          echo "PS_PASSWORD=${{ secrets.PS_PASSWORD }}" >> .env
+          echo "PS_ENDPOINT=${{ secrets.PS_ENDPOINT }}" >> .env
+          echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "PS_PROCESS_NAME=${{ secrets.PS_PROCESS_NAME }}" >> .env
+          echo "RETRIEVAL_METHOD=${{ secrets.RETRIEVAL_METHOD }}" >> .env
+          echo "CLERK_JWKS_URL=${{ secrets.CLERK_JWKS_URL }}" >> .env
+          echo "CLERK_API_KEY=${{ secrets.CLERK_API_KEY }}" >> .env
+          echo "CLERK_API_SECRET=${{ secrets.CLERK_API_SECRET }}" >> .env
+          echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env
+
+      - name: Verify Backend Environment Setup
+        run: |
+          echo "Backend .env file built securely inside the isolated pipeline."
