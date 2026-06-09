@@ -291,6 +291,12 @@ Dataset:
 Return a single JSON object (NO markdown, NO code fences, raw JSON only) with this exact structure:
 {{
   "summary": "For a single sheet: 2-3 sentences describing the dataset and key patterns. For multi-sheet files: one sentence per sheet describing what it contains, then a final sentence on how the sheets relate to each other.",
+  "sections": {{
+    "executive_summary": "3-4 sentence executive overview of the dataset's purpose, scope, and overall data health.",
+    "key_findings": ["Most significant pattern or insight", "second finding — up to 6 total"],
+    "anomalies": ["Data quality issue or unexpected pattern detected — empty list if none found"],
+    "recommendations": ["Actionable next step based on the data findings — up to 5 total"]
+  }},
   "charts": [
     {{
       "id": "c1",
@@ -680,6 +686,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
         "total_columns":    profile["total_columns"],
         "sheet_count":      sheet_count,
         "columns":          [c["name"] for c in profile["columns"]],
+        "column_profiles":  masked_profile.get("columns", []),
         "conversation_id":  conversation_id,
         "pii_protected":    masker.masked_count > 0,
         "pii_masked_count": masker.masked_count,

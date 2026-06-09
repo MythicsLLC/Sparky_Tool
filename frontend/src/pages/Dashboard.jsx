@@ -29,6 +29,7 @@ import LoadingDialog         from '../components/LoadingDialog'
 import FunctionalDashboard  from './FunctionalDashboard'
 import OperationalDashboard from './OperationalDashboard'
 import AnalyzeDashboard     from './AnalyzeDashboard'
+import RunAnalyseDashboard  from './RunAnalyseDashboard'
 import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
@@ -157,7 +158,7 @@ export default function Dashboard() {
   const [diffOpen,         setDiffOpen]         = useState(false)
   const tabRef = useRef(null)
 
-  const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis']
+  const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis', 'Run & Analyse']
 
   const kpi = useMemo(() => {
     if (!runs.length) return null
@@ -284,8 +285,8 @@ export default function Dashboard() {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return
       const mod = e.ctrlKey || e.metaKey
       if ((e.key === 'r' || e.key === 'R') && !mod && !running && configs.length) { handleRun(); return }
-      if (e.key >= '1' && e.key <= '4' && !mod) { handleDashTabChange(null, Number(e.key) - 1); return }
-      if ((e.key === 'p' || e.key === 'P') && !mod && dashTab !== 3 && !pdfTabLoading) { downloadTabPdf(); return }
+      if (e.key >= '1' && e.key <= '5' && !mod) { handleDashTabChange(null, Number(e.key) - 1); return }
+      if ((e.key === 'p' || e.key === 'P') && !mod && dashTab !== 3 && dashTab !== 4 && !pdfTabLoading) { downloadTabPdf(); return }
       if ((e.key === 'c' || e.key === 'C') && !mod && runOutputs.length >= 2) { setDiffOpen(true); return }
       if ((e.key === 'v' || e.key === 'V') && !mod && dashTab === 0) {
         handleRunsViewChange(runsView === 'table' ? 'cards' : 'table'); return
@@ -407,10 +408,11 @@ export default function Dashboard() {
             <Tab label="Functional" />
             <Tab label="Operational" />
             <Tab label="Analyse" />
+            <Tab label="Run & Analyse" />
           </Tabs>
 
-          {/* PDF download button — hidden on the AI Analysis tab (it has its own) */}
-          {dashTab !== 3 && (
+          {/* PDF download button — hidden on AI Analysis and Run & Analyse tabs */}
+          {dashTab !== 3 && dashTab !== 4 && (
             <Tooltip title={`Download ${TAB_NAMES[dashTab]} as PDF  (P)`} arrow placement="left">
               <span>
                 <IconButton
@@ -755,6 +757,7 @@ export default function Dashboard() {
         {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
         {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
         {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
+        {dashTab === 4 && <Box ref={tabRef}><RunAnalyseDashboard /></Box>}
 
       </Box>
 

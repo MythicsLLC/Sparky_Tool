@@ -197,9 +197,10 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
                  run_log.id, result.get("row_count", 0), round((_time.time() - t4) * 1000))
 
         # ── Save to run_outputs ────────────────────────────────────────────────
+        run_output_id = None
         try:
             from routers.run_outputs import save_run_output
-            save_run_output(
+            run_output_id = save_run_output(
                 db=db, user_id=user.id, run_log_id=run_log.id,
                 csv_bytes=csv_bytes, config_name=config.name,
                 engine_name=engine_label, process_name=engine_process_name,
@@ -235,10 +236,11 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
                  run_log.id, engine_label, result["row_count"], duration_ms)
 
         result.update({
-            "engine_name": engine_label, "process_name": engine_process_name,
-            "run_id": run_log.id, "instance_id": instance_id,
-            "report_id": report_id, "sftp_skipped": False,
-            "dq_results": dq_results,
+            "engine_name":  engine_label, "process_name": engine_process_name,
+            "run_id":        run_log.id, "instance_id": instance_id,
+            "report_id":     report_id, "sftp_skipped": False,
+            "dq_results":    dq_results,
+            "run_output_id": run_output_id,
         })
         return run_log, result
 
@@ -321,4 +323,7 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
         "report_id":     base.get("report_id", ""),
         "sftp_skipped":  all(r.get("sftp_skipped") for r in results),
         "dq_results":    [item for r in results for item in r.get("dq_results", [])],
+        "rows":          base.get("rows", []),
+        "columns":       base.get("columns", []),
+        "run_output_id": base.get("run_output_id"),
     }
