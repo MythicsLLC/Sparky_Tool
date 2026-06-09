@@ -19,8 +19,9 @@ jobs:
         with:
           node-version: '18' # Use your React app's Node version
 
-      # 3. Install dependencies and Build the React app
+      # 3. Install dependencies and Build the React app (Pointed to frontend subfolder)
       - name: Install and Build
+        working-directory: frontend
         run: |
           npm install
           npm run build
@@ -31,18 +32,13 @@ jobs:
 
       - name: Configure OCI CLI Config and Key
         run: |
-          # Create the hidden .oci directory
           mkdir -p ~/.oci
-          
-          # Create the config file with your secrets
           echo "[DEFAULT]" > ~/.oci/config
           echo "user=${{ secrets.OCI_USER_OCID }}" >> ~/.oci/config
           echo "fingerprint=${{ secrets.OCI_FINGERPRINT }}" >> ~/.oci/config
           echo "tenancy=${{ secrets.OCI_TENANCY_OCID }}" >> ~/.oci/config
           echo "region=${{ secrets.OCI_REGION }}" >> ~/.oci/config
           echo "key_file=~/.oci/oci_api_key.pem" >> ~/.oci/config
-          
-          # Write the private key to a file and set strict read-only permissions
           echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
           chmod 600 ~/.oci/oci_api_key.pem
 
@@ -50,10 +46,11 @@ jobs:
       - name: Upload to OCI Bucket
         run: |
           # Replace <YOUR_NAMESPACE> and <YOUR_BUCKET_NAME> below!
+          # Notice we point to frontend/build/ now!
           oci os object bulk-upload \
             --namespace <YOUR_NAMESPACE> \
             --bucket-name <YOUR_BUCKET_NAME> \
-            --src-dir build/ \
+            --src-dir frontend/build/ \
             --overwrite \
             --content-type auto
 
