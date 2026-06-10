@@ -2,6 +2,7 @@ import time
 import httpx
 from config import get_settings
 from logger import get_logger
+from sanitize import strip_all_whitespace as _strip_ws
 
 log = get_logger("peoplesoft")
 
@@ -28,10 +29,10 @@ def _ps_error_body(response) -> str:
 
 
 def _build_url(base_url: str, endpoint: str) -> str:
-    endpoint = endpoint.strip()
+    endpoint = _strip_ws(endpoint)
     if endpoint.startswith(("http://", "https://")):
         return endpoint
-    base = base_url.strip().rstrip("/")
+    base = _strip_ws(base_url).rstrip("/")
     if endpoint and not endpoint.startswith("/"):
         endpoint = "/" + endpoint
     url = base + endpoint

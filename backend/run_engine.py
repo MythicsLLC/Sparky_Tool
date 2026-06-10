@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 from encrypt import decrypt
 from logger import get_logger
+from sanitize import strip_all_whitespace as _strip_ws
 from models import RunLog, AuditEvent, UserConfig, UserConfigEngine, Engine
 from peoplesoft import trigger_engine, poll_status
 import sftp_client
@@ -22,13 +23,13 @@ log = get_logger("run_engine")
 
 def config_to_ns(config: UserConfig) -> SimpleNamespace:
     return SimpleNamespace(
-        ps_base_url         = config.ps_base_url or "",
+        ps_base_url         = _strip_ws(config.ps_base_url),
         ps_auth_type        = config.ps_auth_type or "basic",
         ps_username         = config.ps_username or "",
         ps_password         = decrypt(config.ps_password_enc),
-        ps_endpoint         = config.ps_endpoint or "",
-        ps_status_endpoint  = config.ps_status_endpoint or "",
-        ps_process_name     = config.ps_process_name or "SM_DISCOVERY",
+        ps_endpoint         = _strip_ws(config.ps_endpoint),
+        ps_status_endpoint  = _strip_ws(config.ps_status_endpoint),
+        ps_process_name     = _strip_ws(config.ps_process_name),
         retrieval_method    = config.retrieval_method or "sftp",
         sftp_host           = config.sftp_host or "",
         sftp_port           = config.sftp_port or 22,
@@ -287,11 +288,12 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
         .order_by(UserConfigEngine.sort_order)
         .all()
     )
-    engines_to_run = (
-        [(e.process_name, e.name) for _, e in engine_rows]
-        if engine_rows
-        else [(s.ps_process_name or "SM_DISCOVERY", s.ps_process_name or "SM_DISCOVERY")]
-    )
+    if engine_rows:
+        engines_to_run = [(e.process_name, e.name) for _, e in engine_rows]
+    elif s.ps_process_name:
+        engines_to_run = [(s.ps_process_name, s.ps_process_name)]
+    else:
+        raise HTTPException(400, "No engines configured and no process name set for this configuration.")
 
     log.info("Run dispatched  config=%d (%s)  user=%s  engines=%s  method=%s",
              config_id, config.name, user.id[:8], [p for p, _ in engines_to_run], s.retrieval_method)
