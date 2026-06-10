@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import os
@@ -440,7 +441,7 @@ def _classify_ai_error(exc: Exception, provider: str) -> str:
 
     if "timeout" in cls or "deadline" in msg or "timed out" in msg:
         return (
-            f"The {provider} model timed out (> 180 s). "
+            f"The {provider} model timed out (> 600 s). "
             "Try a smaller file, fewer sheets, or switch to a faster model."
         )
     if "ratelimit" in cls or "quota" in msg or "resource_exhausted" in msg or "429" in msg or "too many" in msg:
@@ -592,7 +593,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
-    _AI_TIMEOUT = 180  # seconds; applied at the SDK client level for all providers
+    _AI_TIMEOUT = 600  # seconds; applied at the SDK client level for all providers
 
     try:
         if provider == "gemini":
@@ -686,7 +687,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
         "total_columns":    profile["total_columns"],
         "sheet_count":      sheet_count,
         "columns":          [c["name"] for c in profile["columns"]],
-        "column_profiles":  masked_profile.get("columns", []),
+        "column_profiles":  profile.get("columns", []),
         "conversation_id":  conversation_id,
         "pii_protected":    masker.masked_count > 0,
         "pii_masked_count": masker.masked_count,
@@ -753,7 +754,9 @@ async def analyze_file(
     """Accept a CSV or Excel upload and return AI chart specs."""
     raw   = await file.read()
     fname = file.filename or "upload"
-    return _run_analysis(raw, fname, user, db, ai_model_id)
+    # _run_analysis makes long blocking HTTP calls to the AI provider — run it in
+    # a thread so the event loop stays responsive for other requests while waiting.
+    return await asyncio.to_thread(_run_analysis, raw, fname, user, db, ai_model_id)
 
 
 # ── PDF generation endpoints ──────────────────────────────────────────────────
