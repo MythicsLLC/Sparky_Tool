@@ -453,9 +453,11 @@ def test_peoplesoft(
                     detail=f"Authentication failed — PeopleSoft redirected to login. (Location: {location})",
                 )
             if response.status_code in (401, 403):
+                log.warning("test_peoplesoft auth failure  HTTP %d  body=%r", response.status_code, response.text[:500])
                 raise HTTPException(400, f"Authentication failed (HTTP {response.status_code})")
             if response.status_code >= 400:
                 snippet = response.text.strip()
+                log.warning("test_peoplesoft PS error  HTTP %d  body=%r", response.status_code, snippet)
                 raise HTTPException(400, f"PeopleSoft returned HTTP {response.status_code}"
                                         + (f" — {snippet}" if snippet else ""))
 
