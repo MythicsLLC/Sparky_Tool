@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    base: './', // 👈 ADD THIS LINE HERE
+    base: './',
     plugins: [react()],
     server: {
       cors: true,
@@ -15,6 +15,20 @@ export default defineConfig(({ mode }) => {
           target: env.BACKEND_URL || 'http://localhost:8000',
           changeOrigin: true,
           headers: { 'Access-Control-Allow-Origin': '*' },
+        },
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react':  ['react', 'react-dom'],
+            'vendor-mui':    ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+            'vendor-charts': ['recharts'],
+            'vendor-grid':   ['@tanstack/react-table', '@mui/x-data-grid'],
+            'vendor-pdf':    ['jspdf', 'html2canvas'],
+            'vendor-gsap':   ['gsap'],
+          },
         },
       },
     },

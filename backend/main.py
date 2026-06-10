@@ -11,6 +11,9 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from rate_limit import limiter
 
 from logger import setup_logging, get_logger
 from config import get_settings
@@ -76,6 +79,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Sparky Tool", lifespan=lifespan)
 
+# Rate limiter — keyed by client IP.
+# Shared limiter instance from rate_limit.py; sensitive endpoints opt-in via @limiter.limit().
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS — open to all origins.
 # Security is enforced via Clerk JWT on every authenticated endpoint,
 # so CORS does not need to be the access-control layer here.
@@ -97,6 +105,13 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # Tell browsers to only connect over HTTPS for the next year
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # Disable browser features the app doesn't use
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()",
+    )
     return response
 
 
@@ -229,6 +244,7 @@ try:
     from sqlalchemy.orm import Session
 
     @app.post("/api/v2/run/{config_id}")
+    @limiter.limit("20/minute")
     def run_v2(
         config_id: int,
         request:   Request,

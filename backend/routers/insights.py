@@ -9,7 +9,7 @@ import httpx
 import pandas as pd
 from google import genai as _genai
 from google.genai import types as _genai_types
-from fastapi import APIRouter, Depends, File, Query, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Query, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from database import get_db
 from encrypt import decrypt
+from rate_limit import limiter
 from openai import OpenAI
 import anthropic as _anthropic_sdk
 from models import User, UserConfig, AiModel, AnalysisResult, PromptReference
@@ -745,7 +746,9 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
 
 @router.post("/analyze-file")
+@limiter.limit("15/minute")
 async def analyze_file(
+    request:     Request,
     file:        UploadFile = File(...),
     user:        User = Depends(get_current_user),
     db:          Session = Depends(get_db),
