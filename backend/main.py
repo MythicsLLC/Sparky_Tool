@@ -509,9 +509,14 @@ def test_peoplesoft(
                         detail=f"Invalid status URL — Base URL must start with http:// or https://. Got: '{status_url_used}'",
                     )
 
+                log.info("test_peoplesoft status GET  url=%s", status_url_used)
                 status_resp = client.get(status_url_used, auth=auth, headers=extra_headers)
                 status_http_status = status_resp.status_code
-                log.info("test_peoplesoft status OK  HTTP %d  url=%s", status_http_status, status_url_used)
+                if status_http_status >= 400:
+                    log.warning("test_peoplesoft status error  HTTP %d  url=%s  body=%r",
+                                status_http_status, status_url_used, status_resp.text[:500])
+                else:
+                    log.info("test_peoplesoft status OK  HTTP %d", status_http_status)
                 try:
                     status_body_str = _json.dumps(status_resp.json(), indent=2)
                 except Exception:
