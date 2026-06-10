@@ -455,7 +455,7 @@ def test_peoplesoft(
             if response.status_code in (401, 403):
                 raise HTTPException(400, f"Authentication failed (HTTP {response.status_code})")
             if response.status_code >= 400:
-                snippet = response.text[:200].strip()
+                snippet = response.text.strip()
                 raise HTTPException(400, f"PeopleSoft returned HTTP {response.status_code}"
                                         + (f" — {snippet}" if snippet else ""))
 

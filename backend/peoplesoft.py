@@ -104,7 +104,13 @@ def trigger_engine(_settings=None, max_retries: int = 6, retry_delay: int = 10) 
                     continue
                 response.raise_for_status()
 
-            response.raise_for_status()  # 4xx → raise immediately (auth/config error)
+            if response.status_code >= 400:
+                body = _ps_error_body(response) or response.text.strip()
+                raise httpx.HTTPStatusError(
+                    f"PeopleSoft returned HTTP {response.status_code}"
+                    + (f" — {body}" if body else ""),
+                    request=response.request, response=response,
+                )
             data = response.json()
             log.info("Trigger complete — InstanceID: %s", data.get("InstanceID", "(none)"))
             return data
@@ -144,7 +150,13 @@ def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_inte
                 )
                 continue
 
-            response.raise_for_status()  # 4xx → raise immediately
+            if response.status_code >= 400:
+                body = _ps_error_body(response) or response.text.strip()
+                raise httpx.HTTPStatusError(
+                    f"PeopleSoft returned HTTP {response.status_code}"
+                    + (f" — {body}" if body else ""),
+                    request=response.request, response=response,
+                )
 
             data = response.json()
             report_id = data.get("ReportID", "")
