@@ -441,7 +441,7 @@ def _classify_ai_error(exc: Exception, provider: str) -> str:
 
     if "timeout" in cls or "deadline" in msg or "timed out" in msg:
         return (
-            f"The {provider} model timed out (> 600 s). "
+            f"The {provider} model timed out. "
             "Try a smaller file, fewer sheets, or switch to a faster model."
         )
     if "ratelimit" in cls or "quota" in msg or "resource_exhausted" in msg or "429" in msg or "too many" in msg:
@@ -593,11 +593,11 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
-    _AI_TIMEOUT = 600  # seconds; applied at the SDK client level for all providers
+    _NO_TIMEOUT = httpx.Timeout(None)  # wait indefinitely for all providers
 
     try:
         if provider == "gemini":
-            gc = _genai.Client(api_key=api_key, http_options={"timeout": _AI_TIMEOUT})
+            gc = _genai.Client(api_key=api_key, http_options={"timeout": _NO_TIMEOUT})
             response = gc.models.generate_content(
                 model=model_id,
                 contents=prompt,
@@ -614,7 +614,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 cached_tokens     = u.cached_content_token_count or 0
 
         elif provider in ("openai", "grok", "generic"):
-            client_kwargs: dict = {"api_key": api_key, "timeout": _AI_TIMEOUT}
+            client_kwargs: dict = {"api_key": api_key, "timeout": None}
             if base_url:
                 client_kwargs["base_url"] = base_url
             elif provider == "grok":
@@ -632,7 +632,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 completion_tokens = resp.usage.completion_tokens or 0
 
         elif provider == "anthropic":
-            ant = _anthropic_sdk.Anthropic(api_key=api_key, timeout=float(_AI_TIMEOUT))
+            ant = _anthropic_sdk.Anthropic(api_key=api_key, timeout=_NO_TIMEOUT)
             msg = ant.messages.create(
                 model=model_id,
                 max_tokens=4096,

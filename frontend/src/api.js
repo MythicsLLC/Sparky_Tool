@@ -161,8 +161,7 @@ export const analyzeFile = (file, aiModelId) => {
   const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
   // null removes the instance-default 'application/json' so Axios 1.7.x does NOT
   // JSON-serialize the FormData; the browser then sets the correct multipart boundary.
-  // 620 s matches the backend AI timeout (600 s) plus a small buffer.
-  return client.post('/v2/insights/analyze-file', form, { params, headers: { 'Content-Type': null }, timeout: 620000 })
+  return client.post('/v2/insights/analyze-file', form, { params, headers: { 'Content-Type': null }, timeout: 0 })
 }
 
 // Analysis review + prompt reference library (v2)
@@ -180,7 +179,7 @@ export const listRunOutputs    = (token, params = {})  => client.get('/v2/run-ou
 export const deleteRunOutput   = (id, token)            => client.delete(`/v2/run-outputs/${id}`,       { headers: auth(token) })
 export const analyzeRunOutput  = (id, aiModelId, token) => {
   const params = aiModelId != null ? { ai_model_id: aiModelId } : {}
-  return client.post(`/v2/run-outputs/${id}/analyze`, null, { params, headers: auth(token), timeout: 620000 })
+  return client.post(`/v2/run-outputs/${id}/analyze`, null, { params, headers: auth(token), timeout: 0 })
 }
 
 // AI Models admin (v2)
