@@ -532,7 +532,7 @@ def test_peoplesoft(
             "body": trigger_body_str,
             "instance_id": instance_id,
             "status_http_status": status_http_status,
-            "status_url": status_url_used,
+            "status_url": f"{status_url_used}?InstanceID={instance_id}" if status_url_used and instance_id else status_url_used,
             "status_body": status_body_str,
         }
 

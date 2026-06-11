@@ -1119,19 +1119,31 @@ export default function Settings() {
             </Box>
           </Box>
           <Box sx={{ px: 3, py: 2.5, maxHeight: '70vh', overflowY: 'auto' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.75 }}>
               <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.secondary' }}>Trigger Response</Typography>
               {psTestStatus?.http_status && <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: accent }}>HTTP {psTestStatus.http_status}</Typography>}
             </Box>
+            {psTestStatus?.url && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: 1.5, py: 0.75, bgcolor: `${accent}08`, border: `1px solid ${accent}1f`, borderRadius: '4px', overflow: 'hidden' }}>
+                <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.6rem', fontWeight: 700, color: accent, flexShrink: 0 }}>POST</Typography>
+                <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={psTestStatus.url}>{psTestStatus.url}</Typography>
+              </Box>
+            )}
             <Box component="pre" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.78rem', color: 'text.primary', lineHeight: 1.7, m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', mb: 3 }}>
               {psTestStatus?.body ?? ''}
             </Box>
             {psTestStatus?.status_body != null && (<>
               <Box sx={{ height: '1px', bgcolor: `${accent}1a`, mb: 3 }} />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.75 }}>
                 <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.secondary' }}>Status Response</Typography>
                 {psTestStatus.status_http_status != null && <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: accent }}>HTTP {psTestStatus.status_http_status}</Typography>}
               </Box>
+              {psTestStatus.status_url && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: 1.5, py: 0.75, bgcolor: `${accent}08`, border: `1px solid ${accent}1f`, borderRadius: '4px', overflow: 'hidden' }}>
+                  <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.6rem', fontWeight: 700, color: accent, flexShrink: 0 }}>GET</Typography>
+                  <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.65rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={psTestStatus.status_url}>{psTestStatus.status_url}</Typography>
+                </Box>
+              )}
               <Box component="pre" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.78rem', color: 'text.primary', lineHeight: 1.7, m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {psTestStatus.status_body}
               </Box>
