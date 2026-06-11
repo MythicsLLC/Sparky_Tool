@@ -273,7 +273,9 @@ export default function Settings() {
       })
       setPsTestStatus({ ok: true, http_status: res.data.http_status, url: res.data.url ?? '', body: res.data.body ?? '', instance_id: res.data.instance_id ?? '', status_http_status: res.data.status_http_status, status_url: res.data.status_url ?? '', status_body: res.data.status_body ?? '' })
     } catch (err) {
-      setPsTestStatus({ ok: false, message: parseError(err, 'API test failed') })
+      const base = form.ps_base_url.replace(/\/$/, '')
+      const ep   = form.ps_endpoint.startsWith('/') ? form.ps_endpoint : `/${form.ps_endpoint}`
+      setPsTestStatus({ ok: false, message: parseError(err, 'API test failed'), url: base + ep })
     }
   }
 
@@ -655,7 +657,14 @@ export default function Settings() {
                       </Button>
                     </Box>
                   ) : (
-                    <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#c98f8f', letterSpacing: '0.04em', lineHeight: 1.5 }}>{psTestStatus.message}</Typography>
+                    <Box>
+                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#c98f8f', letterSpacing: '0.04em', lineHeight: 1.5 }}>{psTestStatus.message}</Typography>
+                      {psTestStatus.url && (
+                        <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.6rem', color: 'text.disabled', mt: 0.5, wordBreak: 'break-all' }}>
+                          POST {psTestStatus.url}
+                        </Typography>
+                      )}
+                    </Box>
                   )}
                 </Box>
               </Box>
