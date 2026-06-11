@@ -864,7 +864,7 @@ async def ws_analyze(websocket: WebSocket):
     ]
     if allowed_origins:
         origin = websocket.headers.get("origin", "")
-        if not any(origin == o or origin.startswith(o) for o in allowed_origins):
+        if origin not in allowed_origins:
             log.warning("WS analyze rejected — bad origin: %r", origin)
             await websocket.close(code=4003)
             return
