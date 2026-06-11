@@ -839,14 +839,16 @@ async def analyze_file(
 
 # ── WebSocket streaming analysis ──────────────────────────────────────────────
 
+_WS_MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB decoded limit
+
+
 @router.websocket("/ws/analyze")
-async def ws_analyze(
-    websocket: WebSocket,
-    token: str = Query(...),
-):
+async def ws_analyze(websocket: WebSocket):
     """WebSocket endpoint — streams AI analysis chunks in real-time.
 
-    Client sends: {"filename": str, "data": "<base64>", "ai_model_id": int|null}
+    Protocol (two messages from client):
+      1. {"token": "<jwt>"}                               ← auth frame
+      2. {"filename": str, "data": "<base64>", "ai_model_id": int|null}  ← file
     Server sends: {"type": "status"|"chunk"|"result"|"error"|"ping", ...}
     """
     from database import _SessionLocal
@@ -854,21 +856,37 @@ async def ws_analyze(
     from sqlalchemy.dialects.postgresql import insert as _pg_insert
     from datetime import datetime, timezone
 
-    # Validate token BEFORE accepting so the browser sees a 403, not a close frame.
-    try:
-        payload = _verify_token(token)
-        user_id = payload.get("sub")
-        if not user_id:
-            await websocket.close(code=4001)
+    # ── Origin check — prevent cross-site WebSocket hijacking ────────────────
+    allowed_origins = [
+        o.strip()
+        for o in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    if allowed_origins:
+        origin = websocket.headers.get("origin", "")
+        if not any(origin == o or origin.startswith(o) for o in allowed_origins):
+            log.warning("WS analyze rejected — bad origin: %r", origin)
+            await websocket.close(code=4003)
             return
-    except Exception:
-        await websocket.close(code=4001)
-        return
 
     await websocket.accept()
 
     db = _SessionLocal()
+    user_id = None
     try:
+        # ── Frame 1: auth (token travels in message body, not URL) ────────────
+        try:
+            auth_msg = await asyncio.wait_for(websocket.receive_json(), timeout=15)
+            token    = auth_msg.get("token", "")
+            payload  = _verify_token(token)
+            user_id  = payload.get("sub")
+            if not user_id:
+                raise ValueError("no sub")
+        except Exception:
+            await websocket.send_json({"type": "error", "message": "Authentication failed"})
+            await websocket.close(code=4001)
+            return
+
         # Upsert the user record (same as HTTP auth middleware)
         now = datetime.now(timezone.utc)
         email, fn, ln = _extract_user_info(payload)
@@ -881,17 +899,25 @@ async def ws_analyze(
         db.commit()
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            await websocket.send_json({"type": "error", "message": "User record missing"})
+            await websocket.send_json({"type": "error", "message": "Authentication failed"})
             return
 
-        # ── Receive file ──────────────────────────────────────────────────────
+        # ── Frame 2: file upload ──────────────────────────────────────────────
         try:
-            msg         = await asyncio.wait_for(websocket.receive_json(), timeout=60)
+            msg         = await asyncio.wait_for(websocket.receive_json(), timeout=120)
             fname       = msg.get("filename", "upload")
-            raw         = base64.b64decode(msg["data"])
+            b64_data    = msg.get("data", "")
+            # Guard against oversized uploads before decoding
+            if len(b64_data) > (_WS_MAX_UPLOAD_BYTES * 4 // 3 + 4):
+                await websocket.send_json({"type": "error", "message": "File exceeds the 50 MB limit"})
+                return
+            raw         = base64.b64decode(b64_data)
+            if len(raw) > _WS_MAX_UPLOAD_BYTES:
+                await websocket.send_json({"type": "error", "message": "File exceeds the 50 MB limit"})
+                return
             ai_model_id = msg.get("ai_model_id")
-        except Exception as exc:
-            await websocket.send_json({"type": "error", "message": f"Upload error: {exc}"})
+        except (ValueError, KeyError):
+            await websocket.send_json({"type": "error", "message": "Invalid file payload"})
             return
 
         # ── Phase 1: parse, profile, mask, select model ───────────────────────
@@ -902,7 +928,8 @@ async def ws_analyze(
             await websocket.send_json({"type": "error", "message": exc.detail, "status_code": exc.status_code})
             return
         except Exception as exc:
-            await websocket.send_json({"type": "error", "message": str(exc)})
+            log.error("WS prepare_for_ai failed  user=%s: %s", user_id[:8] if user_id else "?", exc)
+            await websocket.send_json({"type": "error", "message": "Failed to process the file. Please try again."})
             return
 
         provider = ctx["provider"]
@@ -1041,7 +1068,8 @@ async def ws_analyze(
             await websocket.send_json({"type": "error", "message": exc.detail, "status_code": exc.status_code})
             return
         except Exception as exc:
-            await websocket.send_json({"type": "error", "message": str(exc)})
+            log.error("WS finalize failed  user=%s: %s", user_id[:8] if user_id else "?", exc)
+            await websocket.send_json({"type": "error", "message": "Failed to build chart spec. Please try again."})
             return
 
         await websocket.send_json({"type": "result", "data": chart_spec})
@@ -1051,7 +1079,7 @@ async def ws_analyze(
     except Exception as exc:
         log.error("WS analyze  unhandled: %s", exc)
         try:
-            await websocket.send_json({"type": "error", "message": str(exc)})
+            await websocket.send_json({"type": "error", "message": "An unexpected error occurred. Please try again."})
         except Exception:
             pass
     finally:

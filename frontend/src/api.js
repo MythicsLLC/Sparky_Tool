@@ -209,15 +209,17 @@ export function analyzeFileWs(file, aiModelId, { onStatus, onChunk, onResult, on
 
   ;(async () => {
     try {
-      const token = _getToken ? await _getToken().catch(() => null) : null
+      const token    = _getToken ? await _getToken().catch(() => null) : null
       const httpBase = _origin || (typeof window !== 'undefined' ? window.location.origin : '')
       const wsBase   = httpBase.replace(/^http/, 'ws')
-      const qs       = `?token=${encodeURIComponent(token || '')}${aiModelId != null ? `&ai_model_id=${aiModelId}` : ''}`
 
-      ws = new WebSocket(`${wsBase}/api/v2/insights/ws/analyze${qs}`)
+      ws = new WebSocket(`${wsBase}/api/v2/insights/ws/analyze`)
 
       ws.onopen = async () => {
-        // Read file as base64 via FileReader
+        // Frame 1: send auth token in message body (never in URL — avoids server-log exposure)
+        ws.send(JSON.stringify({ token: token || '' }))
+
+        // Frame 2: send file as base64 via FileReader
         const b64 = await new Promise((res, rej) => {
           const reader = new FileReader()
           reader.onload  = () => res(reader.result.split(',')[1])
