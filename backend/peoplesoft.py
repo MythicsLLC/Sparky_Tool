@@ -86,12 +86,12 @@ def trigger_engine(_settings=None, max_retries: int = 6, retry_delay: int = 10) 
             )
 
             if response.status_code >= 500:
-                body = _ps_error_body(response)
-                if body:
+                err_body = _ps_error_body(response)
+                if err_body:
                     # PS returned a real error message — retrying won't help
-                    log.error("Trigger HTTP %s — PS error: %s", response.status_code, body)
+                    log.error("Trigger HTTP %s — PS error: %s  url=%s", response.status_code, err_body, url)
                     raise httpx.HTTPStatusError(
-                        f"PeopleSoft returned HTTP {response.status_code} — {body}",
+                        f"PeopleSoft returned HTTP {response.status_code} — {err_body} (url: {url})",
                         request=response.request, response=response,
                     )
                 # Empty body — likely transient startup, retry
@@ -106,10 +106,11 @@ def trigger_engine(_settings=None, max_retries: int = 6, retry_delay: int = 10) 
                 response.raise_for_status()
 
             if response.status_code >= 400:
-                body = _ps_error_body(response) or response.text.strip()
+                err_body = _ps_error_body(response) or response.text.strip()
                 raise httpx.HTTPStatusError(
                     f"PeopleSoft returned HTTP {response.status_code}"
-                    + (f" — {body}" if body else ""),
+                    + (f" — {err_body}" if err_body else "")
+                    + f" (url: {url})",
                     request=response.request, response=response,
                 )
             data = response.json()
