@@ -496,12 +496,12 @@ def test_peoplesoft(
             if body.ps_status_endpoint and instance_id:
                 status_ep = body.ps_status_endpoint.strip()
                 if status_ep.startswith(("http://", "https://")):
-                    status_url_used = f"{status_ep.rstrip('/')}/{instance_id}"
+                    status_url_used = status_ep.rstrip("/")
                 else:
                     sbase = body.ps_base_url.rstrip("/")
                     if not status_ep.startswith("/"):
                         status_ep = "/" + status_ep
-                    status_url_used = f"{sbase}{status_ep}/{instance_id}"
+                    status_url_used = f"{sbase}{status_ep}"
 
                 if not status_url_used.startswith(("http://", "https://")):
                     raise HTTPException(
@@ -509,8 +509,11 @@ def test_peoplesoft(
                         detail=f"Invalid status URL — Base URL must start with http:// or https://. Got: '{status_url_used}'",
                     )
 
-                log.info("test_peoplesoft status GET  url=%s", status_url_used)
-                status_resp = client.get(status_url_used, auth=auth, headers=extra_headers)
+                # Pass InstanceID as a query param — IB has GET registered at the
+                # base path, not at the parameterised sub-resource /{instance_id}.
+                status_params = {"InstanceID": instance_id}
+                log.info("test_peoplesoft status GET  url=%s  params=%s", status_url_used, status_params)
+                status_resp = client.get(status_url_used, auth=auth, headers=extra_headers, params=status_params)
                 status_http_status = status_resp.status_code
                 if status_http_status >= 400:
                     log.warning("test_peoplesoft status error  HTTP %d  url=%s  body=%r",

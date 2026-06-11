@@ -593,11 +593,13 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
 
-    _NO_TIMEOUT = httpx.Timeout(None)  # wait indefinitely for all providers
+    # Gemini's HttpOptions.timeout must be an integer (seconds); passing
+    # httpx.Timeout raises a Pydantic ValidationError.  Other SDKs accept None.
+    _NO_TIMEOUT = httpx.Timeout(None)
 
     try:
         if provider == "gemini":
-            gc = _genai.Client(api_key=api_key, http_options={"timeout": _NO_TIMEOUT})
+            gc = _genai.Client(api_key=api_key, http_options={"timeout": 600})
             response = gc.models.generate_content(
                 model=model_id,
                 contents=prompt,
