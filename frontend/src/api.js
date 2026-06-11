@@ -135,31 +135,25 @@ export const checkConnectivity = (token)           => client.get('/v2/insights/h
 // File analysis (v2)
 export const listInsightModels = () => client.get('/v2/insights/ai-models')
 
-export async function downloadAnalysisPdf(payload) {
-  const { data } = await client.post('/v2/insights/generate-pdf', payload, { responseType: 'blob' })
+async function _downloadPdf(endpoint, payload) {
+  const { data } = await client.post(endpoint, payload, { responseType: 'blob' })
   return data
 }
 
-export async function downloadRunPdf(payload) {
-  const { data } = await client.post('/v2/insights/generate-run-pdf', payload, { responseType: 'blob' })
-  return data
-}
-
-export async function downloadFunctionalPdf(payload) {
-  const { data } = await client.post('/v2/insights/generate-functional-pdf', payload, { responseType: 'blob' })
-  return data
-}
-
-export async function downloadOperationalPdf(payload) {
-  const { data } = await client.post('/v2/insights/generate-operational-pdf', payload, { responseType: 'blob' })
-  return data
-}
+export const downloadAnalysisPdf    = (payload) => _downloadPdf('/v2/insights/generate-pdf',              payload)
+export const downloadRunPdf         = (payload) => _downloadPdf('/v2/insights/generate-run-pdf',          payload)
+export const downloadFunctionalPdf  = (payload) => _downloadPdf('/v2/insights/generate-functional-pdf',   payload)
+export const downloadOperationalPdf = (payload) => _downloadPdf('/v2/insights/generate-operational-pdf',  payload)
 
 // Shared SSE consumer for streaming AI analysis endpoints.
 // The backend sends {"status":"processing"} pings every 5 s while the AI model
 // is working, then emits the final result JSON as a single data line, followed
 // by the sentinel [DONE].  This keeps any proxy/load-balancer from closing the
 // otherwise-idle connection before the model finishes.
+//
+// A 10-minute hard timeout guards against connections that never receive [DONE].
+const SSE_TIMEOUT_MS = 10 * 60 * 1000
+
 async function _consumeSse(response) {
   if (!response.ok) {
     let body
@@ -172,26 +166,32 @@ async function _consumeSse(response) {
   const reader  = response.body.getReader()
   const decoder = new TextDecoder()
   let buf = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop() ?? ''
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const raw = line.slice(6)
-      if (raw === '[DONE]') return
-      const msg = JSON.parse(raw)
-      if (msg.status === 'processing') continue
-      if (msg.error) {
-        const err = Object.assign(new Error(msg.error), {
-          response: { data: { detail: msg.error }, status: msg.status_code ?? 502 },
-        })
-        throw err
+
+  const timeoutId = setTimeout(() => reader.cancel(), SSE_TIMEOUT_MS)
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const raw = line.slice(6)
+        if (raw === '[DONE]') return
+        const msg = JSON.parse(raw)
+        if (msg.status === 'processing') continue
+        if (msg.error) {
+          const err = Object.assign(new Error(msg.error), {
+            response: { data: { detail: msg.error }, status: msg.status_code ?? 502 },
+          })
+          throw err
+        }
+        return { data: msg }  // same shape as an axios response — callers need no changes
       }
-      return { data: msg }  // same shape as an axios response — callers need no changes
     }
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 

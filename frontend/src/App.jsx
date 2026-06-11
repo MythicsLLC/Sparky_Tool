@@ -44,7 +44,7 @@ export default function App() {
   // Keep the Render backend awake while the tab is open
   useEffect(() => {
     const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-    const ping = () => fetch(`${base}/api/ping`).catch(() => {})
+    const ping = () => fetch(`${base}/api/ping`).catch((e) => console.debug('[keep-alive] ping failed:', e.message))
     const id = setInterval(ping, KEEP_ALIVE_MS)
     return () => clearInterval(id)
   }, [])

@@ -25,7 +25,6 @@ const LS_ACCENT_LIGHT = 'sparky_theme_accent_light'
 // and injects / updates <link rel="icon"> so the tab icon tracks the theme.
 function updateFavicon(accentColor) {
   const img = new Image()
-  img.crossOrigin = 'anonymous'
   img.onload = () => {
     const N = 64
     const canvas = document.createElement('canvas')

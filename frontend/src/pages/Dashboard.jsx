@@ -50,16 +50,25 @@ function fmtMs(ms) {
 
 function MonoCopy({ val }) {
   const [copied, setCopied] = useState(false)
+  const timerRef = useRef(null)
+
   if (!val) return (
     <Typography component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.7rem', color: 'text.disabled' }}>—</Typography>
   )
-  const copy = () => { navigator.clipboard.writeText(val); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+
+  const copy = () => {
+    navigator.clipboard.writeText(val)
+    setCopied(true)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
       <Typography component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.7rem', color: 'primary.main' }}>{val}</Typography>
       <Tooltip title={copied ? 'Copied!' : 'Copy'} placement="top">
         <IconButton size="small" onClick={copy} aria-label={copied ? 'Copied' : `Copy ${val}`} sx={{ p: 0.25, opacity: 0.35, '&:hover': { opacity: 1 } }}>
-          {copied ? <CheckIcon sx={{ fontSize: 10, color: '#6b8f71' }} /> : <ContentCopyIcon sx={{ fontSize: 10 }} />}
+          {copied ? <CheckIcon sx={{ fontSize: 10, color: 'success.main' }} /> : <ContentCopyIcon sx={{ fontSize: 10 }} />}
         </IconButton>
       </Tooltip>
     </Box>
