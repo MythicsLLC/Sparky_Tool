@@ -726,7 +726,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     try:
         if provider == "gemini":
-            gc = _genai.Client(api_key=api_key, http_options={"timeout": 600})
+            gc = _genai.Client(api_key=api_key, http_options={"timeout": 600_000})
             response = gc.models.generate_content(
                 model=model_id,
                 contents=prompt,
@@ -961,7 +961,7 @@ async def ws_analyze(websocket: WebSocket):
 
         try:
             if provider == "gemini":
-                gc = _genai.Client(api_key=api_key, http_options={"timeout": 600})
+                gc = _genai.Client(api_key=api_key, http_options={"timeout": 600_000})
 
                 def _gemini_gen():
                     for chunk in gc.models.generate_content_stream(
