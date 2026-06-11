@@ -122,14 +122,9 @@ def trigger_engine(_settings=None, max_retries: int = 6, retry_delay: int = 10) 
 def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_interval: int = 5) -> dict:
     settings = _settings or get_settings()
     base_url = _build_url(settings.ps_base_url, settings.ps_status_endpoint)
-    # PeopleSoft IB registers GET at the service base path (/API), not at a
-    # parameterised sub-resource (/API/{id}).  Pass InstanceID as a query param
-    # so the request routes to the registered GET operation.
-    url = base_url.rstrip("/")
-    poll_params = {"InstanceID": instance_id} if instance_id else {}
+    url = f"{base_url.rstrip('/')}/{instance_id}" if instance_id else base_url.rstrip("/")
     auth, headers = _build_auth(settings)
-    log.info("Polling status  GET %s  params=%s  (max wait: %ds, interval: %ds)",
-             url, poll_params, max_wait, poll_interval)
+    log.info("Polling status  GET %s  (max wait: %ds, interval: %ds)", url, max_wait, poll_interval)
     elapsed = 0
 
     with httpx.Client(timeout=30, follow_redirects=False) as client:
@@ -137,7 +132,7 @@ def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_inte
             time.sleep(poll_interval)
             elapsed += poll_interval
             t0 = time.time()
-            response = client.get(url, auth=auth, headers=headers, params=poll_params)
+            response = client.get(url, auth=auth, headers=headers)
             rtt = round((time.time() - t0) * 1000)
 
             # PeopleSoft returns 5xx while the process is still queued or running.
