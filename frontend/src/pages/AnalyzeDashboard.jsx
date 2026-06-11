@@ -19,7 +19,7 @@ import LockIcon          from '@mui/icons-material/Lock'
 import ThumbUpAltIcon    from '@mui/icons-material/ThumbUpAlt'
 import ThumbDownAltIcon  from '@mui/icons-material/ThumbDownAlt'
 import CheckCircleIcon   from '@mui/icons-material/CheckCircle'
-import { analyzeFile, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError, submitAnalysisReview } from '../api'
+import { analyzeFileWs, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError, submitAnalysisReview } from '../api'
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
@@ -653,9 +653,63 @@ function ReviewPanel({ analysisResultId, getToken }) {
   )
 }
 
+// ── StreamingTerminal ──────────────────────────────────────────────────────────
+// Replaces the spinner while the AI streams its response.
+
+function StreamingTerminal({ text, status }) {
+  const theme  = useTheme()
+  const accent = theme.palette.primary.main
+  const bodyRef = useRef(null)
+
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight
+  }, [text])
+
+  return (
+    <Box sx={{
+      bgcolor: '#0d1117',
+      border: `1px solid ${accent}30`,
+      borderRadius: '8px',
+      overflow: 'hidden',
+      fontFamily: '"JetBrains Mono", monospace',
+    }}>
+      {/* window chrome */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1.25, borderBottom: '1px solid rgba(255,255,255,0.07)', bgcolor: 'rgba(255,255,255,0.03)' }}>
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff5f57' }} />
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#febc2e' }} />
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#28c840' }} />
+        <Typography sx={{ ml: 1.5, fontSize: '0.62rem', color: 'rgba(255,255,255,0.35)', fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.06em' }}>
+          {status || 'AI analysing…'}
+        </Typography>
+      </Box>
+
+      {/* streaming body */}
+      <Box ref={bodyRef} sx={{ px: 2.5, py: 2, maxHeight: '52vh', overflowY: 'auto', overflowX: 'hidden',
+        '&::-webkit-scrollbar': { width: 4 },
+        '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+        '&::-webkit-scrollbar-thumb': { bgcolor: `${accent}40`, borderRadius: 2 },
+      }}>
+        <Box component="pre" sx={{
+          m: 0, fontSize: '0.72rem', lineHeight: 1.75, color: '#c9d1d9',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          '@keyframes blink': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0 } },
+        }}>
+          {text || ' '}
+          <Box component="span" sx={{
+            display: 'inline-block', width: '0.55em', height: '1em',
+            bgcolor: accent, ml: '2px', verticalAlign: 'text-bottom',
+            animation: 'blink 1s step-end infinite',
+          }} />
+        </Box>
+      </Box>
+    </Box>
+  )
+}
+
+
 // ── DropZone ───────────────────────────────────────────────────────────────────
 
-function DropZone({ onFile, loading, browseRef }) {
+function DropZone({ onFile, loading, streamingText, streamingStatus, browseRef }) {
   const theme   = useTheme()
   const accent  = theme.palette.primary.main
   const inputRef = useRef(null)
@@ -693,14 +747,8 @@ function DropZone({ onFile, loading, browseRef }) {
       />
 
       {loading ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <MythicsLoader size={80} />
-          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontWeight: 700, fontSize: '1.55rem', color: 'text.primary', letterSpacing: '0.01em', lineHeight: 1.2 }}>
-            Analysing your data…
-          </Typography>
-          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem', color: 'text.secondary', mt: 0.25 }}>
-            Usually 15 – 60 seconds · large or multi-sheet files may take up to 3 minutes
-          </Typography>
+        <Box sx={{ width: '100%', textAlign: 'left' }}>
+          <StreamingTerminal text={streamingText} status={streamingStatus} />
         </Box>
       ) : (
         <Box>
@@ -876,6 +924,8 @@ export default function AnalyzeDashboard() {
   const [modelsLoading,   setModelsLoading]   = useState(true)
   const [modelsError,     setModelsError]     = useState(null)
   const [analysingOutput, setAnalysingOutput] = useState(null)
+  const [streamingText,   setStreamingText]   = useState('')
+  const [streamingStatus, setStreamingStatus] = useState('')
 
   useEffect(() => {
     setModelsLoading(true)
@@ -893,42 +943,64 @@ export default function AnalyzeDashboard() {
       .finally(() => setModelsLoading(false))
   }, [])
 
-  const _runAnalysis = useCallback(async (file, modelId) => {
+  const _runAnalysis = useCallback((file, modelId) => {
     setError(null)
     setRetrying(false)
+    setStreamingText('')
+    setStreamingStatus('')
     setLoading(true)
-    let willRetry = false
-    try {
-      const { data } = await analyzeFile(file, modelId)
-      setResult(data)
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 1600)
-    } catch (err) {
-      const isNetwork = !err.response && (err.message === 'Network Error' || err.code === 'ERR_NETWORK')
-      if (isNetwork) {
-        willRetry = true
-        setRetrying(true)
-        setError('The AI server is waking up — retrying in 8 seconds…')
-        setTimeout(async () => {
-          setError(null)
-          try {
-            const { data } = await analyzeFile(file, modelId)
-            setResult(data)
-            setShowSuccess(true)
-            setTimeout(() => setShowSuccess(false), 1600)
-          } catch (retryErr) {
-            setError(formatApiError(retryErr, 'Server still starting — please try again in a moment.'))
-          } finally {
+
+    analyzeFileWs(file, modelId, {
+      onStatus: (msg) => setStreamingStatus(msg),
+      onChunk:  (text) => setStreamingText((prev) => prev + text),
+      onResult: (data) => {
+        setResult(data)
+        setStreamingText('')
+        setStreamingStatus('')
+        setLoading(false)
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 1600)
+      },
+      onError: (err) => {
+        const isNetwork = !err.response && (
+          err.message?.includes('WebSocket') ||
+          err.message === 'Network Error' ||
+          err.code === 'ERR_NETWORK'
+        )
+        if (isNetwork) {
+          setRetrying(true)
+          setError('The AI server is waking up — retrying in 8 seconds…')
+          setStreamingText('')
+          setTimeout(() => {
+            setError(null)
             setRetrying(false)
-            setLoading(false)
-          }
-        }, 8000)
-      } else {
-        setError(formatApiError(err, 'Analysis failed — check the server logs.'))
-      }
-    } finally {
-      if (!willRetry) setLoading(false)
-    }
+            setStreamingText('')
+            setStreamingStatus('')
+            analyzeFileWs(file, modelId, {
+              onStatus: (msg) => setStreamingStatus(msg),
+              onChunk:  (text) => setStreamingText((prev) => prev + text),
+              onResult: (data) => {
+                setResult(data)
+                setStreamingText('')
+                setStreamingStatus('')
+                setLoading(false)
+                setShowSuccess(true)
+                setTimeout(() => setShowSuccess(false), 1600)
+              },
+              onError: (retryErr) => {
+                setError(formatApiError(retryErr, 'Server still starting — please try again in a moment.'))
+                setStreamingText('')
+                setLoading(false)
+              },
+            })
+          }, 8000)
+        } else {
+          setError(formatApiError(err, 'Analysis failed — check the server logs.'))
+          setStreamingText('')
+          setLoading(false)
+        }
+      },
+    })
   }, []) // eslint-disable-line
 
   const handleFile = useCallback(async (file) => {
@@ -1093,7 +1165,7 @@ export default function AnalyzeDashboard() {
         ) : modelsError ? (
           <Alert severity="error" sx={{ mt: 2 }}>{modelsError}</Alert>
         ) : (
-          <DropZone onFile={handleFile} loading={loading} browseRef={browseRef} />
+          <DropZone onFile={handleFile} loading={loading} streamingText={streamingText} streamingStatus={streamingStatus} browseRef={browseRef} />
         )
       )}
 

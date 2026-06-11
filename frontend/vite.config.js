@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.BACKEND_URL || 'http://localhost:8000',
           changeOrigin: true,
+          ws: true,
           headers: { 'Access-Control-Allow-Origin': '*' },
         },
       },

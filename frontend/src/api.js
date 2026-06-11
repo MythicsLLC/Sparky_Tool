@@ -195,6 +195,74 @@ async function _consumeSse(response) {
   }
 }
 
+/**
+ * Open a WebSocket to /api/v2/insights/ws/analyze, upload the file as base64,
+ * and call callbacks as the AI streams its response.
+ *
+ * Callbacks: { onStatus(msg), onChunk(text), onResult(data), onError(err) }
+ * Returns { close() } so the caller can abort.
+ */
+export function analyzeFileWs(file, aiModelId, { onStatus, onChunk, onResult, onError } = {}) {
+  let ws = null
+  let closed = false
+  const ctrl = { close: () => { closed = true; ws?.close(1000) } }
+
+  ;(async () => {
+    try {
+      const token = _getToken ? await _getToken().catch(() => null) : null
+      const httpBase = _origin || (typeof window !== 'undefined' ? window.location.origin : '')
+      const wsBase   = httpBase.replace(/^http/, 'ws')
+      const qs       = `?token=${encodeURIComponent(token || '')}${aiModelId != null ? `&ai_model_id=${aiModelId}` : ''}`
+
+      ws = new WebSocket(`${wsBase}/api/v2/insights/ws/analyze${qs}`)
+
+      ws.onopen = async () => {
+        // Read file as base64 via FileReader
+        const b64 = await new Promise((res, rej) => {
+          const reader = new FileReader()
+          reader.onload  = () => res(reader.result.split(',')[1])
+          reader.onerror = rej
+          reader.readAsDataURL(file)
+        })
+        ws.send(JSON.stringify({ filename: file.name, data: b64, ai_model_id: aiModelId ?? null }))
+      }
+
+      ws.onmessage = ({ data: raw }) => {
+        try {
+          const msg = JSON.parse(raw)
+          if (msg.type === 'ping')   return
+          if (msg.type === 'status') { onStatus?.(msg.message); return }
+          if (msg.type === 'chunk')  { onChunk?.(msg.text);     return }
+          if (msg.type === 'result') {
+            onResult?.(msg.data)
+            if (!closed) { closed = true; ws.close(1000) }
+            return
+          }
+          if (msg.type === 'error') {
+            const err = Object.assign(new Error(msg.message), {
+              response: { data: { detail: msg.message }, status: msg.status_code ?? 502 },
+            })
+            onError?.(err)
+            if (!closed) { closed = true; ws.close(1000) }
+          }
+        } catch (e) { onError?.(e) }
+      }
+
+      ws.onerror = () => {
+        if (!closed) onError?.(new Error('WebSocket connection error — the server may be starting up'))
+      }
+
+      ws.onclose = ({ code }) => {
+        if (!closed && code !== 1000 && code !== 1001) {
+          onError?.(new Error(`Connection closed unexpectedly (code ${code})`))
+        }
+      }
+    } catch (err) { onError?.(err) }
+  })()
+
+  return ctrl
+}
+
 export async function analyzeFile(file, aiModelId) {
   const form = new FormData()
   form.append('file', file)

@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import concurrent.futures as _futures
 import io
 import json
 import os
@@ -9,7 +11,7 @@ import httpx
 import pandas as pd
 from google import genai as _genai
 from google.genai import types as _genai_types
-from fastapi import APIRouter, Depends, File, Query, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Query, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -506,11 +508,13 @@ def list_active_ai_models(
     }
 
 
-def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_id: "int | None") -> dict:
-    """
-    Core analysis pipeline — parse bytes, profile data, call AI, return chart spec.
-    Shared by the file-upload endpoint and the saved-output re-analyse endpoint.
-    """
+# httpx.Timeout object accepted by Anthropic SDK (Gemini needs an int, not this)
+_NO_TIMEOUT = httpx.Timeout(None)
+
+
+def _prepare_for_ai(raw: bytes, fname: str, user, db, ai_model_id) -> dict:
+    """Parse bytes → profile → mask PII → resolve AI model → build prompt.
+    Returns a context dict. Raises HTTPException on bad input."""
     ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
 
     try:
@@ -532,7 +536,6 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
             non_empty = {k: v for k, v in sheets.items() if not v.empty}
             df = next(iter(non_empty.values())) if len(non_empty) == 1 else non_empty
         else:
-            # Saved run outputs have no extension in display_name — treat as CSV
             for _enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
                 try:
                     df = pd.read_csv(io.BytesIO(raw), encoding=_enc, on_bad_lines="skip")
@@ -550,7 +553,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
     if is_empty:
         raise HTTPException(422, "File is empty or could not be read")
 
-    profile = _build_profile(df, fname)
+    profile     = _build_profile(df, fname)
     sheet_count = profile.get("sheet_count", 1)
     log.info(
         "analyze  user=%s  file=%s  rows=%d  cols=%d  sheets=%d",
@@ -591,11 +594,135 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
         colors=", ".join(_GEMINI_COLORS),
     )
 
-    prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
+    return {
+        "profile":        profile,
+        "masked_profile": masked_profile,
+        "masker":         masker,
+        "db_model":       db_model,
+        "provider":       provider,
+        "model_id":       model_id,
+        "api_key":        api_key,
+        "base_url":       base_url,
+        "prompt":         prompt,
+        "sheet_count":    sheet_count,
+        "fname":          fname,
+    }
 
-    # Gemini's HttpOptions.timeout must be an integer (seconds); passing
-    # httpx.Timeout raises a Pydantic ValidationError.  Other SDKs accept None.
-    _NO_TIMEOUT = httpx.Timeout(None)
+
+def _finalize_chart_spec(
+    raw_text: str,
+    ctx: dict,
+    user,
+    db,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    reasoning_tokens: int = 0,
+    cached_tokens: int = 0,
+) -> dict:
+    """Parse AI JSON, demask PII, persist to DB, attach meta. Returns final chart_spec."""
+    try:
+        chart_spec = _extract_json(raw_text)
+    except json.JSONDecodeError as exc:
+        log.error("AI non-JSON provider=%s", ctx["provider"])
+        raise HTTPException(502, "AI returned a response that could not be parsed as JSON. Try again.") from exc
+
+    masker  = ctx["masker"]
+    profile = ctx["profile"]
+
+    if masker.masked_count:
+        chart_spec = masker.demask_obj(chart_spec)
+        log.info("analyze  pii_demasked=%d  user=%s", masker.masked_count, user.id[:8])
+
+    conversation_id = None
+    try:
+        from routers.conversations import record_analysis_conversation
+        conv = record_analysis_conversation(
+            db,
+            user_id=user.id,
+            filename=ctx["fname"],
+            provider=ctx["provider"],
+            model_id_str=ctx["model_id"],
+            ai_model_db_id=ctx["db_model"].id if ctx["db_model"] else None,
+            prompt=ctx["prompt"][:500],
+            response_text=json.dumps(chart_spec.get("summary", ""))[:500],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            reasoning_tokens=reasoning_tokens,
+            cached_tokens=cached_tokens,
+        )
+        conversation_id = conv.id
+    except Exception as exc:
+        log.warning("conversation record failed (non-fatal): %s", exc)
+
+    chart_spec["meta"] = {
+        "filename":         ctx["fname"],
+        "total_rows":       profile["total_rows"],
+        "total_columns":    profile["total_columns"],
+        "sheet_count":      ctx["sheet_count"],
+        "columns":          [c["name"] for c in profile["columns"]],
+        "column_profiles":  masker.demask_obj(ctx["masked_profile"].get("columns", [])),
+        "conversation_id":  conversation_id,
+        "pii_protected":    masker.masked_count > 0,
+        "pii_masked_count": masker.masked_count,
+        "pii_spacy":        masker.spacy_active,
+        "token_usage": {
+            "prompt":     prompt_tokens,
+            "completion": completion_tokens,
+            "total":      prompt_tokens + completion_tokens,
+        },
+    }
+
+    if ctx["sheet_count"] > 1 and "sheets" in profile:
+        chart_spec["meta"]["sheets_meta"] = {
+            name: {
+                "rows":    sp["total_rows"],
+                "columns": [c["name"] for c in sp["columns"]],
+            }
+            for name, sp in profile["sheets"].items()
+        }
+
+    log.info(
+        "analyze  user=%s  charts=%d  tokens=%d",
+        user.id[:8], len(chart_spec.get("charts", [])), prompt_tokens + completion_tokens,
+    )
+
+    analysis_result_id = None
+    try:
+        ar = AnalysisResult(
+            user_id=user.id,
+            conversation_id=conversation_id,
+            filename=ctx["fname"],
+            provider=ctx["provider"],
+            model_id_str=ctx["model_id"],
+            prompt_snippet=ctx["prompt"][:2000],
+            response_json=chart_spec,
+            chart_count=len(chart_spec.get("charts", [])),
+            sheet_count=ctx["sheet_count"],
+            total_rows=profile["total_rows"],
+            total_columns=profile["total_columns"],
+        )
+        db.add(ar)
+        db.commit()
+        analysis_result_id = ar.id
+        log.info("analysis_result saved  id=%d  user=%s", ar.id, user.id[:8])
+    except Exception as exc:
+        log.warning("analysis_result save failed (non-fatal): %s", exc)
+
+    chart_spec["meta"]["analysis_result_id"] = analysis_result_id
+    return chart_spec
+
+
+def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_id: "int | None") -> dict:
+    """Non-streaming pipeline — shared by the SSE file-upload and run-output endpoints."""
+    ctx      = _prepare_for_ai(raw, fname, user, db, ai_model_id)
+    provider = ctx["provider"]
+    model_id = ctx["model_id"]
+    api_key  = ctx["api_key"]
+    base_url = ctx["base_url"]
+    prompt   = ctx["prompt"]
+
+    prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
+    raw_text = ""
 
     try:
         if provider == "gemini":
@@ -608,7 +735,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                     response_mime_type="application/json",
                 ),
             )
-            chart_spec = _extract_json(response.text)
+            raw_text = response.text
             if response.usage_metadata:
                 u = response.usage_metadata
                 prompt_tokens     = u.prompt_token_count or 0
@@ -628,7 +755,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 response_format={"type": "json_object"},
                 temperature=0.2,
             )
-            chart_spec = json.loads(resp.choices[0].message.content)
+            raw_text = resp.choices[0].message.content
             if resp.usage:
                 prompt_tokens     = resp.usage.prompt_tokens or 0
                 completion_tokens = resp.usage.completion_tokens or 0
@@ -640,7 +767,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            chart_spec = _extract_json(msg.content[0].text)
+            raw_text = msg.content[0].text
             if msg.usage:
                 prompt_tokens     = msg.usage.input_tokens or 0
                 completion_tokens = msg.usage.output_tokens or 0
@@ -650,100 +777,12 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
 
     except HTTPException:
         raise
-    except json.JSONDecodeError as exc:
-        log.error("AI non-JSON provider=%s", provider)
-        raise HTTPException(502, "AI provider returned a response that could not be parsed as JSON. Try again.") from exc
     except Exception as exc:
         msg = _classify_ai_error(exc, provider)
         log.error("AI call failed provider=%s class=%s: %s", provider, type(exc).__name__, exc)
         raise HTTPException(502, msg) from exc
 
-    if masker.masked_count:
-        chart_spec = masker.demask_obj(chart_spec)
-        log.info("analyze  pii_demasked=%d  user=%s", masker.masked_count, user.id[:8])
-
-    conversation_id = None
-    try:
-        from routers.conversations import record_analysis_conversation
-        conv = record_analysis_conversation(
-            db,
-            user_id=user.id,
-            filename=fname,
-            provider=provider,
-            model_id_str=model_id,
-            ai_model_db_id=db_model.id if db_model else None,
-            prompt=prompt[:500],
-            response_text=json.dumps(chart_spec.get("summary", ""))[:500],
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            reasoning_tokens=reasoning_tokens,
-            cached_tokens=cached_tokens,
-        )
-        conversation_id = conv.id
-    except Exception as exc:
-        log.warning("conversation record failed (non-fatal): %s", exc)
-
-    chart_spec["meta"] = {
-        "filename":         fname,
-        "total_rows":       profile["total_rows"],
-        "total_columns":    profile["total_columns"],
-        "sheet_count":      sheet_count,
-        "columns":          [c["name"] for c in profile["columns"]],
-        "column_profiles":  masker.demask_obj(masked_profile.get("columns", [])),
-        "conversation_id":  conversation_id,
-        "pii_protected":    masker.masked_count > 0,
-        "pii_masked_count": masker.masked_count,
-        "pii_spacy":        masker.spacy_active,
-        "token_usage": {
-            "prompt":     prompt_tokens,
-            "completion": completion_tokens,
-            "total":      prompt_tokens + completion_tokens,
-        },
-    }
-
-    # For multi-sheet workbooks, include per-sheet row and column metadata so
-    # the frontend can show a breakdown of each tab in the insights panel.
-    if sheet_count > 1 and "sheets" in profile:
-        chart_spec["meta"]["sheets_meta"] = {
-            name: {
-                "rows":    sp["total_rows"],
-                "columns": [c["name"] for c in sp["columns"]],
-            }
-            for name, sp in profile["sheets"].items()
-        }
-
-    log.info(
-        "analyze  user=%s  charts=%d  tokens=%d",
-        user.id[:8], len(chart_spec.get("charts", [])), prompt_tokens + completion_tokens,
-    )
-
-    # Persist the full response so the user can review it and promote to the
-    # "good prompt" reference library.  Non-fatal: a save failure must never
-    # block the analysis response reaching the frontend.
-    analysis_result_id = None
-    try:
-        ar = AnalysisResult(
-            user_id=user.id,
-            conversation_id=conversation_id,
-            filename=fname,
-            provider=provider,
-            model_id_str=model_id,
-            prompt_snippet=prompt[:2000],
-            response_json=chart_spec,       # full chart spec at this point
-            chart_count=len(chart_spec.get("charts", [])),
-            sheet_count=sheet_count,
-            total_rows=profile["total_rows"],
-            total_columns=profile["total_columns"],
-        )
-        db.add(ar)
-        db.commit()
-        analysis_result_id = ar.id
-        log.info("analysis_result saved  id=%d  user=%s", ar.id, user.id[:8])
-    except Exception as exc:
-        log.warning("analysis_result save failed (non-fatal): %s", exc)
-
-    chart_spec["meta"]["analysis_result_id"] = analysis_result_id
-    return chart_spec
+    return _finalize_chart_spec(raw_text, ctx, user, db, prompt_tokens, completion_tokens, reasoning_tokens, cached_tokens)
 
 
 @router.post("/analyze-file")
@@ -796,6 +835,227 @@ async def analyze_file(
         media_type="text/event-stream",
         headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
+
+
+# ── WebSocket streaming analysis ──────────────────────────────────────────────
+
+@router.websocket("/ws/analyze")
+async def ws_analyze(
+    websocket: WebSocket,
+    token: str = Query(...),
+):
+    """WebSocket endpoint — streams AI analysis chunks in real-time.
+
+    Client sends: {"filename": str, "data": "<base64>", "ai_model_id": int|null}
+    Server sends: {"type": "status"|"chunk"|"result"|"error"|"ping", ...}
+    """
+    from database import _SessionLocal
+    from auth import _verify_token, _extract_user_info
+    from sqlalchemy.dialects.postgresql import insert as _pg_insert
+    from datetime import datetime, timezone
+
+    # Validate token BEFORE accepting so the browser sees a 403, not a close frame.
+    try:
+        payload = _verify_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            await websocket.close(code=4001)
+            return
+    except Exception:
+        await websocket.close(code=4001)
+        return
+
+    await websocket.accept()
+
+    db = _SessionLocal()
+    try:
+        # Upsert the user record (same as HTTP auth middleware)
+        now = datetime.now(timezone.utc)
+        email, fn, ln = _extract_user_info(payload)
+        db.execute(
+            _pg_insert(User)
+            .values(id=user_id, email=email, first_name=fn, last_name=ln,
+                    role="user", onboarded=False, created_at=now, last_seen_at=now)
+            .on_conflict_do_update(index_elements=["id"], set_={"last_seen_at": now})
+        )
+        db.commit()
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            await websocket.send_json({"type": "error", "message": "User record missing"})
+            return
+
+        # ── Receive file ──────────────────────────────────────────────────────
+        try:
+            msg         = await asyncio.wait_for(websocket.receive_json(), timeout=60)
+            fname       = msg.get("filename", "upload")
+            raw         = base64.b64decode(msg["data"])
+            ai_model_id = msg.get("ai_model_id")
+        except Exception as exc:
+            await websocket.send_json({"type": "error", "message": f"Upload error: {exc}"})
+            return
+
+        # ── Phase 1: parse, profile, mask, select model ───────────────────────
+        await websocket.send_json({"type": "status", "message": "Profiling data…"})
+        try:
+            ctx = await asyncio.to_thread(_prepare_for_ai, raw, fname, user, db, ai_model_id)
+        except HTTPException as exc:
+            await websocket.send_json({"type": "error", "message": exc.detail, "status_code": exc.status_code})
+            return
+        except Exception as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+
+        provider = ctx["provider"]
+        model_id = ctx["model_id"]
+        api_key  = ctx["api_key"]
+        base_url = ctx["base_url"]
+        prompt   = ctx["prompt"]
+
+        # ── Phase 2: stream AI output ─────────────────────────────────────────
+        await websocket.send_json({"type": "status", "message": f"Analysing with {provider}…"})
+
+        prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
+        full_text = ""
+        loop = asyncio.get_event_loop()
+
+        def _make_queue_streamer(sync_gen):
+            """Run sync_gen in a thread, push ("chunk"|"error"|"done", text, exc) into an asyncio Queue."""
+            q = asyncio.Queue()
+            def _run():
+                try:
+                    for item in sync_gen:
+                        loop.call_soon_threadsafe(q.put_nowait, ("chunk", item, None))
+                except Exception as exc:
+                    loop.call_soon_threadsafe(q.put_nowait, ("error", None, exc))
+                finally:
+                    loop.call_soon_threadsafe(q.put_nowait, ("done", None, None))
+            _futures.ThreadPoolExecutor(max_workers=1).submit(_run)
+            return q
+
+        try:
+            if provider == "gemini":
+                gc = _genai.Client(api_key=api_key, http_options={"timeout": 600})
+
+                def _gemini_gen():
+                    for chunk in gc.models.generate_content_stream(
+                        model=model_id,
+                        contents=prompt,
+                        config=_genai_types.GenerateContentConfig(temperature=0.2),
+                    ):
+                        if chunk.text:
+                            yield chunk.text
+
+                q = _make_queue_streamer(_gemini_gen())
+                while True:
+                    try:
+                        kind, text, exc = await asyncio.wait_for(q.get(), timeout=30)
+                    except asyncio.TimeoutError:
+                        await websocket.send_json({"type": "ping"})
+                        continue
+                    if kind == "error":
+                        raise exc
+                    if kind == "done":
+                        break
+                    full_text += text
+                    await websocket.send_json({"type": "chunk", "text": text})
+
+            elif provider in ("openai", "grok", "generic"):
+                client_kwargs: dict = {"api_key": api_key, "timeout": None}
+                if base_url:
+                    client_kwargs["base_url"] = base_url
+                elif provider == "grok":
+                    client_kwargs["base_url"] = "https://api.x.ai/v1"
+                oai = OpenAI(**client_kwargs)
+
+                def _oai_gen():
+                    stream = oai.chat.completions.create(
+                        model=model_id,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.2,
+                        stream=True,
+                    )
+                    for chunk in stream:
+                        delta = chunk.choices[0].delta.content if chunk.choices else None
+                        if delta:
+                            yield delta
+
+                q = _make_queue_streamer(_oai_gen())
+                while True:
+                    try:
+                        kind, text, exc = await asyncio.wait_for(q.get(), timeout=30)
+                    except asyncio.TimeoutError:
+                        await websocket.send_json({"type": "ping"})
+                        continue
+                    if kind == "error":
+                        raise exc
+                    if kind == "done":
+                        break
+                    full_text += text
+                    await websocket.send_json({"type": "chunk", "text": text})
+
+            elif provider == "anthropic":
+                ant = _anthropic_sdk.Anthropic(api_key=api_key, timeout=_NO_TIMEOUT)
+
+                def _ant_gen():
+                    with ant.messages.stream(
+                        model=model_id,
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}],
+                    ) as stream:
+                        for text in stream.text_stream:
+                            yield text
+
+                q = _make_queue_streamer(_ant_gen())
+                while True:
+                    try:
+                        kind, text, exc = await asyncio.wait_for(q.get(), timeout=30)
+                    except asyncio.TimeoutError:
+                        await websocket.send_json({"type": "ping"})
+                        continue
+                    if kind == "error":
+                        raise exc
+                    if kind == "done":
+                        break
+                    full_text += text
+                    await websocket.send_json({"type": "chunk", "text": text})
+
+            else:
+                raise HTTPException(400, f"Unknown provider: {provider}")
+
+        except HTTPException:
+            raise
+        except Exception as exc:
+            msg = _classify_ai_error(exc, provider)
+            log.error("WS AI failed  provider=%s  class=%s: %s", provider, type(exc).__name__, exc)
+            await websocket.send_json({"type": "error", "message": msg})
+            return
+
+        # ── Phase 3: finalize and send result ─────────────────────────────────
+        await websocket.send_json({"type": "status", "message": "Building charts…"})
+        try:
+            chart_spec = await asyncio.to_thread(
+                _finalize_chart_spec, full_text, ctx, user, db,
+                prompt_tokens, completion_tokens, reasoning_tokens, cached_tokens,
+            )
+        except HTTPException as exc:
+            await websocket.send_json({"type": "error", "message": exc.detail, "status_code": exc.status_code})
+            return
+        except Exception as exc:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+            return
+
+        await websocket.send_json({"type": "result", "data": chart_spec})
+
+    except WebSocketDisconnect:
+        log.info("WS analyze  client disconnected  user=%s", user_id[:8] if user_id else "?")
+    except Exception as exc:
+        log.error("WS analyze  unhandled: %s", exc)
+        try:
+            await websocket.send_json({"type": "error", "message": str(exc)})
+        except Exception:
+            pass
+    finally:
+        db.close()
 
 
 # ── PDF generation endpoints ──────────────────────────────────────────────────
