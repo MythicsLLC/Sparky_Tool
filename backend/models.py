@@ -340,15 +340,14 @@ class AnalysisResult(Base):
     """Full AI analysis response stored per run, with a user review status."""
     __tablename__ = "analysis_results"
     __table_args__ = (
-        Index("idx_analysis_results_user_id",    "user_id"),
-        Index("idx_analysis_results_created",     "created_at"),
-        Index("idx_analysis_results_review",      "review_status"),
-        Index("idx_analysis_results_run_output",  "run_output_id"),
+        Index("idx_analysis_results_user_id", "user_id"),
+        Index("idx_analysis_results_created",  "created_at"),
+        Index("idx_analysis_results_review",   "review_status"),
     )
     id              = Column(Integer, primary_key=True, autoincrement=True)
     user_id         = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     conversation_id = Column(Integer, ForeignKey("ai_conversations.id", ondelete="SET NULL"))
-    run_output_id   = Column(Integer, ForeignKey("run_outputs.id", ondelete="SET NULL"), nullable=True)
+    run_output_id   = Column(Integer, nullable=True)
     filename        = Column(String(500), nullable=False)
     provider        = Column(String(50),  default="")
     model_id_str    = Column(String(255), default="")
