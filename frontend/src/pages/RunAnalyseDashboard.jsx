@@ -179,7 +179,7 @@ function LoadingView({ activeStep, completedSteps, phase, elapsed, accent, model
 function SectionHeader({ Icon, label, accent, sub, subColor, mt }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, mt: mt ?? 4 }}>
-      <Box sx={{ width: 1, height: 20, bgcolor: accent, opacity: 0.7, flexShrink: 0 }} />
+      <Box sx={{ width: '3px', height: 20, bgcolor: accent, opacity: 0.7, flexShrink: 0, borderRadius: '2px' }} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Icon sx={{ fontSize: 16, color: accent }} />
         <Typography sx={{
