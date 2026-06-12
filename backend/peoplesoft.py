@@ -140,19 +140,16 @@ def poll_status(instance_id: str, _settings=None, max_wait: int = 600, poll_inte
             response = client.get(url, auth=auth, headers=headers)
             rtt = round((time.time() - t0) * 1000)
 
-            # PeopleSoft returns 5xx while the process is still queued or running.
-            # If PS includes an error body it's a real failure; otherwise keep polling.
+            # PeopleSoft returns 5xx while the process is still queued or starting up.
+            # Even error bodies like "Method GET not found" are transient — PS emits them
+            # before the new instance is queryable. Keep retrying until max_wait.
             if response.status_code >= 500:
                 body = _ps_error_body(response)
-                if body:
-                    log.error("Poll HTTP %s — PS error: %s", response.status_code, body)
-                    raise httpx.HTTPStatusError(
-                        f"PeopleSoft returned HTTP {response.status_code} — {body} (url: {url})",
-                        request=response.request, response=response,
-                    )
                 log.warning(
-                    "Poll [%3ds elapsed]  HTTP %s — process still running, will retry  (%d ms)",
-                    elapsed, response.status_code, rtt,
+                    "Poll [%3ds elapsed]  HTTP %s — process still starting%s, will retry  (%d ms)",
+                    elapsed, response.status_code,
+                    f": {body}" if body else "",
+                    rtt,
                 )
                 continue
 
