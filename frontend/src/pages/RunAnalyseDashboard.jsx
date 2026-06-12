@@ -1151,16 +1151,17 @@ export default function RunAnalyseDashboard() {
           <Alert severity="info" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' }}>
             Run data is not available for this analysis — showing AI insights only.
           </Alert>
-          <Box>
-            <SectionHeader Icon={AutoAwesomeIcon} label="AI Insights" accent={accent} mt={0} />
-            <AIInsightsPanel analysisResult={analysisResult} accent={accent} />
-            {(analysisResult?.meta?.column_profiles?.length > 0) && (
-              <>
-                <Divider sx={{ my: 4 }} />
-                <ColumnDeepDive profiles={analysisResult.meta.column_profiles} accent={accent} />
-              </>
-            )}
-          </Box>
+          <ExecutiveReportHeader runResult={null} analysisResult={analysisResult} accent={accent} />
+          <KPIBar runResult={null} analysisResult={analysisResult} accent={accent} />
+          <ExecutiveSummary analysisResult={analysisResult} accent={accent} />
+          <FindingsAndRecommendations analysisResult={analysisResult} accent={accent} />
+          <RiskAlerts anomalies={analysisResult?.sections?.anomalies} />
+          {(analysisResult?.charts?.length > 0) && (
+            <>
+              <Divider sx={{ my: 4 }} />
+              <BusinessAnalyticsSection charts={analysisResult.charts} accent={accent} />
+            </>
+          )}
         </Box>
       )}
 
