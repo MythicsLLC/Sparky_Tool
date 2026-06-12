@@ -286,17 +286,19 @@ _GEMINI_COLORS = [
     "#3498db", "#2ecc71", "#f39c12", "#8e44ad",
 ]
 
-_CHART_PROMPT = """You are a seasoned Executive Business Intelligence Analyst presenting critical workforce, financial, and organisational analytics to C-suite leaders (CEO, CFO, CHRO). Your primary objective is to distill complex, raw dataset profiles into highly strategic, actionable intelligence that drives executive decision-making.
+_EXECUTIVE_SYSTEM_PROMPT = """You are a seasoned Executive Business Intelligence Analyst and trusted strategic advisor to the C-suite. Your audience is the CEO, CFO, CHRO, CTO, and CDO — senior leaders who make high-stakes decisions and have zero tolerance for technical noise.
 
-You must design a comprehensive, executive-grade dashboard. Select the most precise and optimal chart types to visualize the data, ensuring absolute clarity and preventing any overlapping or redundant visual elements.
+Your mandate:
+- Translate raw data and column statistics into strategic business intelligence. Never surface column names, data types, null percentages, or any technical artefact directly to the executive reader.
+- Every insight you produce must answer "so what?" from a business perspective — impact on people, cost, compliance, growth, or organisational risk.
+- Write with the precision and authority of a McKinsey partner presenting to a board: concise, confident, data-backed, and action-oriented.
+- Frame findings in terms of business outcomes: workforce productivity, cost efficiency, talent risk, compliance posture, organisational resilience, and strategic readiness.
+- Anomalies are not data errors — they are risk signals. Frame them as leadership attention items with clear business consequence.
+- Recommendations must be at the executive decision-making level — not "fix the data" but "rebalance resource allocation", "initiate compliance review", "accelerate digital workforce transition".
+- Avoid all technical language: no mention of DataFrames, null values, dtype, column names, distribution histograms, or data profiling terminology.
+- Tone: authoritative, forward-looking, and concise. Every sentence must earn its place."""
 
-Depending on the provided dataset, surface key executive insights such as:
-- Headcount distribution and span of control across business units and departments.
-- Trailing trends over time, especially comparing actuals to budgeted forecasts.
-- The organization's compliance posture, highlighting any risks, exposure, or anomalies that require immediate leadership attention.
-- Cross-functional insights revealing hidden relationships (e.g., headcount vs. payroll cost per unit, or system module adoption rates by country/region).
-
-Provide clear, data-backed recommendations for optimizing workforce allocation, controlling cost drivers, mitigating compliance risks, and driving operational efficiency. Every chart and insight must combine to tell a coherent, compelling business narrative.
+_CHART_PROMPT = """Analyse the following workforce / organisational dataset and produce an executive intelligence brief for C-suite consumption.
 
 Dataset:
 {profile}
@@ -751,6 +753,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
                 config=_genai_types.GenerateContentConfig(
                     temperature=0.2,
                     response_mime_type="application/json",
+                    system_instruction=_EXECUTIVE_SYSTEM_PROMPT,
                 ),
             )
             raw_text = response.text
@@ -769,7 +772,10 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
             oai = OpenAI(**client_kwargs)
             resp = oai.chat.completions.create(
                 model=model_id,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": _EXECUTIVE_SYSTEM_PROMPT},
+                    {"role": "user",   "content": prompt},
+                ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
             )
@@ -783,6 +789,7 @@ def _run_analysis(raw: bytes, fname: str, user: "User", db: "Session", ai_model_
             msg = ant.messages.create(
                 model=model_id,
                 max_tokens=4096,
+                system=_EXECUTIVE_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw_text = msg.content[0].text
@@ -985,7 +992,10 @@ async def ws_analyze(websocket: WebSocket):
                     for chunk in gc.models.generate_content_stream(
                         model=model_id,
                         contents=prompt,
-                        config=_genai_types.GenerateContentConfig(temperature=0.2),
+                        config=_genai_types.GenerateContentConfig(
+                            temperature=0.2,
+                            system_instruction=_EXECUTIVE_SYSTEM_PROMPT,
+                        ),
                     ):
                         if chunk.text:
                             yield chunk.text
@@ -1015,7 +1025,10 @@ async def ws_analyze(websocket: WebSocket):
                 def _oai_gen():
                     stream = oai.chat.completions.create(
                         model=model_id,
-                        messages=[{"role": "user", "content": prompt}],
+                        messages=[
+                            {"role": "system", "content": _EXECUTIVE_SYSTEM_PROMPT},
+                            {"role": "user",   "content": prompt},
+                        ],
                         temperature=0.2,
                         stream=True,
                     )
@@ -1045,6 +1058,7 @@ async def ws_analyze(websocket: WebSocket):
                     with ant.messages.stream(
                         model=model_id,
                         max_tokens=4096,
+                        system=_EXECUTIVE_SYSTEM_PROMPT,
                         messages=[{"role": "user", "content": prompt}],
                     ) as stream:
                         for text in stream.text_stream:
