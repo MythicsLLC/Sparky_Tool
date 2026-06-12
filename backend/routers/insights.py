@@ -286,26 +286,42 @@ _GEMINI_COLORS = [
     "#3498db", "#2ecc71", "#f39c12", "#8e44ad",
 ]
 
-_CHART_PROMPT = """You are a data visualisation expert. Analyse this dataset and return chart specifications as JSON.
+_CHART_PROMPT = """You are a seasoned Executive Business Intelligence Analyst presenting critical workforce, financial, and organisational analytics to C-suite leaders (CEO, CFO, CHRO). Your primary objective is to distill complex, raw dataset profiles into highly strategic, actionable intelligence that drives executive decision-making.
+
+You must design a comprehensive, executive-grade dashboard. Select the most precise and optimal chart types to visualize the data, ensuring absolute clarity and preventing any overlapping or redundant visual elements.
+
+Depending on the provided dataset, surface key executive insights such as:
+- Headcount distribution and span of control across business units and departments.
+- Trailing trends over time, especially comparing actuals to budgeted forecasts.
+- The organization's compliance posture, highlighting any risks, exposure, or anomalies that require immediate leadership attention.
+- Cross-functional insights revealing hidden relationships (e.g., headcount vs. payroll cost per unit, or system module adoption rates by country/region).
+
+Provide clear, data-backed recommendations for optimizing workforce allocation, controlling cost drivers, mitigating compliance risks, and driving operational efficiency. Every chart and insight must combine to tell a coherent, compelling business narrative.
 
 Dataset:
 {profile}
 
 Return a single JSON object (NO markdown, NO code fences, raw JSON only) with this exact structure:
 {{
-  "summary": "For a single sheet: 2-3 sentences describing the dataset and key patterns. For multi-sheet files: one sentence per sheet describing what it contains, then a final sentence on how the sheets relate to each other.",
+  "summary": "For a single sheet: 2-3 sentences framing the strategic business context and the most important organisational insight. For multi-sheet files: one sentence per sheet on its business purpose, then a final sentence on how the data sets combine to tell a broader organisational story.",
   "sections": {{
-    "executive_summary": "3-4 sentence executive overview of the dataset's purpose, scope, and overall data health.",
-    "key_findings": ["Most significant pattern or insight", "second finding — up to 6 total"],
-    "anomalies": ["Data quality issue or unexpected pattern detected — empty list if none found"],
-    "recommendations": ["Actionable next step based on the data findings — up to 5 total"]
+    "executive_summary": "3-4 sentences written for a C-suite audience. Cover: what this data represents for the organisation, the most significant business condition revealed, and the overall strategic health or risk posture. Avoid technical data language — speak in business outcomes and organisational impact.",
+    "key_findings": [
+      "Business-significant finding phrased as an executive insight — e.g. '42% of active roles are concentrated in two business units, creating organisational dependency risk.' Up to 6 findings. Focus on workforce distribution, cost drivers, compliance posture, or operational efficiency. No technical jargon."
+    ],
+    "anomalies": [
+      "A specific business risk, compliance concern, or data anomaly that requires leadership attention — frame as 'Risk:' or 'Concern:' with brief business impact. Empty list if none found."
+    ],
+    "recommendations": [
+      "A strategic, executive-level action with clear business rationale — e.g. 'Initiate workforce rebalancing across under-resourced units to reduce single-point dependency.' Up to 5 recommendations. Each must be actionable at the C-suite level."
+    ]
   }},
   "charts": [
     {{
       "id": "c1",
       "type": "bar|line|area|pie|radialBar|scatter|composed",
-      "title": "Short descriptive title",
-      "description": "One sentence explaining the insight",
+      "title": "Business-focused title — e.g. 'Headcount by Business Unit' not 'BU_CODE distribution'",
+      "description": "One sentence explaining the business insight this chart reveals",
       "data": [ ... ],
       "xKey": "field used for X axis (bar/line/area/scatter/composed only)",
       "yKeys": ["field1", "field2"],
@@ -322,25 +338,25 @@ Data format rules per chart type:
 - radialBar               → data is [{{"name":"...", "value": 0-100 (percentage)}}]; set nameKey + dataKey
 - scatter                 → data is [{{"x": number, "y": number, "label":"..."}}]; set xKey="x" yKeys=["y"]
 
-General rules:
+Chart rules:
+- Every chart title and description must use plain business language, not column names or technical terms
 - Pre-aggregate/group the data — do NOT put hundreds of raw rows in any chart
 - For bar/line/area keep at most 20 data points; use top-N or time-bucketing as needed
-- Choose chart type wisely: pie for ≤8 slices, radialBar for KPI-style percentages, scatter for correlations
+- Prioritise charts that reveal workforce distribution, trend lines, compliance rates, and comparative business unit performance
+- Choose chart type wisely: pie for ≤8 slices (e.g. country/region split), radialBar for KPI-style percentages (e.g. module adoption rate), line/area for trends, bar for comparisons
 - Colors to use: {colors}
 - Assign one color per yKey or per pie/radialBar slice
 - Return ONLY valid JSON. No explanation. No markdown.
 
 Chart count rules:
-- Single sheet (no "sheets" key in profile): produce 5–8 charts that tell a complete story.
+- Single sheet (no "sheets" key in profile): produce 5–8 charts that together tell a coherent business story.
 - Multi-sheet (profile contains a "sheets" key):
     * You MUST analyse EVERY sheet without exception — do not skip any sheet.
-    * Produce 3–5 charts for EACH sheet. Prefix every chart title with the sheet name
-      (e.g. "Payroll – Monthly Totals", "Headcount – By Department").
-    * After the per-sheet charts, add 1–3 cross-sheet comparison charts that combine
-      data from two or more sheets (e.g. comparing a KPI across sheets, or showing
-      how one sheet's categories break down relative to another).
-    * The total chart count will naturally exceed 8 for multi-sheet files — this is
-      correct and expected. Do NOT artificially limit it."""
+    * Produce 3–5 charts per sheet, each prefixed with the sheet's business name
+      (e.g. "Workforce – Active Headcount by Region", "Payroll – Cost by Business Unit").
+    * After per-sheet charts, add 1–3 cross-sheet comparison charts that surface
+      cross-functional insights (e.g. headcount vs. payroll cost per unit, module adoption vs. country).
+    * The total chart count will naturally exceed 8 for multi-sheet files — this is correct and expected."""
 
 
 def _build_sheet_profile(df: pd.DataFrame, max_sample: int = 100) -> dict:
