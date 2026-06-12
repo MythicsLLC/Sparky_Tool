@@ -76,16 +76,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Sparky Tool", lifespan=lifespan)
 
-# CORS — open to all origins.
-# Security is enforced via Clerk JWT on every authenticated endpoint,
-# so CORS does not need to be the access-control layer here.
-# allow_credentials must stay False when allow_origins=["*"].
+# CORS — configurable via `settings.cors_origins` (comma-separated).
+# Security is enforced via Clerk JWT on authenticated endpoints so CORS
+# does not need to be the access-control layer here. When the origin list
+# is wildcard ("*"), `allow_credentials` must remain False.
+_origins_raw = getattr(settings, "cors_origins", "") or ""
+if isinstance(_origins_raw, str):
+    _origins = [o.strip() for o in _origins_raw.split(",") if o.strip()]
+else:
+    _origins = list(_origins_raw)
+if not _origins:
+    _origins = ["*"]
+
+# If we have a specific allowlist, enable credentials support; otherwise
+# keep credentials disabled for the wildcard origin.
+_allow_credentials = False
+if _origins != ["*"]:
+    _allow_credentials = True
+
+log.info("CORS configured — origins=%s  allow_credentials=%s", _origins, _allow_credentials)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,
+    allow_credentials=_allow_credentials,
     expose_headers=["*"],
 )
 

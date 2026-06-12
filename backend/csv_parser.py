@@ -171,7 +171,7 @@ def parse_and_compute(csv_bytes: bytes) -> dict[str, Any]:
             }
     return {
         'kpis': kpis,
-        'rows': df.where(pd.notna(df), other=None).to_dict(orient='records'),
+        'rows': df.astype(object).where(pd.notna(df), None).to_dict(orient='records'),
         'columns': list(df.columns),
         'row_count': len(df),
     }
