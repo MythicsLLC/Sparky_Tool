@@ -14,7 +14,6 @@ import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
 import WarningAmberIcon   from '@mui/icons-material/WarningAmber'
 import ReplayIcon         from '@mui/icons-material/Replay'
 import StorageIcon        from '@mui/icons-material/Storage'
-import ViewColumnIcon     from '@mui/icons-material/ViewColumn'
 import TaskAltIcon        from '@mui/icons-material/TaskAlt'
 import VerifiedIcon       from '@mui/icons-material/VerifiedUser'
 import BarChartIcon       from '@mui/icons-material/BarChart'
@@ -204,297 +203,309 @@ function SectionHeader({ Icon, label, accent, sub, subColor, mt }) {
   )
 }
 
-// ── RunMetaBar ────────────────────────────────────────────────────────────────
+// ── ExecutiveReportHeader ─────────────────────────────────────────────────────
 
-function RunMetaBar({ runResult, accent }) {
-  const fields = [
-    { label: 'Instance',  value: runResult?.instance_id },
-    { label: 'Report',    value: runResult?.report_id },
-    { label: 'Rows',      value: runResult?.row_count?.toLocaleString() },
-    { label: 'Duration',  value: runResult?.runs?.[0]?.duration_ms ? fmtMs(runResult.runs[0].duration_ms) : null },
-    { label: 'Run ID',    value: runResult?.runs?.[0]?.id ? `#${runResult.runs[0].id}` : null },
-  ]
-  return (
-    <Box sx={{
-      display: 'flex', flexWrap: 'wrap', gap: 3, px: 3, py: 2, mb: 3,
-      border: '1px solid', borderColor: 'divider',
-      borderTop: `2px solid ${accent}55`,
-      borderRadius: '2px', bgcolor: 'background.paper',
-    }}>
-      {fields.map(({ label, value }) => (
-        <Box key={label}>
-          <Typography sx={{
-            fontSize: '0.52rem', letterSpacing: '0.22em', textTransform: 'uppercase',
-            color: 'text.disabled', fontFamily: '"Raleway", sans-serif', mb: 0.3,
-          }}>
-            {label}
-          </Typography>
-          <Typography sx={{
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: '0.82rem', color: value ? 'text.primary' : 'text.disabled',
-          }}>
-            {value || '—'}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  )
-}
-
-// ── AIInsightsPanel ───────────────────────────────────────────────────────────
-
-function AIInsightsPanel({ analysisResult, accent }) {
-  const sections = analysisResult?.sections || {}
-  const charts   = analysisResult?.charts   || []
+function ExecutiveReportHeader({ runResult, analysisResult, accent }) {
+  const meta        = analysisResult?.meta || {}
+  const raw         = meta.filename || runResult?.display_name || runResult?.config_name || 'Workforce Report'
+  const reportTitle = raw.replace(/\.csv$/i, '').replace(/[_-]/g, ' ')
+  const createdAt   = runResult?.created_at
+  const dateLabel   = createdAt
+    ? new Date(createdAt).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })
+    : new Date().toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })
+  const modelLabel  = meta.model_id_str || ''
 
   return (
-    <Box>
-      {sections.executive_summary && (
-        <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', mb: 2.5 }}>
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-              <AutoAwesomeIcon sx={{ fontSize: 15, color: accent }} />
-              <Typography sx={{
-                fontFamily: '"Raleway", sans-serif', fontWeight: 700,
-                fontSize: '0.65rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary',
-              }}>
-                Executive Summary
-              </Typography>
-            </Box>
-            <Typography sx={{ fontSize: '0.88rem', color: 'text.primary', lineHeight: 1.75, fontFamily: '"Raleway", sans-serif' }}>
-              {sections.executive_summary}
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
-
-      <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
-        {sections.key_findings?.length > 0 && (
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <TipsAndUpdatesIcon sx={{ fontSize: 15, color: accent }} />
-                  <Typography sx={{
-                    fontFamily: '"Raleway", sans-serif', fontWeight: 700,
-                    fontSize: '0.65rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary',
-                  }}>
-                    Key Findings
-                  </Typography>
-                </Box>
-                {sections.key_findings.map((finding, i) => (
-                  <Box key={i} sx={{ display: 'flex', gap: 1.5, mb: 1.25 }}>
-                    <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: accent, flexShrink: 0, mt: 0.85 }} />
-                    <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', lineHeight: 1.65, fontFamily: '"Raleway", sans-serif' }}>
-                      {finding}
-                    </Typography>
-                  </Box>
-                ))}
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-
-        {sections.recommendations?.length > 0 && (
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-              <CardContent sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <TaskAltIcon sx={{ fontSize: 15, color: '#6b8f71' }} />
-                  <Typography sx={{
-                    fontFamily: '"Raleway", sans-serif', fontWeight: 700,
-                    fontSize: '0.65rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary',
-                  }}>
-                    Recommendations
-                  </Typography>
-                </Box>
-                {sections.recommendations.map((rec, i) => (
-                  <Box key={i} sx={{ display: 'flex', gap: 1.5, mb: 1.25 }}>
-                    <Typography sx={{
-                      fontSize: '0.62rem', fontFamily: '"JetBrains Mono", monospace',
-                      color: '#6b8f71', flexShrink: 0, mt: 0.1, fontWeight: 700,
-                    }}>
-                      {String(i + 1).padStart(2, '0')}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', lineHeight: 1.65, fontFamily: '"Raleway", sans-serif' }}>
-                      {rec}
-                    </Typography>
-                  </Box>
-                ))}
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-      </Grid>
-
-      {sections.anomalies?.length > 0 && (
-        <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'rgba(201,168,76,0.22)', mb: 2.5 }}>
-          <CardContent sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-              <WarningAmberIcon sx={{ fontSize: 15, color: '#c9a84c' }} />
-              <Typography sx={{
-                fontFamily: '"Raleway", sans-serif', fontWeight: 700,
-                fontSize: '0.65rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary',
-              }}>
-                Anomalies & Issues
-              </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {sections.anomalies.map((anomaly, i) => (
-                <Chip
-                  key={i} label={anomaly} size="small"
-                  sx={{
-                    bgcolor: 'rgba(201,168,76,0.1)', color: '#c9a84c',
-                    fontSize: '0.72rem', height: 'auto', py: 0.5,
-                    '& .MuiChip-label': { whiteSpace: 'normal', lineHeight: 1.4 },
-                  }}
-                />
-              ))}
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
-      {analysisResult?.summary && (
-        <Typography sx={{
-          fontSize: '0.82rem', color: 'text.secondary', lineHeight: 1.75,
-          mb: 3.5, p: 2.5,
-          border: '1px solid', borderColor: 'divider',
-          borderRadius: '2px', bgcolor: `${accent}05`,
-          fontFamily: '"Raleway", sans-serif',
-        }}>
-          {analysisResult.summary}
-        </Typography>
-      )}
-
-      {charts.length > 0 && (
+    <Box sx={{ mb: 3.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
         <Box>
-          <SectionHeader Icon={BarChartIcon} label="AI-Generated Charts" accent={accent} sub={`${charts.length} charts`} />
-          <Grid container spacing={2.5}>
-            {charts.map((spec) => (
-              <Grid item xs={12} md={6} key={spec.id || spec.title}>
-                <ChartCard spec={spec} />
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )}
-    </Box>
-  )
-}
-
-// ── ColumnCard ────────────────────────────────────────────────────────────────
-
-function ColumnCard({ col, accent }) {
-  const isNumeric  = 'min' in col
-  const nullColor  = col.null_pct > 30 ? '#b45050' : col.null_pct > 10 ? '#c9a84c' : '#6b8f71'
-  const topEntries = Object.entries(col.top_values || {}).slice(0, 5)
-  const maxCount   = topEntries.length ? Math.max(...topEntries.map(([, v]) => v)) : 1
-
-  const fmt = (n) => {
-    if (n == null) return '—'
-    if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(2)}M`
-    if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(2)}K`
-    return typeof n === 'number' ? n.toFixed(2) : String(n)
-  }
-
-  return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 0.75, mb: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{
-            fontFamily: '"JetBrains Mono", monospace', fontSize: '0.72rem',
-            color: 'text.primary', fontWeight: 700, wordBreak: 'break-all', flex: 1,
+            fontFamily: '"Cormorant Garamond", serif',
+            fontSize: '1.65rem', fontWeight: 700, color: 'text.primary', lineHeight: 1.2, mb: 0.6,
+            letterSpacing: '0.02em', textTransform: 'capitalize',
           }}>
-            {col.name}
+            {reportTitle}
           </Typography>
-          <Chip
-            label={col.dtype || (isNumeric ? 'numeric' : 'text')}
-            size="small"
-            sx={{ bgcolor: `${accent}14`, color: accent, fontSize: '0.54rem', height: 16, flexShrink: 0 }}
-          />
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 2, mb: 1.5 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: '0.52rem', letterSpacing: '0.16em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.4 }}>
-              Null %
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: '0.7rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
+              {dateLabel}
             </Typography>
-            <Box sx={{ height: 3, bgcolor: 'divider', borderRadius: 2, mb: 0.3 }}>
-              <Box sx={{ height: '100%', width: `${Math.min(100, col.null_pct || 0)}%`, bgcolor: nullColor, borderRadius: 2 }} />
-            </Box>
-            <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: nullColor }}>
-              {(col.null_pct || 0).toFixed(1)}%
-            </Typography>
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: '0.52rem', letterSpacing: '0.16em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.4 }}>
-              Unique
-            </Typography>
-            <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: 'text.secondary' }}>
-              {(col.unique || 0).toLocaleString()}
-            </Typography>
-          </Box>
-        </Box>
-
-        {isNumeric ? (
-          <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.6 }}>
-              {[['min', col.min], ['mean', col.mean], ['max', col.max]].map(([lbl, val]) => (
-                <Box key={lbl}>
-                  <Typography sx={{ fontSize: '0.48rem', color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.14em' }}>{lbl}</Typography>
-                  <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: 'text.secondary' }}>{fmt(val)}</Typography>
-                </Box>
-              ))}
-            </Box>
-            {col.max !== col.min && (
-              <Box sx={{ position: 'relative', height: 4, bgcolor: `${accent}14`, borderRadius: 2 }}>
-                <Box sx={{
-                  position: 'absolute', height: '100%',
-                  width: `${Math.min(100, ((col.mean - col.min) / (col.max - col.min)) * 100)}%`,
-                  background: `linear-gradient(90deg, ${accent}33, ${accent})`,
-                  borderRadius: 2,
-                }} />
-              </Box>
+            {modelLabel && (
+              <Chip label={modelLabel} size="small" sx={{ bgcolor: `${accent}12`, color: accent, fontSize: '0.54rem', height: 16 }} />
+            )}
+            {runResult?.runs?.[0]?.duration_ms && (
+              <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', fontFamily: '"JetBrains Mono", monospace' }}>
+                {fmtMs(runResult.runs[0].duration_ms)} processing time
+              </Typography>
             )}
           </Box>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {topEntries.map(([val, count]) => (
-              <Box key={val}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.2 }}>
-                  <Typography sx={{
-                    fontSize: '0.58rem', color: 'text.secondary',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%',
-                  }}>
-                    {String(val)}
-                  </Typography>
-                  <Typography sx={{ fontSize: '0.56rem', color: 'text.disabled', fontFamily: '"JetBrains Mono", monospace' }}>
-                    {count}
-                  </Typography>
-                </Box>
-                <Box sx={{ height: 2, bgcolor: 'divider', borderRadius: 1 }}>
-                  <Box sx={{ height: '100%', width: `${(count / maxCount) * 100}%`, bgcolor: `${accent}77`, borderRadius: 1 }} />
-                </Box>
-              </Box>
-            ))}
-          </Box>
-        )}
+        </Box>
+        <Chip
+          label="EXECUTIVE REPORT"
+          size="small"
+          sx={{
+            bgcolor: `${accent}14`, color: accent,
+            fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.18em',
+            height: 20, fontFamily: '"Raleway", sans-serif',
+          }}
+        />
+      </Box>
+      <Box sx={{ mt: 2, height: '1px', bgcolor: 'divider', position: 'relative' }}>
+        <Box sx={{ position: 'absolute', left: 0, top: '-0.5px', height: '2px', width: 80, bgcolor: accent }} />
+      </Box>
+    </Box>
+  )
+}
+
+// ── KPIBar ────────────────────────────────────────────────────────────────────
+
+function KPIBar({ runResult, analysisResult, accent }) {
+  const dqResults = runResult?.dq_results || []
+  const charts    = analysisResult?.charts || []
+  const anomalies = analysisResult?.sections?.anomalies || []
+  const recs      = analysisResult?.sections?.recommendations || []
+  const rowCount  = runResult?.row_count || analysisResult?.meta?.total_rows || 0
+
+  const dqPassed = dqResults.filter((r) => r.passed).length
+  const dqTotal  = dqResults.length
+  const dqScore  = dqTotal > 0 ? Math.round((dqPassed / dqTotal) * 100) : null
+  const penalty  = Math.min(anomalies.length * 8, 30)
+  const health   = dqScore !== null ? Math.max(0, dqScore - penalty) : (anomalies.length === 0 ? 100 : Math.max(40, 100 - penalty * 2))
+
+  const healthColor = health >= 85 ? '#6b8f71' : health >= 60 ? '#c9a84c' : '#b45050'
+  const healthLabel = health >= 85 ? 'Healthy' : health >= 60 ? 'Needs Review' : 'At Risk'
+
+  const kpis = [
+    {
+      label: 'People Records',
+      value: rowCount ? rowCount.toLocaleString() : '—',
+      sub: `${analysisResult?.meta?.total_columns || 0} data dimensions`,
+      color: accent,
+    },
+    {
+      label: 'Data Health',
+      value: `${health}%`,
+      sub: healthLabel,
+      color: healthColor,
+    },
+    {
+      label: 'Business Insights',
+      value: String(charts.length || 0),
+      sub: `${(analysisResult?.sections?.key_findings || []).length} key findings`,
+      color: accent,
+    },
+    {
+      label: 'Action Items',
+      value: String(recs.length || 0),
+      sub: anomalies.length ? `${anomalies.length} risk${anomalies.length !== 1 ? 's' : ''} flagged` : 'No risks flagged',
+      color: recs.length > 0 ? '#c9a84c' : '#6b8f71',
+    },
+  ]
+
+  return (
+    <Grid container spacing={2} sx={{ mb: 3.5 }}>
+      {kpis.map(({ label, value, sub, color }) => (
+        <Grid item xs={6} sm={3} key={label}>
+          <Card variant="outlined" sx={{
+            bgcolor: 'background.paper', borderColor: 'divider',
+            borderTop: `2px solid ${color}`, height: '100%',
+          }}>
+            <CardContent sx={{ p: '16px 20px', '&:last-child': { pb: '16px' } }}>
+              <Typography sx={{
+                fontSize: '0.52rem', letterSpacing: '0.2em', textTransform: 'uppercase',
+                color: 'text.disabled', fontFamily: '"Raleway", sans-serif', mb: 0.75,
+              }}>
+                {label}
+              </Typography>
+              <Typography sx={{
+                fontFamily: '"Cormorant Garamond", serif',
+                fontSize: '1.9rem', fontWeight: 700, color, lineHeight: 1, mb: 0.4,
+              }}>
+                {value}
+              </Typography>
+              <Typography sx={{ fontSize: '0.64rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
+                {sub}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      ))}
+    </Grid>
+  )
+}
+
+// ── ExecutiveSummary ──────────────────────────────────────────────────────────
+
+function ExecutiveSummary({ analysisResult, accent }) {
+  const text = analysisResult?.sections?.executive_summary || analysisResult?.summary || ''
+  if (!text) return null
+  return (
+    <Card variant="outlined" sx={{
+      bgcolor: 'background.paper',
+      borderColor: `${accent}30`,
+      borderLeft: `3px solid ${accent}`,
+      mb: 3,
+    }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <AutoAwesomeIcon sx={{ fontSize: 13, color: accent }} />
+          <Typography sx={{
+            fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+            fontSize: '0.58rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: accent,
+          }}>
+            Executive Summary
+          </Typography>
+        </Box>
+        <Typography sx={{
+          fontSize: '0.95rem', color: 'text.primary', lineHeight: 1.9,
+          fontFamily: '"Raleway", sans-serif',
+        }}>
+          {text}
+        </Typography>
       </CardContent>
     </Card>
   )
 }
 
-// ── ColumnDeepDive ────────────────────────────────────────────────────────────
+// ── FindingsAndRecommendations ────────────────────────────────────────────────
 
-function ColumnDeepDive({ profiles, accent }) {
+function FindingsAndRecommendations({ analysisResult, accent }) {
+  const findings = analysisResult?.sections?.key_findings || []
+  const recs     = analysisResult?.sections?.recommendations || []
+  if (!findings.length && !recs.length) return null
+
   return (
-    <Box>
-      <SectionHeader Icon={ViewColumnIcon} label="Column Deep Dive" accent={accent} sub={`${profiles.length} columns`} />
-      <Grid container spacing={2}>
-        {profiles.map((col, i) => (
-          <Grid item xs={12} sm={6} md={4} lg={3} key={col.name || i}>
-            <ColumnCard col={col} accent={accent} />
+    <Grid container spacing={2.5} sx={{ mb: 3 }}>
+      {findings.length > 0 && (
+        <Grid item xs={12} md={recs.length > 0 ? 6 : 12}>
+          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <TipsAndUpdatesIcon sx={{ fontSize: 14, color: accent }} />
+                <Typography sx={{
+                  fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+                  fontSize: '0.58rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.secondary',
+                }}>
+                  Key Business Findings
+                </Typography>
+              </Box>
+              {findings.map((f, i) => (
+                <Box key={i} sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
+                  <Typography sx={{
+                    fontSize: '0.58rem', fontFamily: '"JetBrains Mono", monospace',
+                    color: accent, flexShrink: 0, fontWeight: 700, mt: 0.12,
+                  }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', lineHeight: 1.72, fontFamily: '"Raleway", sans-serif' }}>
+                    {f}
+                  </Typography>
+                </Box>
+              ))}
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+
+      {recs.length > 0 && (
+        <Grid item xs={12} md={findings.length > 0 ? 6 : 12}>
+          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <TaskAltIcon sx={{ fontSize: 14, color: '#6b8f71' }} />
+                <Typography sx={{
+                  fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+                  fontSize: '0.58rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.secondary',
+                }}>
+                  Strategic Recommendations
+                </Typography>
+              </Box>
+              {recs.map((r, i) => (
+                <Box key={i} sx={{
+                  display: 'flex', gap: 1.5, mb: 1.5,
+                  pb: i < recs.length - 1 ? 1.5 : 0,
+                  borderBottom: i < recs.length - 1 ? '1px solid' : 'none',
+                  borderColor: 'divider',
+                }}>
+                  <Box sx={{
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0, mt: 0.1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    bgcolor: 'rgba(107,143,113,0.12)',
+                  }}>
+                    <Typography sx={{ fontSize: '0.52rem', fontFamily: '"JetBrains Mono", monospace', color: '#6b8f71', fontWeight: 700 }}>
+                      {i + 1}
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', lineHeight: 1.72, fontFamily: '"Raleway", sans-serif' }}>
+                    {r}
+                  </Typography>
+                </Box>
+              ))}
+            </CardContent>
+          </Card>
+        </Grid>
+      )}
+    </Grid>
+  )
+}
+
+// ── RiskAlerts ────────────────────────────────────────────────────────────────
+
+function RiskAlerts({ anomalies }) {
+  if (!anomalies?.length) return null
+  return (
+    <Card variant="outlined" sx={{ borderColor: 'rgba(201,168,76,0.35)', bgcolor: 'rgba(201,168,76,0.03)', mb: 3 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <WarningAmberIcon sx={{ fontSize: 14, color: '#c9a84c' }} />
+          <Typography sx={{
+            fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+            fontSize: '0.58rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: '#c9a84c',
+          }}>
+            Risk Indicators & Attention Areas
+          </Typography>
+          <Chip
+            label={`${anomalies.length} flagged`} size="small"
+            sx={{ bgcolor: 'rgba(201,168,76,0.15)', color: '#c9a84c', fontSize: '0.54rem', height: 16, ml: 0.5 }}
+          />
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {anomalies.map((a, i) => (
+            <Box key={i} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+              <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: '#c9a84c', flexShrink: 0, mt: 0.82 }} />
+              <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', lineHeight: 1.7, fontFamily: '"Raleway", sans-serif' }}>
+                {a}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── BusinessAnalyticsSection ──────────────────────────────────────────────────
+
+function BusinessAnalyticsSection({ charts, accent }) {
+  return (
+    <Box sx={{ mb: 0 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+        <Box sx={{ width: '3px', height: 20, bgcolor: accent, opacity: 0.7, flexShrink: 0, borderRadius: '2px' }} />
+        <BarChartIcon sx={{ fontSize: 16, color: accent }} />
+        <Typography sx={{
+          fontFamily: '"Cormorant Garamond", serif',
+          fontWeight: 600, fontSize: '1.1rem', letterSpacing: '0.04em', color: 'text.primary',
+        }}>
+          Business Analytics
+        </Typography>
+        <Typography sx={{ fontSize: '0.62rem', fontFamily: '"Raleway", sans-serif', color: 'text.disabled', ml: 0.5 }}>
+          {charts.length} visualisation{charts.length !== 1 ? 's' : ''}
+        </Typography>
+      </Box>
+      <Grid container spacing={2.5}>
+        {charts.map((spec) => (
+          <Grid item xs={12} md={6} key={spec.id || spec.title}>
+            <ChartCard spec={spec} />
           </Grid>
         ))}
       </Grid>
@@ -502,46 +513,54 @@ function ColumnDeepDive({ profiles, accent }) {
   )
 }
 
-// ── DQPanel ───────────────────────────────────────────────────────────────────
+// ── DataHealthPanel ───────────────────────────────────────────────────────────
 
-function DQPanel({ dqResults, accent }) {
+function DataHealthPanel({ dqResults, accent }) {
   const passed = dqResults.filter((r) => r.passed).length
-  const failed = dqResults.filter((r) => !r.passed).length
+  const score  = dqResults.length > 0 ? Math.round((passed / dqResults.length) * 100) : 100
+  const scoreColor = score >= 90 ? '#6b8f71' : score >= 70 ? '#c9a84c' : '#b45050'
+  const statusLabel = score >= 90 ? 'Compliant' : score >= 70 ? 'Partially Compliant' : 'Non-Compliant'
 
   return (
     <Box>
-      <SectionHeader
-        Icon={VerifiedIcon} label="Data Quality" accent={accent}
-        sub={`${passed} passed · ${failed} failed`}
-        subColor={failed > 0 ? '#b45050' : '#6b8f71'}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+        <Box sx={{ width: '3px', height: 20, bgcolor: accent, opacity: 0.7, flexShrink: 0, borderRadius: '2px' }} />
+        <VerifiedIcon sx={{ fontSize: 16, color: accent }} />
+        <Typography sx={{
+          fontFamily: '"Cormorant Garamond", serif',
+          fontWeight: 600, fontSize: '1.1rem', letterSpacing: '0.04em', color: 'text.primary',
+        }}>
+          Data Compliance & Health
+        </Typography>
+        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '1.55rem', fontWeight: 700, color: scoreColor }}>
+            {score}%
+          </Typography>
+          <Chip label={statusLabel} size="small" sx={{ bgcolor: `${scoreColor}18`, color: scoreColor, fontSize: '0.58rem', fontWeight: 700 }} />
+        </Box>
+      </Box>
       <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '2px', overflow: 'hidden' }}>
         {dqResults.map((rule, i) => (
           <Box key={i} sx={{
             display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
-            px: 2.5, py: 1.25,
+            px: 2.5, py: 1.5,
             borderBottom: i < dqResults.length - 1 ? '1px solid' : 'none',
             borderColor: 'divider',
-            bgcolor: !rule.passed ? 'rgba(180,80,80,0.04)' : 'transparent',
+            bgcolor: !rule.passed ? 'rgba(180,80,80,0.03)' : 'transparent',
           }}>
-            <Box sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, bgcolor: rule.passed ? '#6b8f71' : '#b45050' }} />
-            <Typography sx={{ flex: 1, fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.primary', minWidth: 120 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: rule.passed ? '#6b8f71' : '#b45050' }} />
+            <Typography sx={{ flex: 1, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem', color: 'text.primary', minWidth: 140 }}>
               {rule.rule_name}
             </Typography>
-            {rule.rule_type && (
-              <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"JetBrains Mono", monospace' }}>
-                {rule.rule_type}
-              </Typography>
-            )}
-            <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', fontFamily: '"Raleway", sans-serif', maxWidth: 240 }}>
+            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontFamily: '"Raleway", sans-serif', maxWidth: 300 }}>
               {rule.message}
             </Typography>
             <Chip
-              label={rule.passed ? 'pass' : 'fail'} size="small"
+              label={rule.passed ? 'Pass' : 'Fail'} size="small"
               sx={{
-                bgcolor: rule.passed ? 'rgba(107,143,113,0.14)' : 'rgba(180,80,80,0.14)',
-                color:   rule.passed ? '#6b8f71' : '#b45050',
-                fontSize: '0.58rem', height: 18, flexShrink: 0,
+                bgcolor: rule.passed ? 'rgba(107,143,113,0.12)' : 'rgba(180,80,80,0.12)',
+                color: rule.passed ? '#6b8f71' : '#b45050',
+                fontSize: '0.6rem', fontWeight: 700, height: 20, flexShrink: 0,
               }}
             />
           </Box>
@@ -554,11 +573,12 @@ function DQPanel({ dqResults, accent }) {
 // ── ResultsView ───────────────────────────────────────────────────────────────
 
 function ResultsView({ runResult, analysisResult, accent }) {
-  const meta           = analysisResult?.meta || {}
-  const columnProfiles = meta.column_profiles || []
-  const dqResults      = runResult?.dq_results || []
-  const rows           = runResult?.rows    || []
-  const columns        = runResult?.columns || []
+  const meta           = analysisResult?.meta    || {}
+  const sections       = analysisResult?.sections || {}
+  const charts         = analysisResult?.charts   || []
+  const dqResults      = runResult?.dq_results    || []
+  const rows           = runResult?.rows           || []
+  const columns        = runResult?.columns        || []
   const isMultiSection = runResult?.report_type === 'multi_section'
   const hasDataset     = isMultiSection ? (runResult?.sections?.length > 0) : rows.length > 0
 
@@ -570,7 +590,9 @@ function ResultsView({ runResult, analysisResult, accent }) {
       },
       animation: 'fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both',
     }}>
-      <RunMetaBar runResult={runResult} accent={accent} />
+      <ExecutiveReportHeader runResult={runResult} analysisResult={analysisResult} accent={accent} />
+
+      <KPIBar runResult={runResult} analysisResult={analysisResult} accent={accent} />
 
       {meta.pii_protected && (
         <Box sx={{
@@ -586,27 +608,26 @@ function ResultsView({ runResult, analysisResult, accent }) {
         </Box>
       )}
 
-      {/* AI narrative + charts */}
-      <SectionHeader Icon={AutoAwesomeIcon} label="AI Insights" accent={accent} mt={0} />
-      <AIInsightsPanel analysisResult={analysisResult} accent={accent} />
+      <ExecutiveSummary analysisResult={analysisResult} accent={accent} />
 
-      {/* Column profiles */}
-      {columnProfiles.length > 0 && (
+      <FindingsAndRecommendations analysisResult={analysisResult} accent={accent} />
+
+      <RiskAlerts anomalies={sections.anomalies} />
+
+      {charts.length > 0 && (
         <>
           <Divider sx={{ my: 4 }} />
-          <ColumnDeepDive profiles={columnProfiles} accent={accent} />
+          <BusinessAnalyticsSection charts={charts} accent={accent} />
         </>
       )}
 
-      {/* Data quality */}
       {dqResults.length > 0 && (
         <>
           <Divider sx={{ my: 4 }} />
-          <DQPanel dqResults={dqResults} accent={accent} />
+          <DataHealthPanel dqResults={dqResults} accent={accent} />
         </>
       )}
 
-      {/* Full dataset */}
       {hasDataset && (
         <>
           <Divider sx={{ my: 4 }} />
