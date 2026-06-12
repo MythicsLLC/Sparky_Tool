@@ -1,6 +1,13 @@
 import io
+import math
 from typing import Any
 import pandas as pd
+
+
+def _f(val) -> float | None:
+    """float() that maps NaN/Inf to None so JSON serialisation never fails."""
+    f = float(val)
+    return None if not math.isfinite(f) else f
 
 
 def parse_and_compute(csv_bytes: bytes) -> dict[str, Any]:
@@ -12,10 +19,10 @@ def parse_and_compute(csv_bytes: bytes) -> dict[str, Any]:
             kpis[col] = {
                 "type": "numeric",
                 "count": int(df[col].count()),
-                "sum": float(df[col].sum()),
-                "mean": float(df[col].mean()),
-                "min": float(df[col].min()),
-                "max": float(df[col].max()),
+                "sum": _f(df[col].sum()),
+                "mean": _f(df[col].mean()),
+                "min": _f(df[col].min()),
+                "max": _f(df[col].max()),
             }
         else:
             kpis[col] = {
