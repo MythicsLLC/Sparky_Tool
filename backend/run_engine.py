@@ -76,6 +76,7 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
     start      = _time.time()
     instance_id = ""
     report_id   = ""
+    file_name   = ""
 
     try:
         # ── Step 1: Trigger ────────────────────────────────────────────────────
@@ -110,14 +111,15 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
             try:
                 status_result = poll_status(instance_id, _settings=s_eng)
                 report_id = str(status_result.get("ReportID", ""))
+                file_name  = str(status_result.get("FileName", ""))
             except TimeoutError as exc:
                 run_log.failed_step = "poll"
                 raise HTTPException(504, str(exc))
             except (httpx.HTTPStatusError, httpx.ConnectError) as exc:
                 run_log.failed_step = "poll"
                 raise HTTPException(502, f"PeopleSoft status polling error: {exc}")
-            log.info("Run %d  step=poll  instance=%s  report=%s  %d ms",
-                     run_log.id, instance_id, report_id, round((_time.time() - t2) * 1000))
+            log.info("Run %d  step=poll  instance=%s  report=%s  file=%s  %d ms",
+                     run_log.id, instance_id, report_id, file_name, round((_time.time() - t2) * 1000))
             if report_id:
                 run_log.report_id = report_id
                 db.commit()
@@ -159,6 +161,8 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
             remote_path = remote_path.replace("{report_id}", report_id)
         if instance_id:
             remote_path = remote_path.replace("{instance_id}", instance_id)
+        if file_name:
+            remote_path = remote_path.replace("{file_name}", file_name)
 
         t3 = _time.time()
         try:
@@ -183,7 +187,7 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
             if not isinstance(exc, HTTPException):
                 run_log.failed_step = "download"
             raise exc if isinstance(exc, HTTPException) else HTTPException(
-                503, f"{label_map.get(s_eng.retrieval_method, 'SFTP')} download error: {exc}"
+                503, f"{label_map.get(s_eng.retrieval_method, 'SFTP')} download error: {exc} (path: {remote_path})"
             )
         log.info("Run %d  step=download  size=%d bytes  %d ms",
                  run_log.id, len(csv_bytes), round((_time.time() - t3) * 1000))
