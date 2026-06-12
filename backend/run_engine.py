@@ -124,10 +124,12 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
 
         # ── Step 3: Download ───────────────────────────────────────────────────
         is_windows = s_eng.retrieval_method in ("winrm", "smb", "win_ssh")
-        sftp_configured = (
-            bool(s_eng.win_host and s_eng.sftp_remote_path) if is_windows
-            else bool(s_eng.sftp_host and s_eng.sftp_remote_path)
-        )
+        if s_eng.retrieval_method == "ftp":
+            sftp_configured = bool(s_eng.ftp_host and s_eng.sftp_remote_path)
+        elif is_windows:
+            sftp_configured = bool(s_eng.win_host and s_eng.sftp_remote_path)
+        else:
+            sftp_configured = bool(s_eng.sftp_host and s_eng.sftp_remote_path)
 
         if not sftp_configured:
             duration_ms = int((_time.time() - start) * 1000)

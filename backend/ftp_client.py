@@ -21,9 +21,13 @@ log = get_logger("ftp_client")
 def _connect(host: str, port: int, username: str, password: str,
              tls: bool, passive: bool) -> ftplib.FTP:
     """Open and authenticate an FTP(S) connection. Caller must call ftp.quit()."""
+    if not username:
+        raise ValueError(
+            "FTP username is not configured — set FTP credentials in Settings (Section 04)."
+        )
     ftp: ftplib.FTP = ftplib.FTP_TLS() if tls else ftplib.FTP()
     ftp.connect(host, port, timeout=15)
-    ftp.login(username or "anonymous", password or "")
+    ftp.login(username, password or "")
     if tls:
         ftp.prot_p()   # encrypt data channel — must come after login()
     ftp.set_pasv(passive)
