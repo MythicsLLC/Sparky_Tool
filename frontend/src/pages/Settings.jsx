@@ -30,7 +30,7 @@ const EMPTY = {
   engine_ids: [],
   ps_base_url: '', ps_auth_type: 'basic', ps_username: '', ps_password: '',
   ps_endpoint: '', ps_status_endpoint: '', ps_process_name: 'SM_DISCOVERY',
-  retrieval_method: 'sftp',
+  retrieval_method: 'ftp',
   sftp_host: '', sftp_port: '22', sftp_username: '',
   sftp_password: '', sftp_remote_path: '',
   ps_webserver_path: '',
@@ -183,7 +183,7 @@ export default function Settings() {
       ps_endpoint:        config.ps_endpoint || '',
       ps_status_endpoint: config.ps_status_endpoint || '',
       ps_process_name:    config.ps_process_name || 'SM_DISCOVERY',
-      retrieval_method:   config.retrieval_method || 'sftp',
+      retrieval_method:   config.retrieval_method || 'ftp',
       sftp_host:          config.sftp_host || '',
       sftp_port:          config.sftp_port ? String(config.sftp_port) : '22',
       sftp_username:      config.sftp_username || '',
@@ -209,7 +209,7 @@ export default function Settings() {
     })
   }
 
-  const RETRIEVAL_KEYS = ['retrieval_method', 'sftp_host', 'sftp_port', 'sftp_username', 'sftp_password', 'sftp_remote_path']
+  const RETRIEVAL_KEYS = ['retrieval_method', 'ftp_remote_path']
   const PS_KEYS  = ['ps_base_url', 'ps_auth_type', 'ps_username', 'ps_password', 'ps_endpoint', 'ps_status_endpoint', 'ps_process_name']
   const WIN_KEYS = ['win_host', 'win_port', 'win_username', 'win_password', 'win_use_ssl', 'win_auth_type', 'win_connection_type', 'win_share', 'win_domain']
   const FTP_KEYS = ['ftp_host', 'ftp_port', 'ftp_username', 'ftp_password', 'ftp_remote_path', 'ftp_connection_type', 'ftp_passive']
@@ -298,6 +298,7 @@ export default function Settings() {
     setFtpTestStatus('testing')
     try {
       const res = await testFtp({
+        config_id: selectedConfigId,
         ftp_host: form.ftp_host,
         ftp_port: parseInt(form.ftp_port, 10) || 21,
         ftp_username: form.ftp_username,
@@ -392,9 +393,7 @@ export default function Settings() {
 
   // Section completion indicators
   const sec01Complete = !!(form.ps_base_url && form.ps_endpoint)
-  const sec02Complete = !!(form.sftp_remote_path && (
-    ['sftp', 'scp'].includes(form.retrieval_method) ? form.sftp_host : true
-  ))
+  const sec02Complete = !!(form.ftp_remote_path)
   const sec03Complete = !!(form.win_host && form.win_username)
   const sec04Complete = !!(form.ftp_host && form.ftp_username)
 
@@ -674,112 +673,33 @@ export default function Settings() {
       </SectionCard>
 
       {/* ── Section 02: Data retrieval ────────────────────────────────────────── */}
-      <SectionCard number="02" title="Data retrieval" subtitle="Configure how the tool downloads CSV data after PeopleSoft runs" complete={sec02Complete}>
+      <SectionCard number="02" title="Data retrieval" subtitle="Configure the FTP remote path for CSV retrieval after PeopleSoft runs" complete={sec02Complete}>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-          <Box sx={{ gridColumn: '1 / -1' }}>
-            <Field label="Retrieval method">
-              <FormControl fullWidth size="small">
-                <Select value={form.retrieval_method} onChange={set('retrieval_method')} sx={selectSx}>
-                  <MenuItem value="sftp">SFTP — Secure File Transfer (Linux / Unix)</MenuItem>
-                  <MenuItem value="scp">SSH / SCP — Server exec via SSH (Linux / Unix)</MenuItem>
-                  <MenuItem value="winrm">Windows / WinRM — PowerShell remote execution</MenuItem>
-                  <MenuItem value="smb">Windows / SMB — File sharing (no server config needed)</MenuItem>
-                  <MenuItem value="win_ssh">Windows / SSH — OpenSSH on Windows (port 22)</MenuItem>
-                  <MenuItem value="ftp">FTP / FTPS — File Transfer Protocol</MenuItem>
-                </Select>
-              </FormControl>
-            </Field>
+
+          <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2, py: 1.5, border: `1px solid ${accent}26`, bgcolor: `${accent}06`, borderRadius: '3px' }}>
+            <DnsIcon sx={{ fontSize: 15, color: accent, mt: 0.15, flexShrink: 0 }} />
+            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.6 }}>
+              <strong style={{ fontWeight: 700 }}>FTP / FTPS</strong> uses the credentials from Section 03. The remote path is Unix-style — e.g.{' '}
+              <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem', color: accent }}>/reports/{'{report_id}'}/</Box>.
+              {' '}If the filename is returned by the status endpoint it will be appended automatically.
+            </Typography>
           </Box>
-
-          {(form.retrieval_method === 'sftp' || form.retrieval_method === 'scp') && (<>
-            <Field label="Host">
-              <TextField fullWidth size="small" value={form.sftp_host} onChange={set('sftp_host')} placeholder="sftp.example.com" sx={inputSx} />
-            </Field>
-            <Field label="Port">
-              <TextField fullWidth size="small" type="number" value={form.sftp_port} onChange={set('sftp_port')} inputProps={{ min: 1, max: 65535 }} sx={inputSx} />
-            </Field>
-            <Field label="Username">
-              <TextField fullWidth size="small" value={form.sftp_username} onChange={set('sftp_username')} autoComplete="off" sx={inputSx} />
-            </Field>
-            <Field label="Password">
-              <TextField fullWidth size="small" type={showSftpPass ? 'text' : 'password'} value={form.sftp_password} onChange={set('sftp_password')} autoComplete="new-password" InputProps={passAdornment(showSftpPass, revealToggle('sftp_password', () => setShowSftpPass((p) => !p)))} sx={inputSx} />
-            </Field>
-          </>)}
-
-          {['winrm', 'smb', 'win_ssh', 'ftp'].includes(form.retrieval_method) && (
-            <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2, py: 1.5, border: `1px solid ${accent}26`, bgcolor: `${accent}06`, borderRadius: '3px' }}>
-              <DnsIcon sx={{ fontSize: 15, color: accent, mt: 0.15, flexShrink: 0 }} />
-              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', color: 'text.secondary', lineHeight: 1.6 }}>
-                {form.retrieval_method === 'smb' && <><strong style={{ fontWeight: 700 }}>SMB</strong> uses the Windows Server credentials from Section 03. No server configuration is needed — admin shares (<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem', color: accent }}>C$</Box>, <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem', color: accent }}>D$</Box>) are available by default to Administrators.</>}
-                {form.retrieval_method === 'winrm' && <><strong style={{ fontWeight: 700 }}>WinRM</strong> uses the Windows Server credentials from Section 03 to run PowerShell remotely. Requires WinRM to be enabled on the server.</>}
-                {form.retrieval_method === 'win_ssh' && <><strong style={{ fontWeight: 700 }}>Windows SSH</strong> uses the Windows Server credentials from Section 03 via OpenSSH (port 22). OpenSSH must be installed on the remote server.</>}
-                {form.retrieval_method === 'ftp' && <><strong style={{ fontWeight: 700 }}>FTP / FTPS</strong> uses the FTP Server credentials from Section 04. Remote path should be Unix-style, e.g. <Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem', color: accent }}>/reports/{'{report_id}'}/output.csv</Box>.</>}
-                {form.retrieval_method !== 'ftp' && <>{' '}Remote path should be Windows-style, e.g.{' '}<Box component="span" sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.68rem', color: accent }}>C:\psft\reports\{'{report_id}'}\output.csv</Box></>}
-              </Typography>
-            </Box>
-          )}
 
           <Box sx={{ gridColumn: '1 / -1' }}>
             <Field label="Remote path">
-              <TextField fullWidth size="small" value={form.sftp_remote_path} onChange={set('sftp_remote_path')}
-                placeholder={['winrm', 'smb', 'win_ssh'].includes(form.retrieval_method) ? 'C:\\psft\\reports\\{report_id}\\output.csv' : '/path/to/{report_id}/output.csv'}
-                helperText="Use {report_id} or {instance_id} — replaced at run time with values from PeopleSoft."
+              <TextField fullWidth size="small" value={form.ftp_remote_path} onChange={set('ftp_remote_path')}
+                placeholder="/path/to/reports/{report_id}/"
+                helperText="Use {report_id} or {instance_id} — replaced at run time. A trailing / triggers directory listing; filename is appended from PeopleSoft status response."
                 FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
                 sx={inputSx} />
             </Field>
           </Box>
 
           <Box sx={{ gridColumn: '1 / -1' }}>
-            <Field label="PeopleSoft web server base path">
-              <TextField fullWidth size="small" value={form.ps_webserver_path} onChange={set('ps_webserver_path')}
-                placeholder="C:\Users\Administrator\psft\pt\8.62\webserv\peoplesoft"
-                helperText="Starting directory for the Server Browser in Section 03."
-                FormHelperTextProps={{ sx: { fontFamily: '"Raleway"', fontSize: '0.6rem', color: 'text.disabled' } }}
-                sx={inputSx} />
-            </Field>
+            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: 'text.disabled', letterSpacing: '0.06em' }}>
+              Use <strong style={{ fontWeight: 700 }}>Test FTP</strong> in Section 03 below to verify connectivity.
+            </Typography>
           </Box>
-
-          {(form.retrieval_method === 'sftp' || form.retrieval_method === 'scp') ? (
-            <Box sx={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-              <Button onClick={handleTest} variant="outlined" disabled={testStatus === 'testing' || !form.sftp_host}
-                startIcon={testStatus === 'testing' ? <CircularProgress size={13} sx={{ color: accent }} /> : null}
-                sx={btnSx}>
-                {testStatus === 'testing' ? 'Testing…' : 'Test connection'}
-              </Button>
-              {testStatus && testStatus !== 'testing' && (
-                <Box sx={{
-                  display: 'flex', alignItems: 'center', gap: 1.5,
-                  px: testStatus.ok ? 1.2 : 2, py: testStatus.ok ? 0.5 : 1.2,
-                  borderRadius: '3px', flex: 1, minWidth: 0,
-                  border: testStatus.ok ? `1px solid ${accent}4d` : '1px solid rgba(143,74,74,0.3)',
-                  bgcolor: testStatus.ok ? `${accent}0d` : 'rgba(143,74,74,0.06)',
-                  '@keyframes resultIn': { from: { opacity: 0, transform: 'translateX(-6px)' }, to: { opacity: 1, transform: 'none' } },
-                  animation: 'resultIn 0.25s ease both',
-                }}>
-                  {testStatus.ok
-                    ? <SuccessCheck size={44} />
-                    : <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: '#8f4a4a', boxShadow: '0 0 6px rgba(143,74,74,0.6)' }} />
-                  }
-                  <Box>
-                    {testStatus.ok ? (<>
-                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: accent, letterSpacing: '0.06em', mb: 0.2 }}>Connection successful</Typography>
-                      <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', color: 'text.secondary', letterSpacing: '0.04em' }}>
-                        {form.sftp_remote_path}{testStatus.size_kb != null && <Box component="span" sx={{ ml: 1.5, color: accent }}>{testStatus.size_kb >= 1024 ? `${(testStatus.size_kb / 1024).toFixed(1)} MB` : `${testStatus.size_kb} KB`}</Box>}
-                      </Typography>
-                    </>) : (
-                      <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: '#c98f8f', letterSpacing: '0.04em', lineHeight: 1.5 }}>{testStatus.message}</Typography>
-                    )}
-                  </Box>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.65rem', color: 'text.disabled', letterSpacing: '0.06em' }}>
-                Use <strong style={{ fontWeight: 700 }}>Test {{ winrm: 'WinRM', smb: 'SMB', win_ssh: 'SSH', ftp: 'FTP' }[form.retrieval_method] || 'connection'}</strong> in Section {{ winrm: '03', smb: '03', win_ssh: '03', ftp: '04' }[form.retrieval_method] || '03'} below.
-              </Typography>
-            </Box>
-          )}
         </Box>
       </SectionCard>
 

@@ -136,8 +136,9 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
         if not sftp_configured:
             duration_ms = int((_time.time() - start) * 1000)
             run_log.status       = "success"
+            _method_labels = {"ftp": "FTP", "scp": "SSH/SCP", "winrm": "WinRM", "smb": "SMB", "win_ssh": "SSH"}
             run_log.sftp_skipped = True
-            run_log.skip_reason  = "SFTP host or remote path not configured"
+            run_log.skip_reason  = f"{_method_labels.get(s_eng.retrieval_method, 'SFTP')} host or remote path not configured"
             run_log.row_count    = 0
             run_log.duration_ms  = duration_ms
             run_log.completed_at = datetime.now(timezone.utc)

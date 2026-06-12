@@ -863,12 +863,18 @@ def _win_error_msg(raw: str, connection_type: str, host: str, port: int) -> str:
 # ── FTP / FTPS endpoints ──────────────────────────────────────────────────────
 
 class FtpPayload(BaseModel):
+    config_id: int | None = None
     ftp_host: str
     ftp_port: int = 21
     ftp_username: str = ""
     ftp_password: str = ""
     ftp_connection_type: str = "ftp"   # ftp | ftps
     ftp_passive: bool = True
+
+    @field_validator("ftp_username", "ftp_password")
+    @classmethod
+    def _strip(cls, v: str) -> str:
+        return _strip_ws(v)
 
 
 class FtpBrowsePayload(FtpPayload):
@@ -879,15 +885,35 @@ class FtpReadFilePayload(FtpPayload):
     path: str
 
 
+def _resolve_ftp_creds(body: FtpPayload, user, db) -> tuple[str, str]:
+    """Return (username, password) for FTP, fetching from DB when config_id is given."""
+    from encrypt import decrypt as _decrypt
+    username = body.ftp_username
+    password = body.ftp_password
+    if body.config_id is not None:
+        cfg = db.get(UserConfig, body.config_id)
+        if cfg and cfg.user_id == user.id:
+            if not username:
+                username = _strip_ws(cfg.ftp_username or "")
+            if not password or password == "***":
+                password = _strip_ws(_decrypt(cfg.ftp_password_enc or ""))
+    return username, password
+
+
 @app.post("/api/test-ftp")
-def test_ftp(body: FtpPayload):
+def test_ftp(
+    body: FtpPayload,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
     import ftp_client as _ftp
+    username, password = _resolve_ftp_creds(body, user, db)
     tls = body.ftp_connection_type == "ftps"
-    log.info("test_ftp  %s:%d  user=%s  tls=%s", body.ftp_host, body.ftp_port, body.ftp_username, tls)
+    log.info("test_ftp  %s:%d  user=%s  tls=%s", body.ftp_host, body.ftp_port, username, tls)
     try:
         info = _ftp.test_connection(
             body.ftp_host, body.ftp_port,
-            body.ftp_username, body.ftp_password,
+            username, password,
             tls=tls, passive=body.ftp_passive,
         )
         return {"status": "ok", **info}
@@ -897,14 +923,19 @@ def test_ftp(body: FtpPayload):
 
 
 @app.post("/api/ftp-browse")
-def ftp_browse(body: FtpBrowsePayload):
+def ftp_browse(
+    body: FtpBrowsePayload,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
     import ftp_client as _ftp
+    username, password = _resolve_ftp_creds(body, user, db)
     tls = body.ftp_connection_type == "ftps"
     log.info("ftp_browse  %s  path=%s  tls=%s", body.ftp_host, body.path, tls)
     try:
         items = _ftp.list_directory(
             body.ftp_host, body.ftp_port,
-            body.ftp_username, body.ftp_password,
+            username, password,
             body.path, tls=tls, passive=body.ftp_passive,
         )
         return {"path": body.path, "items": items}
@@ -914,14 +945,19 @@ def ftp_browse(body: FtpBrowsePayload):
 
 
 @app.post("/api/ftp-read-file")
-def ftp_read_file(body: FtpReadFilePayload):
+def ftp_read_file(
+    body: FtpReadFilePayload,
+    db: Session = Depends(get_db),
+    user = Depends(get_current_user),
+):
     import ftp_client as _ftp
+    username, password = _resolve_ftp_creds(body, user, db)
     tls = body.ftp_connection_type == "ftps"
     log.info("ftp_read_file  %s  path=%s  tls=%s", body.ftp_host, body.path, tls)
     try:
         content = _ftp.read_file(
             body.ftp_host, body.ftp_port,
-            body.ftp_username, body.ftp_password,
+            username, password,
             body.path, tls=tls, passive=body.ftp_passive,
         )
         return {"path": body.path, "content": content}
