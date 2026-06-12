@@ -34,7 +34,8 @@ import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
 import { timeAgo } from '../utils/time'
-import RunDiffDialog from '../components/RunDiffDialog'
+import RunDiffDialog       from '../components/RunDiffDialog'
+import MultiSectionReport from '../components/MultiSectionReport'
 import CompareArrows from '@mui/icons-material/CompareArrows'
 import VerifiedIcon  from '@mui/icons-material/VerifiedUser'
 
@@ -726,6 +727,8 @@ export default function Dashboard() {
                 <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '0.88rem' }}>Process completed — no CSV data</Typography>
                 <Typography sx={{ fontSize: '0.82rem' }}>{lastResult.message}</Typography>
               </Alert>
+            ) : lastResult.report_type === 'multi_section' ? (
+              <MultiSectionReport sections={lastResult.sections} />
             ) : (
               <>
                 <Box>
