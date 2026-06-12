@@ -38,8 +38,8 @@ def config_to_ns(config: UserConfig) -> SimpleNamespace:
         sftp_remote_path    = config.sftp_remote_path or "",
         ftp_host            = config.ftp_host or "",
         ftp_port            = config.ftp_port or 21,
-        ftp_username        = config.ftp_username or "",
-        ftp_password        = decrypt(config.ftp_password_enc) if config.ftp_password_enc else "",
+        ftp_username        = _strip_ws(config.ftp_username or ""),
+        ftp_password        = _strip_ws(decrypt(config.ftp_password_enc) if config.ftp_password_enc else ""),
         ftp_remote_path     = config.ftp_remote_path or "",
         ftp_connection_type = config.ftp_connection_type or "ftp",
         ftp_passive         = config.ftp_passive if config.ftp_passive is not None else True,
@@ -127,7 +127,7 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
         # ── Step 3: Download ───────────────────────────────────────────────────
         is_windows = s_eng.retrieval_method in ("winrm", "smb", "win_ssh")
         if s_eng.retrieval_method == "ftp":
-            sftp_configured = bool(s_eng.ftp_host and s_eng.sftp_remote_path)
+            sftp_configured = bool(s_eng.ftp_host and s_eng.ftp_remote_path)
         elif is_windows:
             sftp_configured = bool(s_eng.win_host and s_eng.sftp_remote_path)
         else:
@@ -156,7 +156,7 @@ def run_one_engine(config, engine_process_name, engine_label, s, user, config_id
                 "message": "PeopleSoft process completed. SFTP retrieval skipped.",
             }
 
-        remote_path = s_eng.sftp_remote_path
+        remote_path = s_eng.ftp_remote_path if s_eng.retrieval_method == "ftp" else s_eng.sftp_remote_path
         if report_id:
             remote_path = remote_path.replace("{report_id}", report_id)
         if instance_id:
