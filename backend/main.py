@@ -113,6 +113,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Content-Security-Policy", "object-src 'none'; base-uri 'self'")
     return response
 
 
@@ -186,8 +188,9 @@ async def _emit_wide_event(
     user_id: str | None, request_id: str,
 ) -> None:
     """Fire-and-forget wide event writer. Session is always closed via try/finally."""
+    event_name = _path_to_event(method, path)
     from routers.wide_events import get_event_tier, _should_write
-    tier = get_event_tier(_path_to_event(method, path))
+    tier = get_event_tier(event_name)
     if not _should_write(tier):
         return
 
@@ -200,7 +203,7 @@ async def _emit_wide_event(
             from routers.wide_events import write_wide_event
             write_wide_event(
                 db,
-                event=_path_to_event(method, path),
+                event=event_name,
                 status="success" if http_status < 400 else "failed",
                 http_method=method,
                 http_status=http_status,

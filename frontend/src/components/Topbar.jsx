@@ -88,14 +88,11 @@ function NavPill({ icon: Icon, label, active, onClick, accent }) {
 export default function Topbar({ route, navigate, user, onSignOut }) {
   const { mode, accent, toggleMode, setAccentColor } = useThemeContext()
 
-  const [accountAnchor,    setAccountAnchor]    = useState(null)
-  const [themeAnchor,      setThemeAnchor]      = useState(null)
-  const [userAnchor,       setUserAnchor]       = useState(null)
-  const [aboutOpen,        setAboutOpen]        = useState(false)
-  const [dogHistoryOpen,   setDogHistoryOpen]   = useState(false)
-  const [accountHovered,   setAccountHovered]   = useState(false)
-  const [themeHovered,     setThemeHovered]     = useState(false)
-  const [userPillHovered,  setUserPillHovered]  = useState(false)
+  const [accountAnchor,  setAccountAnchor]  = useState(null)
+  const [themeAnchor,    setThemeAnchor]    = useState(null)
+  const [userAnchor,     setUserAnchor]     = useState(null)
+  const [aboutOpen,      setAboutOpen]      = useState(false)
+  const [dogHistoryOpen, setDogHistoryOpen] = useState(false)
 
   const navItems = [...NAV_BASE]
   if (user?.role === 'admin') navItems.push({ id: 'admin', label: 'Admin', icon: AdminPanelSettingsIcon })
@@ -168,26 +165,34 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
         {/* ── Account / Persona picker ─────────────── */}
         <Box
           onClick={(e) => setAccountAnchor(e.currentTarget)}
-          onMouseEnter={() => setAccountHovered(true)}
-          onMouseLeave={() => setAccountHovered(false)}
           sx={{
             display: 'flex', alignItems: 'center', cursor: 'pointer',
             px: 1.25, height: 34, borderRadius: 1,
             border: '1px solid',
-            borderColor: accountHovered ? accent : 'divider',
-            bgcolor: accountHovered ? `${accent}12` : 'transparent',
+            borderColor: 'divider',
+            bgcolor: 'transparent',
             transition: 'border-color 0.15s ease, background 0.15s ease',
             flexShrink: 0,
+            '&:hover': {
+              borderColor: accent,
+              bgcolor: `${accent}12`,
+            },
+            '& .account-expand': {
+              overflow: 'hidden',
+              maxWidth: 0,
+              opacity: 0,
+              paddingLeft: 0,
+              transition: expandTransition,
+            },
+            '&:hover .account-expand': {
+              maxWidth: '140px',
+              opacity: 1,
+              paddingLeft: '6px',
+            },
           }}
         >
           <ManageAccountsIcon sx={{ fontSize: 16, color: accent, flexShrink: 0 }} />
-          <Box sx={{
-            overflow: 'hidden',
-            maxWidth: accountHovered ? 140 : 0,
-            opacity: accountHovered ? 1 : 0,
-            paddingLeft: accountHovered ? '6px' : 0,
-            transition: expandTransition,
-          }}>
+          <Box className="account-expand">
             <Typography sx={{
               fontFamily: '"Raleway", sans-serif', fontSize: '0.63rem', fontWeight: 600,
               letterSpacing: '0.08em', color: 'text.primary', textTransform: 'uppercase',
@@ -251,9 +256,9 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
             </MenuItem>
           )}
           {user?.role === 'admin' && (
-            <MenuItem sx={{ gap: 1.5, py: 1.2, mx: 0.5, mb: 0.5, borderRadius: 1 }}>
+            <MenuItem onClick={() => { navigate('admin'); closeAll() }} sx={{ gap: 1.5, py: 1.2, mx: 0.5, mb: 0.5, borderRadius: 1 }}>
               <ListItemIcon sx={{ minWidth: 'auto' }}><VerifiedUserIcon sx={{ fontSize: 16, color: 'text.secondary' }} /></ListItemIcon>
-              <ListItemText primary="Manage users" primaryTypographyProps={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.73rem', color: 'text.primary' }} secondary="Admin → Users tab" secondaryTypographyProps={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem' }} />
+              <ListItemText primary="Manage users" primaryTypographyProps={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.73rem', color: 'text.primary' }} />
             </MenuItem>
           )}
         </Menu>
@@ -261,25 +266,33 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
         {/* ── Theme picker ─────────────────────────── */}
         <Box
           onClick={(e) => setThemeAnchor(e.currentTarget)}
-          onMouseEnter={() => setThemeHovered(true)}
-          onMouseLeave={() => setThemeHovered(false)}
           sx={{
             display: 'flex', alignItems: 'center',
             height: 34, px: 0.75, borderRadius: 1,
             cursor: 'pointer',
-            color: themeHovered ? accent : 'text.secondary',
-            bgcolor: themeHovered ? `${accent}12` : 'transparent',
+            color: 'text.secondary',
+            bgcolor: 'transparent',
             transition: 'color 0.15s ease, background 0.15s ease',
+            '&:hover': {
+              color: accent,
+              bgcolor: `${accent}12`,
+            },
+            '& .theme-expand': {
+              overflow: 'hidden',
+              maxWidth: 0,
+              opacity: 0,
+              paddingLeft: 0,
+              transition: expandTransition,
+            },
+            '&:hover .theme-expand': {
+              maxWidth: '80px',
+              opacity: 1,
+              paddingLeft: '6px',
+            },
           }}
         >
           <PaletteIcon sx={{ fontSize: 16, flexShrink: 0, color: 'inherit' }} />
-          <Box sx={{
-            overflow: 'hidden',
-            maxWidth: themeHovered ? 80 : 0,
-            opacity: themeHovered ? 1 : 0,
-            paddingLeft: themeHovered ? '6px' : 0,
-            transition: expandTransition,
-          }}>
+          <Box className="theme-expand">
             <Typography sx={{
               fontFamily: '"Raleway", sans-serif', fontSize: '0.63rem', fontWeight: 600,
               letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -349,29 +362,37 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
         {/* ── User menu ────────────────────────────── */}
         <Box
           onClick={(e) => setUserAnchor(e.currentTarget)}
-          onMouseEnter={() => setUserPillHovered(true)}
-          onMouseLeave={() => setUserPillHovered(false)}
           sx={{
             display: 'flex', alignItems: 'center',
             height: 34, pl: 0.4, pr: 0.4,
             borderRadius: 5,
             cursor: 'pointer',
             border: '1px solid',
-            borderColor: userPillHovered ? accent : 'transparent',
-            bgcolor: userPillHovered ? `${accent}0e` : 'transparent',
+            borderColor: 'transparent',
+            bgcolor: 'transparent',
             transition: 'border-color 0.15s ease, background 0.15s ease',
+            '&:hover': {
+              borderColor: accent,
+              bgcolor: `${accent}0e`,
+            },
+            '& .user-expand': {
+              overflow: 'hidden',
+              maxWidth: 0,
+              opacity: 0,
+              paddingLeft: 0,
+              transition: expandTransition,
+            },
+            '&:hover .user-expand': {
+              maxWidth: '140px',
+              opacity: 1,
+              paddingLeft: '8px',
+            },
           }}
         >
           <Avatar sx={{ width: 28, height: 28, bgcolor: accent, color: '#0b0c0e', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.65rem', flexShrink: 0 }}>
             {initials}
           </Avatar>
-          <Box sx={{
-            overflow: 'hidden',
-            maxWidth: userPillHovered ? 140 : 0,
-            opacity: userPillHovered ? 1 : 0,
-            paddingLeft: userPillHovered ? '8px' : 0,
-            transition: expandTransition,
-          }}>
+          <Box className="user-expand">
             <Typography sx={{
               fontFamily: '"Raleway", sans-serif', fontSize: '0.63rem', fontWeight: 600,
               letterSpacing: '0.08em', color: 'text.primary', whiteSpace: 'nowrap',
