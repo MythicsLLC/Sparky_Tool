@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUser } from '@clerk/clerk-react'
 import {
   AppBar, Toolbar, Box, Typography,
   Avatar, Chip, Tooltip,
@@ -87,6 +88,8 @@ function NavPill({ icon: Icon, label, active, onClick, accent }) {
 
 export default function Topbar({ route, navigate, user, onSignOut }) {
   const { mode, accent, toggleMode, setAccentColor } = useThemeContext()
+  const { user: clerkUser } = useUser()
+  const profileImageUrl = clerkUser?.imageUrl
 
   const [accountAnchor,    setAccountAnchor]    = useState(null)
   const [themeAnchor,      setThemeAnchor]      = useState(null)
@@ -210,7 +213,10 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
           {/* profile header */}
           <Box sx={{ px: 2.5, pt: 2, pb: 1.5 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
-              <Avatar sx={{ width: 38, height: 38, bgcolor: accent, color: '#0b0c0e', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.85rem' }}>
+              <Avatar
+                src={profileImageUrl}
+                sx={{ width: 38, height: 38, bgcolor: accent, color: '#0b0c0e', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.85rem' }}
+              >
                 {initials}
               </Avatar>
               <Box>
@@ -362,7 +368,10 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
             transition: 'border-color 0.15s ease, background 0.15s ease',
           }}
         >
-          <Avatar sx={{ width: 28, height: 28, bgcolor: accent, color: '#0b0c0e', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.65rem', flexShrink: 0 }}>
+          <Avatar
+            src={profileImageUrl}
+            sx={{ width: 28, height: 28, bgcolor: accent, color: '#0b0c0e', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.65rem', flexShrink: 0 }}
+          >
             {initials}
           </Avatar>
           <Box sx={{
