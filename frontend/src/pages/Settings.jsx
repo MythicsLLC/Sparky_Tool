@@ -133,6 +133,8 @@ export default function Settings() {
   const [psBodyOpen, setPsBodyOpen]         = useState(false)
   const [curlCopied, setCurlCopied]         = useState(false)
   const [psCopied, setPsCopied]             = useState(false)
+  const [importText, setImportText]         = useState('')
+  const [importFeedback, setImportFeedback] = useState(null)
   const [showWinPass, setShowWinPass]       = useState(false)
   const [winTestStatus, setWinTestStatus]   = useState(null)
   const [winBrowserOpen, setWinBrowserOpen] = useState(false)
@@ -264,6 +266,95 @@ export default function Settings() {
   // Strip the "***" sentinel before sending to test endpoints — they have no sentinel awareness.
   // An empty string causes the backend to fall back to any .env-based v1 credentials.
   const livePass = (v) => (v === '***' ? '' : v)
+
+  const _parseAndFill = () => {
+    const raw = importText.trim()
+    if (!raw) return
+
+    const updates = {}
+    let detected = ''
+    let errorMsg = ''
+
+    const applyUrl = (url) => {
+      const u = url.trim().replace(/[\\'"]+$/, '')
+      const idx = u.indexOf('/PSIGW/')
+      if (idx !== -1) {
+        updates.ps_base_url = u.slice(0, idx + 6)  // includes /PSIGW
+        updates.ps_endpoint = u.slice(idx + 6)      // /RESTListeningConnector/...
+      } else {
+        updates.ps_base_url = u
+        updates.ps_endpoint = ''
+      }
+    }
+
+    const applyBody = (str) => {
+      try {
+        const obj = JSON.parse(str.replace(/\\"/g, '"'))
+        if (obj.processname) updates.ps_process_name = obj.processname
+      } catch {}
+    }
+
+    if (raw.startsWith('{')) {
+      detected = 'JSON'
+      try {
+        const obj = JSON.parse(raw)
+        if (obj.processname) updates.ps_process_name = obj.processname
+      } catch { errorMsg = 'Invalid JSON — could not parse.' }
+
+    } else if (/invoke-rest|invoke-web/i.test(raw)) {
+      detected = 'PowerShell'
+      const uriM = raw.match(/\$uri\s*=\s*["']([^"']+)["']/) || raw.match(/-Uri\s+["']([^"']+)["']/i)
+      if (uriM) applyUrl(uriM[1])
+      const credsM = raw.match(/GetBytes\(\s*['"]([^'"]+)['"]\s*\)/)
+      if (credsM) {
+        const [u, ...rest] = credsM[1].split(':')
+        updates.ps_auth_type = 'basic'
+        updates.ps_username  = u
+        updates.ps_password  = rest.join(':')
+      }
+      const bearerM = raw.match(/["']Bearer\s+([^"']+)["']/)
+      if (bearerM && !credsM) { updates.ps_auth_type = 'bearer'; updates.ps_password = bearerM[1].trim() }
+      const bodyM = raw.match(/\$body\s*=\s*'([^']+)'/) || raw.match(/\$body\s*=\s*"([^"]+)"/)
+      if (bodyM) applyBody(bodyM[1])
+
+    } else if (/^curl\b/i.test(raw)) {
+      detected = 'cURL'
+      const line = raw.replace(/\\\s*\n\s*/g, ' ')
+      const urlM = line.match(/https?:\/\/[^\s'"\\]+/)
+      if (urlM) applyUrl(urlM[0])
+      const userM = line.match(/(?:-u|--user)\s+["']?([^"'\s]+)["']?/)
+      if (userM) {
+        const [u, ...rest] = userM[1].split(':')
+        updates.ps_auth_type = 'basic'
+        updates.ps_username  = u
+        updates.ps_password  = rest.join(':')
+      }
+      const bearerM = line.match(/-H\s+["']Authorization:\s*Bearer\s+([^"']+)["']/)
+      if (bearerM && !userM) { updates.ps_auth_type = 'bearer'; updates.ps_password = bearerM[1].trim() }
+      const bodyM = line.match(/-d\s+'([^']*)'/) || line.match(/-d\s+"((?:[^"\\]|\\.)*)"/)
+      if (bodyM) applyBody(bodyM[1])
+
+    } else if (/^https?:\/\//i.test(raw)) {
+      detected = 'URL'
+      applyUrl(raw)
+
+    } else {
+      errorMsg = 'Unrecognised format — paste a cURL command, Invoke-RestMethod script, JSON body, or URL.'
+    }
+
+    if (errorMsg) { setImportFeedback({ type: 'error', msg: errorMsg }); return }
+    if (!Object.keys(updates).length) {
+      setImportFeedback({ type: 'error', msg: `No recognisable fields found in the ${detected} input.` })
+      return
+    }
+
+    setForm((prev) => ({ ...prev, ...updates }))
+    setPsTestStatus(null)
+    const filled = Object.keys(updates).map((k) => k.replace('ps_', '').replace(/_/g, ' ')).join(', ')
+    setImportFeedback({ type: 'success', msg: `${detected} parsed — filled: ${filled}` })
+    setImportText('')
+    setTimeout(() => setImportFeedback(null), 5000)
+  }
 
   const _buildCurlCmd = (url, authType, username, password, processName) => {
     const body = JSON.stringify(processName ? { processname: processName } : {})
@@ -622,6 +713,37 @@ export default function Settings() {
       {/* ── Section 01: PeopleSoft integration ───────────────────────────────── */}
       <SectionCard number="01" title="PeopleSoft integration" subtitle="Broker authentication and process wiring" complete={sec01Complete}>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+
+          {/* ── Import strip ─────────────────────────────────────────────── */}
+          <Box sx={{ gridColumn: '1 / -1' }}>
+            <Field label="Import from cURL / PowerShell / JSON">
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                <TextField
+                  fullWidth multiline minRows={2} maxRows={6} size="small"
+                  value={importText}
+                  onChange={(e) => { setImportText(e.target.value); setImportFeedback(null) }}
+                  placeholder={'Paste a cURL command, Invoke-RestMethod script, JSON body or URL — the fields below will be auto-filled.\n\nExample: curl -X POST "https://…/PSIGW/…" -u "user:pass" -d \'{"processname":"…"}\''}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      fontFamily: '"JetBrains Mono", monospace', fontSize: '0.72rem',
+                      color: 'text.primary', bgcolor: `${accent}05`, borderRadius: '3px',
+                    },
+                    '& .MuiInputBase-input::placeholder': { color: 'text.disabled', opacity: 1, fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem' },
+                  }}
+                />
+                <Button onClick={_parseAndFill} disabled={!importText.trim()} variant="outlined" sx={{ ...btnSx, alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>
+                  Fill fields
+                </Button>
+              </Box>
+              {importFeedback && (
+                <Typography sx={{ mt: 0.6, fontSize: '0.63rem', fontFamily: '"Raleway", sans-serif', letterSpacing: '0.05em', color: importFeedback.type === 'success' ? accent : '#c98f8f' }}>
+                  {importFeedback.msg}
+                </Typography>
+              )}
+            </Field>
+            <Box sx={{ height: '1px', bgcolor: `${accent}1a`, mt: 2.5, mb: 0.5 }} />
+          </Box>
+
           <Box sx={{ gridColumn: '1 / -1' }}>
             <Field label="Base URL">
               <TextField fullWidth size="small" value={form.ps_base_url} onChange={set('ps_base_url')} placeholder="https://your-ps-host/PSIGW" sx={inputSx} />
