@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Backdrop, Box, Typography, Chip } from '@mui/material'
 import MythicsLogo from '../assets/MythicsLogo'
+import WelcomePhysics from './WelcomePhysics'
 import { useThemeContext } from '../ThemeContext'
 
 function useElapsed(running) {
@@ -78,6 +79,10 @@ export default function LoadingDialog({ open }) {
 
         {/* Logo with concentric spinning rings */}
         <Box sx={{ position: 'relative', width: 180, height: 180, mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* physics canvas behind the rings */}
+          <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <WelcomePhysics accent={accent} interactive={false} />
+          </Box>
           {/* Outer dashed ring */}
           <Box sx={{
             position: 'absolute', inset: 0, borderRadius: '50%',
