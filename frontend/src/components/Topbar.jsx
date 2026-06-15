@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   AppBar, Toolbar, Box, Typography,
@@ -90,6 +90,10 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
   const { mode, accent, toggleMode, setAccentColor } = useThemeContext()
   const { user: clerkUser } = useUser()
   const profileImageUrl = clerkUser?.imageUrl
+
+  const emailDomain = user?.email?.split('@')[1] ?? null
+  const [logoError, setLogoError] = useState(false)
+  useEffect(() => { setLogoError(false) }, [emailDomain])
 
   const [accountAnchor,    setAccountAnchor]    = useState(null)
   const [themeAnchor,      setThemeAnchor]      = useState(null)
@@ -226,6 +230,22 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
                 <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.secondary', mt: 0.2 }}>
                   {user?.email}
                 </Typography>
+                {emailDomain && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.6 }}>
+                    {!logoError && (
+                      <Box
+                        component="img"
+                        src={`https://logo.clearbit.com/${emailDomain}`}
+                        alt={emailDomain}
+                        onError={() => setLogoError(true)}
+                        sx={{ width: 14, height: 14, borderRadius: '2px', objectFit: 'contain', flexShrink: 0 }}
+                      />
+                    )}
+                    <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.1em' }}>
+                      {emailDomain}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
             <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
