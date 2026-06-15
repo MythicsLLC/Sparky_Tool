@@ -263,13 +263,15 @@ export default function Settings() {
 
   const handlePsTest = async () => {
     setPsTestStatus('testing')
+    const firstEngine = engines.find((e) => e.id === form.engine_ids[0])
+    const processName = firstEngine?.process_name || form.ps_process_name
     try {
       const res = await testPeoplesoft({
         config_id: selectedConfigId,
         ps_base_url: form.ps_base_url, ps_auth_type: form.ps_auth_type,
         ps_username: form.ps_username, ps_password: livePass(form.ps_password),
         ps_endpoint: form.ps_endpoint, ps_status_endpoint: form.ps_status_endpoint,
-        ps_process_name: form.ps_process_name,
+        ps_process_name: processName,
       })
       setPsTestStatus({ ok: true, http_status: res.data.http_status, url: res.data.url ?? '', body: res.data.body ?? '', instance_id: res.data.instance_id ?? '', status_http_status: res.data.status_http_status, status_url: res.data.status_url ?? '', status_body: res.data.status_body ?? '' })
     } catch (err) {
