@@ -187,7 +187,17 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
             flexShrink: 0,
           }}
         >
-          <ManageAccountsIcon sx={{ fontSize: 16, color: accent, flexShrink: 0 }} />
+          {emailDomain && !logoError ? (
+            <Box
+              component="img"
+              src={`https://logo.clearbit.com/${emailDomain}`}
+              alt={emailDomain}
+              onError={() => setLogoError(true)}
+              sx={{ width: 16, height: 16, borderRadius: '3px', objectFit: 'contain', flexShrink: 0 }}
+            />
+          ) : (
+            <ManageAccountsIcon sx={{ fontSize: 16, color: accent, flexShrink: 0 }} />
+          )}
           <Box sx={{
             overflow: 'hidden',
             maxWidth: accountHovered ? 140 : 0,
@@ -200,7 +210,7 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
               letterSpacing: '0.08em', color: 'text.primary', textTransform: 'uppercase',
               whiteSpace: 'nowrap',
             }}>
-              {displayName}
+              {emailDomain ?? displayName}
             </Typography>
           </Box>
           <ExpandMoreIcon sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0, ml: 0.5 }} />
