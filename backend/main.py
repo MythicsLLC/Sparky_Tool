@@ -1,6 +1,7 @@
 import asyncio as _asyncio
 import httpx
 import os as _os
+import re as _re
 import time as _time
 import uuid as _uuid
 import paramiko
@@ -30,7 +31,7 @@ _startup_ok = False   # set to True after successful lifespan startup
 
 
 def _check_required_env() -> None:
-    """Fail fast at startup if critical env vars are missing."""
+    """Fail fast at startup if critical env vars are missing or malformed."""
     missing = []
     for var in ("DATABASE_URL", "CLERK_JWKS_URL", "ENCRYPTION_KEY"):
         val = _os.environ.get(var, "") or getattr(settings, var.lower(), "")
@@ -41,6 +42,19 @@ def _check_required_env() -> None:
             f"Required environment variables not set: {', '.join(missing)}. "
             "Configure them in the Render dashboard (Environment → Add Variable)."
         )
+    # Validate ENCRYPTION_KEY is a properly formatted Fernet key so a bad value
+    # fails at startup rather than silently at the first encrypt/decrypt call.
+    _enc_key = _os.environ.get("ENCRYPTION_KEY", "") or getattr(settings, "encryption_key", "")
+    if _enc_key:
+        try:
+            from cryptography.fernet import Fernet as _Fernet
+            _Fernet(_enc_key.encode())
+        except Exception as _ke:
+            raise RuntimeError(
+                f"ENCRYPTION_KEY is not a valid Fernet key: {_ke}. "
+                "Generate a new key with: "
+                "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            ) from _ke
 
 
 @asynccontextmanager
@@ -113,6 +127,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # Prevent sensitive API responses from being stored in browser/CDN caches
+    if request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
     return response
 
 
@@ -142,6 +160,10 @@ async def log_requests(request: Request, call_next):
 
 _cache: dict = {}
 _v2_enabled = False
+
+# Characters that can break single-quote shell quoting or inject subcommands.
+# Used to validate file paths before they are interpolated into exec_command strings.
+_SHELL_UNSAFE_RE = _re.compile(r"['\";|`$&<>\\\n\r\x00]")
 
 # ── Wide-event middleware helpers ─────────────────────────────────────────────
 
@@ -618,6 +640,18 @@ class RetrievalTestPayload(BaseModel):
     sftp_username: str = ""
     sftp_password: str = ""
     sftp_remote_path: str = ""
+
+    @field_validator("sftp_remote_path")
+    @classmethod
+    def _safe_remote_path(cls, v: str) -> str:
+        # Reject shell metacharacters that could break single-quote quoting in
+        # exec_command(f"ls -la '{path}'") and allow command injection.
+        if v and _SHELL_UNSAFE_RE.search(v):
+            raise ValueError(
+                "Remote path contains disallowed characters. "
+                "Quotes, semicolons, pipes, backticks, and shell operators are not permitted."
+            )
+        return v
 
 
 @app.post("/api/test-retrieval")

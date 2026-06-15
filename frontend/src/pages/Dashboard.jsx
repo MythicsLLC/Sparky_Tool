@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import {
   Box, Typography, Button, Alert, CircularProgress,
   Select, MenuItem, Chip, Grid, Card, CardContent,
@@ -27,10 +27,10 @@ import KPICards    from '../components/KPICards'
 import Charts      from '../components/Charts'
 import DataTable   from '../components/DataTable'
 import LoadingDialog         from '../components/LoadingDialog'
-import FunctionalDashboard  from './FunctionalDashboard'
-import OperationalDashboard from './OperationalDashboard'
-import AnalyzeDashboard     from './AnalyzeDashboard'
-import RunAnalyseDashboard  from './RunAnalyseDashboard'
+const FunctionalDashboard  = lazy(() => import('./FunctionalDashboard'))
+const OperationalDashboard = lazy(() => import('./OperationalDashboard'))
+const AnalyzeDashboard     = lazy(() => import('./AnalyzeDashboard'))
+const RunAnalyseDashboard  = lazy(() => import('./RunAnalyseDashboard'))
 import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
@@ -761,10 +761,12 @@ export default function Dashboard() {
           </Box>
         )}
 
-        {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
-        {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
-        {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
-        {dashTab === 4 && <Box ref={tabRef}><RunAnalyseDashboard /></Box>}
+        <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 10 }}><CircularProgress size={28} /></Box>}>
+          {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
+          {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
+          {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
+          {dashTab === 4 && <Box ref={tabRef}><RunAnalyseDashboard /></Box>}
+        </Suspense>
 
       </Box>
 
