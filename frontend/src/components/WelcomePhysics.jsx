@@ -93,6 +93,13 @@ export default function WelcomePhysics({ accent = '#1976d2', interactive = true,
   useEffect(() => {
     const el = wrapperRef.current
     if (!el) return
+
+    // Bail out in environments without real 2D canvas support (e.g. jsdom in
+    // unit tests, which has no native canvas backend) — this scene is purely
+    // decorative, so skipping it there is safe and avoids a render crash.
+    const probe = document.createElement('canvas')
+    if (!probe.getContext('2d')) return
+
     const full = variant !== 'compact'
     chipCountRef.current = 0
 
