@@ -1,18 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div data-testid="bar-chart">{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-  Legend: () => null,
-  CartesianGrid: () => null,
-  PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
-  Pie: () => null,
-  Cell: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
+vi.mock('@mui/x-charts', () => ({
+  BarChart: () => <div data-testid="bar-chart" />,
+  PieChart: () => <div data-testid="pie-chart" />,
 }))
 
 import Charts from './Charts'

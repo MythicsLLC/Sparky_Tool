@@ -1,42 +1,17 @@
 import { Paper, Typography, Box } from '@mui/material'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
-  PieChart, Pie, Cell, ResponsiveContainer,
-} from 'recharts'
+import { BarChart, PieChart } from '@mui/x-charts'
 import { useThemeContext } from '../ThemeContext'
 
 export default function Charts({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 
-  const paper        = dark ? '#111316' : '#ffffff'
   const textPrimary  = dark ? '#ede8d0' : '#1a1814'
   const textMuted    = dark ? '#5a5040' : '#8a7e6e'
-  const textDisabled = dark ? '#3a3428' : '#b0a898'
-  const gridStroke   = dark ? `${accent}08` : `${accent}12`
   const borderColor  = dark ? `${accent}14` : `${accent}22`
+  const tickLabelStyle = { fontSize: 11, fontFamily: '"JetBrains Mono", monospace' }
 
   const PALETTE = [accent, textMuted, textPrimary, `${accent}99`, `${accent}66`, `${accent}44`]
-
-  const tooltipStyle = {
-    contentStyle: {
-      background: paper,
-      border: `1px solid ${accent}2e`,
-      borderRadius: 2,
-      fontFamily: '"JetBrains Mono", monospace',
-      fontSize: 12,
-      color: textPrimary,
-      boxShadow: dark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 16px rgba(0,0,0,0.12)',
-    },
-    labelStyle: { color: textMuted, letterSpacing: '0.06em' },
-    cursor: { fill: `${accent}05` },
-  }
-
-  const axisStyle = {
-    tick: { fill: textDisabled, fontSize: 11, fontFamily: '"JetBrains Mono", monospace' },
-    axisLine: { stroke: `${accent}12` },
-    tickLine: { stroke: `${accent}12` },
-  }
 
   const numeric     = Object.entries(kpis).filter(([, v]) => v.type === 'numeric')
   const categorical = Object.entries(kpis).filter(([, v]) => v.type === 'categorical')
@@ -47,13 +22,6 @@ export default function Charts({ kpis = {} }) {
     Min:  parseFloat(s.min.toFixed(2)),
     Max:  parseFloat(s.max.toFixed(2)),
   }))
-
-  const renderPieLabel = ({ name, percent, x, y }) => (
-    <text x={x} y={y} fill={textMuted} fontSize={10} textAnchor="middle" dominantBaseline="central"
-      fontFamily='"JetBrains Mono", monospace'>
-      {`${name} ${(percent * 100).toFixed(0)}%`}
-    </text>
-  )
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -79,23 +47,27 @@ export default function Charts({ kpis = {} }) {
               BAR CHART
             </Box>
           </Box>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-              <XAxis dataKey="name" {...axisStyle} />
-              <YAxis {...axisStyle} />
-              <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ fontFamily: '"Raleway", sans-serif', fontSize: 11, color: textMuted, paddingTop: 12 }} />
-              <Bar dataKey="Mean" fill={accent}              radius={[2,2,0,0]} />
-              <Bar dataKey="Min"  fill={`${accent}55`}       radius={[2,2,0,0]} />
-              <Bar dataKey="Max"  fill={textPrimary}         radius={[2,2,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChart
+            height={300}
+            dataset={barData}
+            xAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle }]}
+            yAxis={[{ tickLabelStyle }]}
+            series={[
+              { dataKey: 'Mean', label: 'Mean', color: accent },
+              { dataKey: 'Min',  label: 'Min',  color: `${accent}55` },
+              { dataKey: 'Max',  label: 'Max',  color: textPrimary },
+            ]}
+            margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
+            grid={{ horizontal: true }}
+            slotProps={{ legend: { direction: 'row', position: { vertical: 'bottom', horizontal: 'center' } } }}
+          />
         </Paper>
       )}
 
       {categorical.map(([col, stats], i) => {
-        const pieData = Object.entries(stats.value_counts).map(([name, value]) => ({ name, value }))
+        const pieData = Object.entries(stats.value_counts).map(([name, value], idx) => ({
+          id: idx, label: name, value, color: PALETTE[idx % PALETTE.length],
+        }))
         return (
           <Paper key={col} sx={{
             bgcolor: 'background.paper',
@@ -119,14 +91,18 @@ export default function Charts({ kpis = {} }) {
                 PIE CHART
               </Box>
             </Box>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={110} innerRadius={50} paddingAngle={3} labelLine={false} label={renderPieLabel}>
-                  {pieData.map((_, idx) => <Cell key={idx} fill={PALETTE[idx % PALETTE.length]} />)}
-                </Pie>
-                <Tooltip {...tooltipStyle} />
-              </PieChart>
-            </ResponsiveContainer>
+            <PieChart
+              height={300}
+              series={[{
+                data: pieData,
+                outerRadius: 110, innerRadius: 50, paddingAngle: 3,
+                arcLabel: (item) => {
+                  const total = pieData.reduce((s, d) => s + d.value, 0)
+                  return total ? `${item.label} ${((item.value / total) * 100).toFixed(0)}%` : item.label
+                },
+              }]}
+              sx={{ '& .MuiPieArcLabel-root': { fontSize: 10, fill: textMuted, fontFamily: '"JetBrains Mono", monospace' } }}
+            />
           </Paper>
         )
       })}

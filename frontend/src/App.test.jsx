@@ -3,13 +3,9 @@ import { vi, beforeEach, afterEach } from 'vitest'
 import App from './App'
 import * as api from './api'
 
-vi.mock('recharts', () => ({
-  BarChart: ({ children }) => <div>{children}</div>,
-  Bar: () => null, XAxis: () => null, YAxis: () => null,
-  Tooltip: () => null, Legend: () => null, CartesianGrid: () => null,
-  PieChart: ({ children }) => <div>{children}</div>,
-  Pie: () => null, Cell: () => null,
-  ResponsiveContainer: ({ children }) => <div>{children}</div>,
+vi.mock('@mui/x-charts', () => ({
+  BarChart: () => <div data-testid="bar-chart" />,
+  PieChart: () => <div data-testid="pie-chart" />,
 }))
 
 // Pass the health check immediately in all tests unless a test overrides it

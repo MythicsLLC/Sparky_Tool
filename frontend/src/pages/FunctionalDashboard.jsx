@@ -6,11 +6,7 @@ import {
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { DataGrid } from '@mui/x-data-grid'
-import {
-  PieChart, Pie, Cell, Tooltip as ChartTooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
-  RadialBarChart, RadialBar,
-} from 'recharts'
+import { PieChart, BarChart, Gauge, gaugeClasses } from '@mui/x-charts'
 import SearchIcon       from '@mui/icons-material/Search'
 import StorageIcon      from '@mui/icons-material/Storage'
 import PublicIcon       from '@mui/icons-material/Public'
@@ -83,34 +79,22 @@ function ModuleDonut({ on, off, accent, theme }) {
     { name: 'Enabled', value: on,  color: COLOR_ON  },
     { name: 'Disabled', value: off, color: dark(theme) ? 'rgba(180,80,80,0.55)' : COLOR_OFF },
   ]
-  const total     = on + off
-  const pct       = total ? Math.round(on / total * 100) : 0
-  const gridColor = dark(theme) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
+  const total = on + off
+  const pct   = total ? Math.round(on / total * 100) : 0
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
       <CardHeader icon={PieChartIcon} label="Module Adoption" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%" cy="50%"
-                innerRadius={58} outerRadius={82}
-                startAngle={90} endAngle={-270}
-                dataKey="value"
-                stroke="none"
-              >
-                {data.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <ChartTooltip
-                contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+          <PieChart
+            height={200}
+            series={[{
+              data: data.map((d, i) => ({ id: i, value: d.value, label: d.name, color: d.color })),
+              innerRadius: 58, outerRadius: 82, startAngle: 90, endAngle: -270,
+            }]}
+            slotProps={{ legend: { hidden: true } }}
+          />
           {/* Centre label */}
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>
@@ -141,26 +125,24 @@ function ModuleDonut({ on, off, accent, theme }) {
 function AdoptionGauge({ on, off, accent, theme }) {
   const total = on + off || 1
   const pct   = Math.round(on / total * 100)
-  const data  = [{ name: 'Adoption', value: pct, fill: COLOR_ON }]
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
       <CardHeader icon={BarChartIcon} label="Adoption Rate" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 140 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <RadialBarChart
-              cx="50%" cy="85%"
-              innerRadius="60%" outerRadius="100%"
-              startAngle={180} endAngle={0}
-              data={[
-                { name: 'bg',        value: 100, fill: dark(theme) ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' },
-                { name: 'Adoption',  value: pct, fill: COLOR_ON },
-              ]}
-            >
-              <RadialBar dataKey="value" background={false} />
-            </RadialBarChart>
-          </ResponsiveContainer>
+          <Gauge
+            width={220} height={140}
+            startAngle={-90} endAngle={90}
+            cx="50%" cy="85%"
+            innerRadius="60%" outerRadius="100%"
+            value={pct} valueMax={100}
+            text={() => ''}
+            sx={{
+              [`& .${gaugeClasses.valueArc}`]: { fill: COLOR_ON },
+              [`& .${gaugeClasses.referenceArc}`]: { fill: dark(theme) ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' },
+            }}
+          />
           <Box sx={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '1.9rem', fontWeight: 700, color: COLOR_ON, lineHeight: 1 }}>{pct}%</Typography>
             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.55rem', color: 'text.disabled', letterSpacing: '0.14em', textTransform: 'uppercase' }}>of modules on</Typography>
@@ -194,30 +176,26 @@ function CategoryBar({ modules, accent, theme }) {
     return Object.values(map).sort((a, b) => (b.on + b.off) - (a.on + a.off))
   }, [modules])
 
-  const gridColor = dark(theme) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
-  const tickFill  = theme.palette.text.secondary
+  const tickFill = theme.palette.text.secondary
+  const tickLabelStyle = { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -35, textAnchor: 'end' }
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
       <CardHeader icon={CategoryIcon} label="Modules by Category" accent={accent} />
       <Box sx={{ p: 2.5, pt: 2 }}>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={cats} margin={{ top: 0, right: 8, left: -22, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="cat"
-              tick={{ fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif' }}
-              angle={-35} textAnchor="end" interval={0}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-            <ChartTooltip
-              contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-            />
-            <Legend wrapperStyle={{ fontFamily: '"Raleway", sans-serif', fontSize: 11, paddingTop: 8 }} />
-            <Bar dataKey="on"  name="Enabled"  fill={COLOR_ON}  radius={[3, 3, 0, 0]} />
-            <Bar dataKey="off" name="Disabled" fill={COLOR_OFF} radius={[3, 3, 0, 0]} opacity={0.7} />
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChart
+          height={220}
+          dataset={cats}
+          xAxis={[{ dataKey: 'cat', scaleType: 'band', tickLabelStyle }]}
+          yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+          series={[
+            { dataKey: 'on',  label: 'Enabled',  color: COLOR_ON },
+            { dataKey: 'off', label: 'Disabled', color: COLOR_OFF },
+          ]}
+          margin={{ top: 8, right: 8, left: 24, bottom: 56 }}
+          grid={{ horizontal: true }}
+          slotProps={{ legend: { direction: 'row', position: { vertical: 'top', horizontal: 'right' } } }}
+        />
       </Box>
     </Card>
   )
@@ -230,40 +208,34 @@ function ModuleBar({ modules, accent, theme }) {
       .map(([name, enabled]) => ({
         name: name.length > 28 ? name.slice(0, 26) + '…' : name,
         fullName: name,
-        enabled: enabled ? 1 : 0,
+        on:  enabled ? 1 : 0,
+        off: enabled ? 0 : 1,
       }))
-      .sort((a, b) => b.enabled - a.enabled || a.name.localeCompare(b.name))
+      .sort((a, b) => b.on - a.on || a.name.localeCompare(b.name))
       .slice(0, 30)
   }, [modules])
 
-  const gridColor = dark(theme) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
-  const tickFill  = theme.palette.text.secondary
-
-  const CustomBar = (props) => {
-    const { x, y, width, height, enabled } = props
-    return <rect x={x} y={y} width={width} height={height} fill={enabled ? COLOR_ON : COLOR_OFF} rx={2} opacity={enabled ? 0.85 : 0.5} />
-  }
+  const tickFill = theme.palette.text.secondary
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
       <CardHeader icon={BarChartIcon} label={`Module Status — Top ${data.length}`} accent={accent} />
       <Box sx={{ p: 2, overflowX: 'auto' }}>
         <Box sx={{ minWidth: 340 }}>
-          <ResponsiveContainer width="100%" height={Math.max(data.length * 22, 300)}>
-            <BarChart data={data} layout="vertical" margin={{ left: 8, right: 40, top: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
-              <XAxis type="number" domain={[0, 1]} hide />
-              <YAxis
-                type="category" dataKey="name" width={180}
-                tick={{ fontSize: 10.5, fill: tickFill, fontFamily: '"Raleway", sans-serif' }}
-              />
-              <ChartTooltip
-                contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-                formatter={(val, name, { payload }) => [payload.enabled ? 'Enabled' : 'Disabled', payload.fullName]}
-              />
-              <Bar dataKey="enabled" shape={<CustomBar />} isAnimationActive={false} />
-            </BarChart>
-          </ResponsiveContainer>
+          <BarChart
+            height={Math.max(data.length * 22, 300)}
+            layout="horizontal"
+            dataset={data}
+            xAxis={[{ min: 0, max: 1, tickLabelStyle: { fontSize: 0 } }]}
+            yAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle: { fontSize: 10.5, fill: tickFill, fontFamily: '"Raleway", sans-serif' } }]}
+            series={[
+              { dataKey: 'on',  label: 'Enabled',  color: COLOR_ON,  stack: 'status' },
+              { dataKey: 'off', label: 'Disabled', color: COLOR_OFF, stack: 'status' },
+            ]}
+            margin={{ left: 180, right: 24, top: 0, bottom: 0 }}
+            grid={{ vertical: true }}
+            slotProps={{ legend: { hidden: true } }}
+          />
         </Box>
       </Box>
     </Card>
@@ -273,42 +245,31 @@ function ModuleBar({ modules, accent, theme }) {
 // ── Countries visual bar ───────────────────────────────────────────────────────
 function CountriesChart({ countries, accent, theme }) {
   const data = useMemo(() =>
-    Object.entries(countries || {}).map(([name, active]) => ({ name, active: active ? 1 : 0 }))
-      .sort((a, b) => b.active - a.active || a.name.localeCompare(b.name)),
+    Object.entries(countries || {}).map(([name, active]) => ({ name, on: active ? 1 : 0, off: active ? 0 : 1 }))
+      .sort((a, b) => b.on - a.on || a.name.localeCompare(b.name)),
   [countries])
 
-  const gridColor = dark(theme) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
-  const tickFill  = theme.palette.text.secondary
-  const activeCount = data.filter((d) => d.active).length
+  const tickFill = theme.palette.text.secondary
+  const activeCount = data.filter((d) => d.on).length
+  const inactiveColor = dark(theme) ? 'rgba(100,149,180,0.2)' : 'rgba(100,149,180,0.18)'
 
   return (
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
       <CardHeader icon={PublicIcon} label={`Country Coverage — ${activeCount} Active`} accent={accent} />
       <Box sx={{ p: 2.5 }}>
-        <ResponsiveContainer width="100%" height={210}>
-          <BarChart data={data} margin={{ top: 0, right: 8, left: -20, bottom: 50 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif' }}
-              angle={-45} textAnchor="end" interval={0}
-            />
-            <YAxis allowDecimals={false} domain={[0, 1]} ticks={[0, 1]} tickFormatter={(v) => v ? 'Yes' : 'No'} tick={{ fontSize: 10, fill: tickFill }} />
-            <ChartTooltip
-              contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-              formatter={(v, n, { payload }) => [payload.active ? 'Active' : 'Inactive', payload.name]}
-            />
-            <Bar
-              dataKey="active"
-              radius={[3, 3, 0, 0]}
-              isAnimationActive
-            >
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.active ? COLOR_ON : dark(theme) ? 'rgba(100,149,180,0.2)' : 'rgba(100,149,180,0.18)'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChart
+          height={210}
+          dataset={data}
+          xAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle: { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -45, textAnchor: 'end' } }]}
+          yAxis={[{ min: 0, max: 1, tickLabelStyle: { fontSize: 0 } }]}
+          series={[
+            { dataKey: 'on',  label: 'Active',   color: COLOR_ON,      stack: 'status' },
+            { dataKey: 'off', label: 'Inactive', color: inactiveColor, stack: 'status' },
+          ]}
+          margin={{ top: 8, right: 8, left: 8, bottom: 64 }}
+          grid={{ horizontal: true }}
+          slotProps={{ legend: { hidden: true } }}
+        />
       </Box>
     </Card>
   )
@@ -329,8 +290,7 @@ function NumericParamsChart({ parameters, accent, theme }) {
       .slice(0, 10)
   }, [parameters])
 
-  const gridColor = dark(theme) ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
-  const tickFill  = theme.palette.text.secondary
+  const tickFill = theme.palette.text.secondary
 
   if (!data.length) return null
 
@@ -338,22 +298,16 @@ function NumericParamsChart({ parameters, accent, theme }) {
     <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
       <CardHeader icon={NumbersIcon} label="Numeric Configuration Values" accent={accent} />
       <Box sx={{ p: 2.5 }}>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data} margin={{ top: 0, right: 16, left: -8, bottom: 50 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif' }}
-              angle={-35} textAnchor="end" interval={0}
-            />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-            <ChartTooltip
-              contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-              formatter={(v, n, { payload }) => [v, payload.fullName]}
-            />
-            <Bar dataKey="value" fill={COLOR_BLU} radius={[3, 3, 0, 0]} opacity={0.85} />
-          </BarChart>
-        </ResponsiveContainer>
+        <BarChart
+          height={200}
+          dataset={data}
+          xAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle: { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -35, textAnchor: 'end' } }]}
+          yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+          series={[{ dataKey: 'value', label: 'Value', color: COLOR_BLU }]}
+          margin={{ top: 8, right: 16, left: 16, bottom: 56 }}
+          grid={{ horizontal: true }}
+          slotProps={{ legend: { hidden: true } }}
+        />
       </Box>
     </Card>
   )
@@ -373,14 +327,14 @@ function CountriesPie({ countries, accent, theme }) {
       <CardHeader icon={PublicIcon} label="Country Ratio" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 160 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value" stroke="none">
-                {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <ChartTooltip contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
+          <PieChart
+            height={160}
+            series={[{
+              data: data.map((d, i) => ({ id: i, value: d.value, label: d.name, color: d.color })),
+              innerRadius: 45, outerRadius: 65,
+            }]}
+            slotProps={{ legend: { hidden: true } }}
+          />
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '1.6rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>{active}</Typography>
             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.52rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'text.disabled' }}>active</Typography>

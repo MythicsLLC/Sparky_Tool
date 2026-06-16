@@ -4,10 +4,7 @@ import {
   Button, Chip,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+import { LineChart, BarChart } from '@mui/x-charts'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ErrorOutlineIcon       from '@mui/icons-material/ErrorOutline'
 import RefreshIcon            from '@mui/icons-material/Refresh'
@@ -112,7 +109,6 @@ export default function OperationalDashboard() {
   const { token } = useAuth()
   const theme  = useTheme()
   const accent = theme.palette.primary.main
-  const dark   = theme.palette.mode === 'dark'
 
   const [runs,        setRuns]        = useState([])
   const [loadingRuns, setLoadingRuns] = useState(true)
@@ -120,8 +116,7 @@ export default function OperationalDashboard() {
   const [checking,    setChecking]    = useState(false)
   const [error,       setError]       = useState(null)
 
-  const gridStroke = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
-  const tickFill   = theme.palette.text.secondary
+  const tickFill = theme.palette.text.secondary
 
   const loadRuns = useCallback(() => {
     if (!token) return
@@ -275,15 +270,17 @@ export default function OperationalDashboard() {
             </Box>
             <Box sx={{ p: 2.5 }}>
               {failuresByStep.length ? (
-                <ResponsiveContainer width="100%" height={120}>
-                  <BarChart data={failuresByStep} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-                    <YAxis type="category" dataKey="step" tick={{ fontSize: 11, fill: tickFill, fontFamily: '"JetBrains Mono", monospace' }} width={70} />
-                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                    <ChartTooltip contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }} />
-                    <Bar dataKey="count" name="Failures" fill="#b45050" radius={[0, 3, 3, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart
+                  height={120}
+                  layout="horizontal"
+                  dataset={failuresByStep}
+                  xAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+                  yAxis={[{ dataKey: 'step', scaleType: 'band', tickLabelStyle: { fontSize: 11, fill: tickFill, fontFamily: '"JetBrains Mono", monospace' } }]}
+                  series={[{ dataKey: 'count', label: 'Failures', color: '#b45050' }]}
+                  margin={{ left: 70, right: 16, top: 0, bottom: 0 }}
+                  grid={{ vertical: true }}
+                  slotProps={{ legend: { hidden: true } }}
+                />
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 3 }}>
                   <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#6b8f71' }} />
@@ -344,30 +341,19 @@ export default function OperationalDashboard() {
               Run Health — Last 30 Days
             </Typography>
           </Box>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={runsByDay} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="opGradSuccess" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6b8f71" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6b8f71" stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="opGradErrors" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#b45050" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#b45050" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-              <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fontSize: 10, fill: tickFill }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-              <ChartTooltip
-                contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-                labelFormatter={fmtDay}
-              />
-              <Legend wrapperStyle={{ fontFamily: '"Raleway", sans-serif', fontSize: 11 }} />
-              <Area type="monotone" dataKey="success" name="Success" stroke="#6b8f71" fill="url(#opGradSuccess)" strokeWidth={1.5} dot={false} />
-              <Area type="monotone" dataKey="errors"  name="Errors"  stroke="#b45050" fill="url(#opGradErrors)"  strokeWidth={1.5} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <LineChart
+            height={200}
+            dataset={runsByDay}
+            xAxis={[{ dataKey: 'day', scaleType: 'point', valueFormatter: fmtDay, tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+            yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+            series={[
+              { dataKey: 'success', label: 'Success', color: '#6b8f71', area: true, showMark: false },
+              { dataKey: 'errors',  label: 'Errors',  color: '#b45050', area: true, showMark: false },
+            ]}
+            margin={{ top: 4, right: 8, left: 8, bottom: 24 }}
+            grid={{ horizontal: true }}
+            slotProps={{ legend: { direction: 'row', position: { vertical: 'top', horizontal: 'right' } } }}
+          />
         </Card>
       )}
     </Box>

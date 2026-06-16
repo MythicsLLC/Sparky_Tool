@@ -1,16 +1,6 @@
 import { useTheme } from '@mui/material/styles'
 import { Box, Typography, Card, CardContent, Chip } from '@mui/material'
-import {
-  BarChart, Bar,
-  LineChart, Line,
-  AreaChart, Area,
-  PieChart, Pie, Cell,
-  RadialBarChart, RadialBar,
-  ScatterChart, Scatter, ZAxis,
-  XAxis, YAxis, CartesianGrid,
-  Tooltip as ChartTooltip,
-  ResponsiveContainer, Legend,
-} from 'recharts'
+import { BarChart, LineChart, PieChart, ScatterChart, Gauge, gaugeClasses } from '@mui/x-charts'
 
 export const PALETTE = ['#6b8f71','#6495b4','#c9a84c','#b45050','#9b59b6','#e67e22','#1abc9c','#e74c3c']
 const pal = (i) => PALETTE[i % PALETTE.length]
@@ -24,11 +14,7 @@ export function DynamicChart({ spec }) {
   const { type, data = [], xKey, yKeys = [], nameKey = 'name', dataKey = 'value', colors = PALETTE } = spec
   const c = (i) => colors[i] || pal(i)
   const theme = useTheme()
-  const dark  = theme.palette.mode === 'dark'
-  const paper = dark ? '#111316' : '#ffffff'
-  const tooltipBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'
-  const gridColor     = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
-  const tooltipStyle  = { fontSize: 11, background: paper, border: `1px solid ${tooltipBorder}` }
+  const tickLabelStyle = { fontSize: 10, fontFamily: theme.typography.fontFamily }
 
   if (!data.length) {
     return (
@@ -39,105 +25,82 @@ export function DynamicChart({ spec }) {
   }
 
   if (type === 'pie') {
+    const total = data.reduce((sum, d) => sum + (Number(d[dataKey]) || 0), 0)
     return (
-      <ResponsiveContainer width="100%" height={260}>
-        <PieChart>
-          <Pie
-            data={data}
-            dataKey={dataKey}
-            nameKey={nameKey}
-            cx="50%" cy="50%"
-            outerRadius={95} innerRadius={42}
-            paddingAngle={2}
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            labelLine={false}
-            isAnimationActive={false}
-          >
-            {data.map((_, i) => <Cell key={i} fill={c(i)} />)}
-          </Pie>
-          <ChartTooltip
-            contentStyle={tooltipStyle}
-            formatter={(v) => [Number(v).toLocaleString(), '']}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+      <PieChart
+        height={260}
+        series={[{
+          data: data.map((d, i) => ({ id: i, value: Number(d[dataKey]) || 0, label: d[nameKey], color: c(i) })),
+          innerRadius: 42, outerRadius: 95, paddingAngle: 2,
+          arcLabel: (item) => total ? `${((item.value / total) * 100).toFixed(0)}%` : '',
+          arcLabelMinAngle: 18,
+        }]}
+        sx={{ '& .MuiPieArcLabel-root': { fontSize: 10, fill: '#fff' } }}
+        slotProps={{ legend: { hidden: false, direction: 'row', position: { vertical: 'bottom', horizontal: 'center' } } }}
+      />
     )
   }
 
   if (type === 'radialBar') {
     return (
-      <ResponsiveContainer width="100%" height={260}>
-        <RadialBarChart data={data} innerRadius={22} outerRadius={110} cx="50%" cy="55%">
-          <RadialBar background dataKey={dataKey} label={{ position: 'insideStart', fill: '#fff', fontSize: 10 }}>
-            {data.map((_, i) => <Cell key={i} fill={c(i)} />)}
-          </RadialBar>
-          <Legend
-            iconSize={10}
-            formatter={(v) => <span style={{ fontSize: 11 }}>{v}</span>}
-          />
-          <ChartTooltip
-            contentStyle={tooltipStyle}
-            formatter={(v) => [`${v}%`, '']}
-          />
-        </RadialBarChart>
-      </ResponsiveContainer>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', alignItems: 'center', py: 1 }}>
+        {data.map((d, i) => {
+          const value = Number(d[dataKey]) || 0
+          return (
+            <Box key={i} sx={{ textAlign: 'center', width: 104 }}>
+              <Gauge
+                width={92} height={92}
+                value={value} valueMax={100}
+                text={({ value: v }) => `${v}%`}
+                sx={{
+                  [`& .${gaugeClasses.valueArc}`]: { fill: c(i) },
+                  [`& .${gaugeClasses.valueText}`]: { fontSize: 14, fontWeight: 700 },
+                }}
+              />
+              <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', mt: 0.5 }}>{d[nameKey]}</Typography>
+            </Box>
+          )
+        })}
+      </Box>
     )
   }
 
   if (type === 'scatter') {
     return (
-      <ResponsiveContainer width="100%" height={260}>
-        <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-          <XAxis dataKey="x" type="number" name={xKey} tick={{ fontSize: 10 }} />
-          <YAxis dataKey="y" type="number" name={yKeys[0] || 'y'} tick={{ fontSize: 10 }} />
-          <ZAxis range={[38, 38]} />
-          <ChartTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={tooltipStyle} />
-          <Scatter data={data} fill={c(0)} isAnimationActive={false} />
-        </ScatterChart>
-      </ResponsiveContainer>
+      <ScatterChart
+        height={260}
+        series={[{
+          data: data.map((d, i) => ({ x: d.x, y: d.y, id: i })),
+          color: c(0),
+        }]}
+        xAxis={[{ label: xKey, tickLabelStyle }]}
+        yAxis={[{ label: yKeys[0] || 'y', tickLabelStyle }]}
+        margin={{ top: 8, right: 16, bottom: 36, left: 50 }}
+        grid={{ vertical: true, horizontal: true }}
+      />
     )
   }
 
-  const safeYKeys    = yKeys.length ? yKeys : Object.keys(data[0] || {}).filter((k) => k !== xKey)
-  const ChartWrapper = type === 'line' ? LineChart : type === 'area' ? AreaChart : BarChart
+  const safeYKeys = yKeys.length ? yKeys : Object.keys(data[0] || {}).filter((k) => k !== xKey)
+  const series = safeYKeys.map((key, i) => ({
+    dataKey: key,
+    label: key,
+    color: c(i),
+    ...(type === 'area' ? { area: true, showMark: false } : {}),
+  }))
+  const ChartComponent = type === 'line' || type === 'area' ? LineChart : BarChart
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ChartWrapper data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 10 }} />
-        <ChartTooltip
-          contentStyle={{ fontSize: 11, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}
-        />
-        {safeYKeys.length > 1 && <Legend iconSize={10} />}
-
-        {safeYKeys.map((key, i) => {
-          if (type === 'line') {
-            return (
-              <Line
-                key={key} type="monotone" dataKey={key}
-                stroke={c(i)} strokeWidth={2} dot={false}
-                isAnimationActive={false}
-              />
-            )
-          }
-          if (type === 'area') {
-            return (
-              <Area
-                key={key} type="monotone" dataKey={key}
-                stroke={c(i)} fill={c(i)} fillOpacity={0.22} strokeWidth={2}
-                dot={false} isAnimationActive={false}
-              />
-            )
-          }
-          return (
-            <Bar key={key} dataKey={key} fill={c(i)} radius={[2, 2, 0, 0]} isAnimationActive={false} />
-          )
-        })}
-      </ChartWrapper>
-    </ResponsiveContainer>
+    <ChartComponent
+      height={260}
+      dataset={data}
+      xAxis={[{ dataKey: xKey, scaleType: type === 'bar' ? 'band' : 'point', tickLabelStyle }]}
+      yAxis={[{ tickLabelStyle }]}
+      series={series}
+      margin={{ top: 8, right: 16, bottom: 24, left: 40 }}
+      grid={{ horizontal: true }}
+      slotProps={{ legend: { hidden: safeYKeys.length <= 1 } }}
+    />
   )
 }
 

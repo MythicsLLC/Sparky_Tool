@@ -46,10 +46,7 @@ import FlagIcon                 from '@mui/icons-material/Flag'
 import TimelineIcon             from '@mui/icons-material/Timeline'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import FiberManualRecordIcon    from '@mui/icons-material/FiberManualRecord'
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip as ChartTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
+import { LineChart, BarChart, PieChart } from '@mui/x-charts'
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import {
@@ -746,7 +743,6 @@ export default function Admin() {
     { name: 'Running', value: stats.running_runs  || 0,  color: accent },
   ].filter((d) => d.value > 0) : []
 
-  const gridStroke = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'
   const tickFill   = theme.palette.text.secondary
 
   // tab label helpers
@@ -853,30 +849,19 @@ export default function Admin() {
               </Typography>
             </Box>
             {stats.runs_per_day?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={stats.runs_per_day} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gradSuccess" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#6b8f71" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#6b8f71" stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="gradErrors" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#b45050" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#b45050" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="day" tickFormatter={fmtDay} tick={{ fontSize: 10, fill: tickFill }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-                  <ChartTooltip
-                    contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: 4, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-                    labelFormatter={fmtDay}
-                  />
-                  <Legend wrapperStyle={{ fontFamily: '"Raleway", sans-serif', fontSize: 11 }} />
-                  <Area type="monotone" dataKey="success" name="Success" stroke="#6b8f71" fill="url(#gradSuccess)" strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="errors"  name="Errors"  stroke="#b45050" fill="url(#gradErrors)"  strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <LineChart
+                height={200}
+                dataset={stats.runs_per_day}
+                xAxis={[{ dataKey: 'day', scaleType: 'point', valueFormatter: fmtDay, tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+                yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+                series={[
+                  { dataKey: 'success', label: 'Success', color: '#6b8f71', area: true, showMark: false, curve: 'monotoneX' },
+                  { dataKey: 'errors',  label: 'Errors',  color: '#b45050', area: true, showMark: false, curve: 'monotoneX' },
+                ]}
+                margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
+                grid={{ horizontal: true }}
+                slotProps={{ legend: { direction: 'row', position: { vertical: 'bottom', horizontal: 'center' } } }}
+              />
             ) : (
               <Typography sx={{ color: 'text.disabled', fontSize: '0.82rem', py: 4, textAlign: 'center' }}>
                 No run data in the last 30 days
@@ -896,16 +881,14 @@ export default function Admin() {
                 </Box>
                 {pieData.length > 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <ResponsiveContainer width={140} height={140}>
-                      <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={64} dataKey="value" strokeWidth={0}>
-                          {pieData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-                        </Pie>
-                        <ChartTooltip
-                          contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <PieChart
+                      width={140} height={140}
+                      series={[{
+                        data: pieData.map((entry) => ({ id: entry.name, value: entry.value, label: entry.name, color: entry.color })),
+                        innerRadius: 40, outerRadius: 64,
+                      }]}
+                      slotProps={{ legend: { hidden: true } }}
+                    />
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {pieData.map((entry) => (
                         <Box key={entry.name} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -936,15 +919,17 @@ export default function Admin() {
                   </Typography>
                 </Box>
                 {failedStepData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={130}>
-                    <BarChart data={failedStepData} layout="vertical" margin={{ left: 0, right: 12, top: 0, bottom: 0 }}>
-                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
-                      <YAxis type="category" dataKey="step" tick={{ fontSize: 11, fill: tickFill, fontFamily: '"JetBrains Mono", monospace' }} width={64} />
-                      <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                      <ChartTooltip contentStyle={{ background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, fontFamily: '"Raleway", sans-serif', fontSize: 12 }} />
-                      <Bar dataKey="count" name="Failures" fill="#b45050" radius={[0, 3, 3, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <BarChart
+                    layout="horizontal"
+                    height={130}
+                    dataset={failedStepData}
+                    yAxis={[{ dataKey: 'step', scaleType: 'band', tickLabelStyle: { fontSize: 11, fill: tickFill, fontFamily: '"JetBrains Mono", monospace' } }]}
+                    xAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+                    series={[{ dataKey: 'count', label: 'Failures', color: '#b45050' }]}
+                    margin={{ left: 72, right: 12, top: 4, bottom: 4 }}
+                    grid={{ vertical: true }}
+                    slotProps={{ legend: { hidden: true } }}
+                  />
                 ) : (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 3 }}>
                     <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#6b8f71' }} />

@@ -14,16 +14,16 @@
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^5.16.0",
     "@mui/material": "^5.16.0",
+    "@mui/x-charts": "^7.29.1",
     "@mui/x-data-grid": "^7.29.13",
     "@tanstack/react-table": "^8.20.5",
     "axios": "^1.7.7",
     "gsap": "^3.15.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "matter-js": "^0.19.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "recharts": "^2.13.0"
-    ,"matter-js": "^0.19.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.2",
