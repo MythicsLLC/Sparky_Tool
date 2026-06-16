@@ -15,6 +15,7 @@ and Unix-style paths (/C:/Users/Admin). Use whichever your server supports.
 """
 from __future__ import annotations
 import io
+import os
 import stat as _stat
 from datetime import datetime, timezone
 import paramiko
@@ -23,11 +24,23 @@ from logger import get_logger
 log = get_logger("win_ssh_client")
 
 
+def _make_ssh_client() -> paramiko.SSHClient:
+    """Return an SSHClient with a safe host-key policy (mirrors sftp_client)."""
+    client = paramiko.SSHClient()
+    known_hosts = os.environ.get("SSH_KNOWN_HOSTS", "")
+    if known_hosts:
+        client.load_host_keys(known_hosts)
+        client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        log.debug("SSH strict host-key checking enabled from %s", known_hosts)
+    else:
+        client.set_missing_host_key_policy(paramiko.WarningPolicy())
+    return client
+
+
 def _connect(host: str, username: str, password: str,
              port: int = 22) -> tuple[paramiko.SSHClient, paramiko.SFTPClient]:
     """Open SSH connection and SFTP subsystem; caller must close both."""
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh = _make_ssh_client()
     ssh.connect(hostname=host, port=port, username=username, password=password,
                 timeout=30, banner_timeout=30)
     sftp = ssh.open_sftp()

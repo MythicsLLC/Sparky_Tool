@@ -30,7 +30,7 @@ _startup_ok = False   # set to True after successful lifespan startup
 
 
 def _check_required_env() -> None:
-    """Fail fast at startup if critical env vars are missing."""
+    """Fail fast at startup if critical env vars are missing or malformed."""
     missing = []
     for var in ("DATABASE_URL", "CLERK_JWKS_URL", "ENCRYPTION_KEY"):
         val = _os.environ.get(var, "") or getattr(settings, var.lower(), "")
@@ -41,6 +41,19 @@ def _check_required_env() -> None:
             f"Required environment variables not set: {', '.join(missing)}. "
             "Configure them in the Render dashboard (Environment → Add Variable)."
         )
+
+    # Validate ENCRYPTION_KEY is a valid 44-char base64 Fernet key before any
+    # encrypt/decrypt attempt at request time.
+    import base64 as _b64
+    enc_key = _os.environ.get("ENCRYPTION_KEY", "") or getattr(settings, "encryption_key", "")
+    try:
+        decoded = _b64.urlsafe_b64decode(enc_key + "==")
+        if len(decoded) != 32:
+            raise ValueError("key must decode to 32 bytes")
+    except Exception as _ke:
+        raise RuntimeError(
+            f"ENCRYPTION_KEY is not a valid Fernet key (32-byte url-safe base64): {_ke}"
+        ) from _ke
 
 
 @asynccontextmanager
@@ -113,6 +126,29 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # Prevent MIME sniffing attacks and restrict permitted APIs
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' data: https://fonts.gstatic.com; "
+            "img-src 'self' data: blob: https:; "
+            "connect-src 'self' https: wss:; "
+            "frame-ancestors 'none';"
+        ),
+    )
+    # Enforce HTTPS for 1 year (only meaningful when served over TLS — Render handles TLS termination)
+    response.headers.setdefault(
+        "Strict-Transport-Security",
+        "max-age=31536000; includeSubDomains",
+    )
+    # Disable unused browser features
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=()",
+    )
     return response
 
 
