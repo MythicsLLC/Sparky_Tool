@@ -3,36 +3,13 @@ import { Box, Typography, Button } from '@mui/material'
 import SparkyDog from '../assets/SparkyDog'
 import SparkyWordmark from './SparkyWordmark'
 import MythicsLogo from '../assets/MythicsLogo'
+import WelcomePhysics from './WelcomePhysics'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
 import { checkHealth } from '../api'
 import { useThemeContext } from '../ThemeContext'
 
 const MAX_ATTEMPTS = 5
 const RETRY_MS = 2000
-const PARTICLE_COUNT = 120
-const REPEL_RADIUS = 100
-const MAX_SPEED = 3
-
-function randomBetween(a, b) { return a + Math.random() * (b - a) }
-
-function makeParticle(w, h) {
-  return {
-    x: Math.random() * w,
-    y: Math.random() * h,
-    vx: randomBetween(-0.4, 0.4),
-    vy: randomBetween(-0.4, 0.4),
-    r: randomBetween(1, 2.5),
-    opacity: randomBetween(0.2, 0.6),
-  }
-}
-
-function hexToRgb(hex) {
-  const h = hex.replace('#', '')
-  const n = parseInt(h.length === 3
-    ? h.split('').map(c => c + c).join('')
-    : h, 16)
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
-}
 
 // authLoading=true means the backend health check already passed; we're now
 // waiting for Clerk auth to resolve. Skip health checks, show a different status.
@@ -40,13 +17,6 @@ export default function StartupScreen({ onReady, authLoading = false }) {
   const { accent } = useThemeContext()
   const [status, setStatus] = useState('checking')
   const timer = useRef(null)
-  const canvasRef = useRef(null)
-  const mouseRef = useRef({ x: -9999, y: -9999 })
-  const accentRef = useRef(accent)
-  const rafRef = useRef(null)
-
-  // Keep accentRef in sync so the canvas loop always draws with the live accent
-  accentRef.current = accent
 
   // ── Health check (skipped when authLoading — backend already confirmed OK) ──
   const runCheck = useCallback(() => {
@@ -73,81 +43,6 @@ export default function StartupScreen({ onReady, authLoading = false }) {
     return () => clearTimeout(timer.current)
   }, [runCheck, authLoading])
 
-  // ── Particle canvas ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-
-    const resize = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-    }
-    resize()
-
-    const particles = Array.from({ length: PARTICLE_COUNT }, () =>
-      makeParticle(canvas.width, canvas.height)
-    )
-
-    const onMouseMove = (e) => { mouseRef.current = { x: e.clientX, y: e.clientY } }
-    const onMouseLeave = () => { mouseRef.current = { x: -9999, y: -9999 } }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseleave', onMouseLeave)
-    window.addEventListener('resize', resize)
-
-    const draw = () => {
-      const { width, height } = canvas
-      const mouse = mouseRef.current
-      const [r, g, b] = hexToRgb(accentRef.current)
-
-      ctx.clearRect(0, 0, width, height)
-
-      for (const p of particles) {
-        // Mouse repulsion
-        const dx = p.x - mouse.x
-        const dy = p.y - mouse.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < REPEL_RADIUS && dist > 0) {
-          const force = (REPEL_RADIUS - dist) * 0.04
-          p.vx += (dx / dist) * force
-          p.vy += (dy / dist) * force
-        }
-
-        // Cap speed
-        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
-        if (speed > MAX_SPEED) {
-          p.vx = (p.vx / speed) * MAX_SPEED
-          p.vy = (p.vy / speed) * MAX_SPEED
-        }
-
-        // Move + wrap edges
-        p.x += p.vx
-        p.y += p.vy
-        if (p.x < 0) p.x += width
-        if (p.x > width) p.x -= width
-        if (p.y < 0) p.y += height
-        if (p.y > height) p.y -= height
-
-        // Draw
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${p.opacity})`
-        ctx.fill()
-      }
-
-      rafRef.current = requestAnimationFrame(draw)
-    }
-
-    rafRef.current = requestAnimationFrame(draw)
-
-    return () => {
-      cancelAnimationFrame(rafRef.current)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseleave', onMouseLeave)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
-
   const isError = !authLoading && status === 'error'
 
   return (
@@ -161,16 +56,10 @@ export default function StartupScreen({ onReady, authLoading = false }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Particle canvas — behind everything */}
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      {/* 2D physics scene — behind everything, fills the viewport */}
+      <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+        <WelcomePhysics accent={accent} interactive variant="full" />
+      </Box>
 
       {/* Subtle diagonal pattern */}
       <Box sx={{
@@ -334,6 +223,9 @@ export default function StartupScreen({ onReady, authLoading = false }) {
                 }} />
               ))}
             </Box>
+            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.56rem', letterSpacing: '0.1em', color: 'text.disabled', mt: 3, opacity: 0.6 }}>
+              drag the shapes, or double-click for a burst ✦
+            </Typography>
           </Box>
         )}
       </Box>
