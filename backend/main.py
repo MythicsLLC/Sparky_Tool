@@ -109,10 +109,29 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    h = response.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("X-XSS-Protection", "1; mode=block")
+    h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # Restrict browser feature access for an enterprise data tool
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+    # Content-Security-Policy — allows Clerk auth iframes/scripts; blocks plugins and cross-origin framing
+    h.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://*.clerk.com https://*.clerk.accounts.dev; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self' https://*.clerk.com https://*.clerk.dev https://api.clerk.com wss: ws:; "
+        "img-src 'self' data: https: blob:; "
+        "font-src 'self' data:; "
+        "frame-src https://*.clerk.com https://*.clerk.accounts.dev; "
+        "object-src 'none'; "
+        "frame-ancestors 'none'",
+    )
+    # HSTS — only meaningful over HTTPS; Render terminates TLS and forwards proto via header
+    if request.headers.get("x-forwarded-proto") == "https":
+        h.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
 
@@ -211,8 +230,8 @@ async def _emit_wide_event(
             )
         finally:
             db.close()  # always runs — no more session leaks
-    except Exception:
-        pass  # wide events are best-effort, never crash the request
+    except Exception as _exc:
+        log.debug("Wide event write failed (best-effort): %s", _exc)
 
 
 # ── v2 routers ────────────────────────────────────────────────────────────────
