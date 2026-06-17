@@ -3,6 +3,7 @@ import { Box, Typography, Button } from '@mui/material'
 import SparkyDog from '../assets/SparkyDog'
 import SparkyWordmark from './SparkyWordmark'
 import MythicsLogo from '../assets/MythicsLogo'
+import LogoReveal from './LogoReveal'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
 import { checkHealth } from '../api'
 import { useThemeContext } from '../ThemeContext'
@@ -127,43 +128,12 @@ export default function StartupScreen({ onReady, authLoading = false }) {
           </Box>
         </Box>
 
-        {/* Center icon */}
-        <Box sx={{ position: 'relative', mb: 5 }}>
-          {/* Outer square frame */}
-          <Box sx={{
-            width: 130, height: 130,
-            border: `1px solid ${accent}26`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative',
-            '&::before': {
-              content: '""', position: 'absolute', inset: -8,
-              border: `1px solid ${accent}0f`,
-            },
-          }}>
-            {/* Inner rotating square */}
-            <Box sx={{
-              position: 'absolute', inset: 20,
-              border: `1px solid ${accent}33`,
-              '@keyframes rotateSq': { to: { transform: 'rotate(45deg)' } },
-              animation: isError ? 'none' : 'rotateSq 8s linear infinite',
-            }} />
-
-            {isError
-              ? <WifiOffIcon sx={{ fontSize: 40, color: 'rgba(143,74,74,0.7)', zIndex: 1 }} />
-              : (
-                <Box sx={{
-                  zIndex: 1,
-                  borderRadius: '50%',
-                  '@keyframes goldBreathe': {
-                    '0%,100%': { filter: `drop-shadow(0 0 4px ${accent}4d)` },
-                    '50%': { filter: `drop-shadow(0 0 18px ${accent}e6)` },
-                  },
-                  animation: 'goldBreathe 3s ease-in-out infinite',
-                }}>
-                  <SparkyDog size={56} circular />
-                </Box>
-              )}
-          </Box>
+        {/* Logo reveal — hover to paint colour into the ghost outline */}
+        <Box sx={{ mb: 4, mt: 1 }}>
+          {isError
+            ? <WifiOffIcon sx={{ fontSize: 56, color: 'rgba(143,74,74,0.6)' }} />
+            : <LogoReveal width={320} height={180} revealRadius={160} />
+          }
         </Box>
 
         {/* Rule */}

@@ -8,6 +8,7 @@ import { useTheme } from '@mui/material/styles'
 import { DataGrid } from '@mui/x-data-grid'
 import MythicsLogo from '../assets/MythicsLogo'
 import MythicsLoader from '../components/MythicsLoader'
+import LogoReveal from '../components/LogoReveal'
 import ViewToggle from '../components/ViewToggle'
 import { getDataGridSx } from '../utils/dataGridSx'
 import ContentCopyIcon        from '@mui/icons-material/ContentCopy'
@@ -509,8 +510,8 @@ export default function Dashboard() {
         {/* ── no-configs empty state ────────────────────────────────────────── */}
         {!pageLoading && !configs.length && (
           <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', p: 6, textAlign: 'center' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-              <MythicsLogo width={64} style={{ opacity: 0.5 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <LogoReveal width={260} height={150} revealRadius={120} />
             </Box>
             <Typography sx={{ color: 'text.primary', fontFamily: '"Raleway", sans-serif', fontWeight: 700, mb: 1 }}>
               No configurations yet
