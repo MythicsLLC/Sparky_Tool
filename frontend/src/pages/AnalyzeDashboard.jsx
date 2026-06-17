@@ -1275,10 +1275,10 @@ export default function AnalyzeDashboard() {
           <SectionDivider label={`Visualisations · ${(result.charts || []).length} charts`} />
 
           <Box ref={chartsRef}>
-            <Grid container spacing={2.5}>
-              {(result.charts || []).map((spec) => (
-                <Grid item xs={12} md={6} key={spec.id || spec.title}>
-                  <ChartCard spec={spec} />
+            <Grid container spacing={2.5} alignItems="stretch">
+              {(result.charts || []).map((spec, i) => (
+                <Grid item xs={12} md={6} key={spec.id || spec.title} sx={{ display: 'flex' }}>
+                  <ChartCard spec={spec} index={i} />
                 </Grid>
               ))}
             </Grid>
