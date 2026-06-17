@@ -3,7 +3,6 @@ import { Box, Typography, Button } from '@mui/material'
 import SparkyDog from '../assets/SparkyDog'
 import SparkyWordmark from './SparkyWordmark'
 import MythicsLogo from '../assets/MythicsLogo'
-import WelcomePhysics from './WelcomePhysics'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
 import { checkHealth } from '../api'
 import { useThemeContext } from '../ThemeContext'
@@ -56,11 +55,6 @@ export default function StartupScreen({ onReady, authLoading = false }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* 2D physics scene — behind everything, fills the viewport */}
-      <Box sx={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-        <WelcomePhysics accent={accent} interactive variant="full" />
-      </Box>
-
       {/* Subtle diagonal pattern */}
       <Box sx={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
@@ -223,9 +217,6 @@ export default function StartupScreen({ onReady, authLoading = false }) {
                 }} />
               ))}
             </Box>
-            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.56rem', letterSpacing: '0.1em', color: 'text.disabled', mt: 3, opacity: 0.6 }}>
-              drag the shapes, or double-click for a burst ✦
-            </Typography>
           </Box>
         )}
       </Box>

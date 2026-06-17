@@ -8,7 +8,6 @@ import { useTheme } from '@mui/material/styles'
 import { DataGrid } from '@mui/x-data-grid'
 import MythicsLogo from '../assets/MythicsLogo'
 import MythicsLoader from '../components/MythicsLoader'
-import WelcomePhysics from '../components/WelcomePhysics'
 import ViewToggle from '../components/ViewToggle'
 import { getDataGridSx } from '../utils/dataGridSx'
 import ContentCopyIcon        from '@mui/icons-material/ContentCopy'
@@ -510,25 +509,9 @@ export default function Dashboard() {
         {/* ── no-configs empty state ────────────────────────────────────────── */}
         {!pageLoading && !configs.length && (
           <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', p: 6, textAlign: 'center' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
-                  <Box sx={{ position: 'relative', display: 'inline-block', width: { xs: 260, sm: 360 }, height: { xs: 160, sm: 200 }, overflow: 'hidden', borderRadius: 2 }}>
-                    <WelcomePhysics accent={accent} interactive={true} variant="full" />
-                    <Box sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-40%)', pointerEvents: 'none' }}>
-                      <MythicsLogo width={82} style={{ opacity: 0.95 }} />
-                    </Box>
-                    <Box sx={{
-                      position: 'absolute', bottom: 4, right: 4,
-                      width: 22, height: 22, borderRadius: '50%',
-                      bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider',
-                      display: 'grid', placeItems: 'center',
-                    }}>
-                      <SettingsIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
-                    </Box>
-                  </Box>
-                </Box>
-            <Typography sx={{ color: 'text.disabled', fontSize: '0.62rem', letterSpacing: '0.08em', mb: 1.5, fontFamily: '"Raleway", sans-serif' }}>
-              Drag the shapes around, or double-click for a burst ✦
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+              <MythicsLogo width={64} style={{ opacity: 0.5 }} />
+            </Box>
             <Typography sx={{ color: 'text.primary', fontFamily: '"Raleway", sans-serif', fontWeight: 700, mb: 1 }}>
               No configurations yet
             </Typography>
