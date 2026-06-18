@@ -46,6 +46,10 @@ import FlagIcon                 from '@mui/icons-material/Flag'
 import TimelineIcon             from '@mui/icons-material/Timeline'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import FiberManualRecordIcon    from '@mui/icons-material/FiberManualRecord'
+import RocketLaunchIcon        from '@mui/icons-material/RocketLaunch'
+import OpenInNewIcon           from '@mui/icons-material/OpenInNew'
+import GitHubIcon              from '@mui/icons-material/GitHub'
+import RefreshOutlinedIcon     from '@mui/icons-material/RefreshOutlined'
 import { LineChart, BarChart, PieChart } from '@mui/x-charts'
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
@@ -58,6 +62,7 @@ import {
   toggleFeatureFlag, deleteFeatureFlag,
   adminConvStats,
   listAdminEngines, createEngine, updateEngine, deleteEngine,
+  getVercelStats,
   formatApiError,
 } from '../api'
 
@@ -390,6 +395,21 @@ export default function Admin() {
 
   // ── AI Usage ──────────────────────────────────────────────────────────────
   const [aiUsage, setAiUsage] = useState(null)
+
+  // ── Vercel Analytics ──────────────────────────────────────────────────────
+  const [vercel,        setVercel]        = useState(null)
+  const [vercelLoading, setVercelLoading] = useState(false)
+  const [vercelError,   setVercelError]   = useState(null)
+
+  const loadVercel = useCallback(() => {
+    if (!token) return
+    setVercelLoading(true)
+    setVercelError(null)
+    getVercelStats(token)
+      .then(r => setVercel(r.data))
+      .catch(e => setVercelError(formatApiError(e)))
+      .finally(() => setVercelLoading(false))
+  }, [token])
 
   // per-row role loading
   const [roleLoadingId, setRoleLoadingId] = useState(null)
@@ -844,6 +864,7 @@ export default function Admin() {
         <Tab label={tabLabel('Feature Flags', flags.length)} icon={<FlagIcon sx={{ fontSize: 14 }} />} iconPosition="start" />
         <Tab label={tabLabel('AI Usage')}             icon={<AccountBalanceWalletIcon sx={{ fontSize: 14 }} />} iconPosition="start" />
         <Tab label={tabLabel('Engines', engines.length)} icon={<StorageIcon sx={{ fontSize: 14 }} />} iconPosition="start" />
+        <Tab label={tabLabel('System Analytics')} icon={<RocketLaunchIcon sx={{ fontSize: 14 }} />} iconPosition="start" onClick={() => { if (!vercel && !vercelLoading) loadVercel() }} />
       </Tabs>
 
       {/* ═══ TAB 0: OVERVIEW ════════════════════════════════════════════════ */}
@@ -860,17 +881,17 @@ export default function Admin() {
             </Box>
             {stats.runs_per_day?.length > 0 ? (
               <LineChart
-                height={200}
+                height={220}
                 dataset={stats.runs_per_day}
-                xAxis={[{ dataKey: 'day', scaleType: 'point', valueFormatter: fmtDay, tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
-                yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
+                xAxis={[{ dataKey: 'day', scaleType: 'point', valueFormatter: fmtDay, tickLabelStyle: { fontSize: 11, fill: tickFill, fontFamily: '"Raleway", sans-serif' } }]}
+                yAxis={[{ tickLabelStyle: { fontSize: 11, fill: tickFill } }]}
                 series={[
                   { dataKey: 'success', label: 'Success', color: '#6b8f71', area: true, showMark: false, curve: 'monotoneX' },
                   { dataKey: 'errors',  label: 'Errors',  color: '#b45050', area: true, showMark: false, curve: 'monotoneX' },
                 ]}
-                margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
+                margin={{ top: 40, right: 16, bottom: 28, left: 32 }}
                 grid={{ horizontal: true }}
-                slotProps={{ legend: { direction: 'row', position: { vertical: 'bottom', horizontal: 'center' } } }}
+                slotProps={{ legend: { direction: 'row', position: { vertical: 'top', horizontal: 'right' }, labelStyle: { fontSize: 12, fontFamily: '"Raleway", sans-serif', fill: tickFill } } }}
               />
             ) : (
               <Typography sx={{ color: 'text.disabled', fontSize: '0.82rem', py: 4, textAlign: 'center' }}>
@@ -2282,6 +2303,231 @@ export default function Admin() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ═══ TAB 9: SYSTEM ANALYTICS (VERCEL) ═════════════════════════════ */}
+      {tab === 9 && (
+        <Box>
+          {/* Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ width: 36, height: 36, borderRadius: '8px', bgcolor: `${accent}1e`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <RocketLaunchIcon sx={{ fontSize: 18, color: accent }} />
+              </Box>
+              <Box>
+                <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '1.5rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>
+                  System Analytics
+                </Typography>
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', fontWeight: 700, color: 'text.disabled', letterSpacing: '0.14em', textTransform: 'uppercase', mt: 0.25 }}>
+                  Vercel hosting · deployments &amp; projects
+                </Typography>
+              </Box>
+            </Box>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={vercelLoading ? <CircularProgress size={13} /> : <RefreshOutlinedIcon sx={{ fontSize: 15 }} />}
+              onClick={loadVercel}
+              disabled={vercelLoading}
+              sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', fontWeight: 700, borderColor: `${accent}44`, color: accent, '&:hover': { borderColor: accent, bgcolor: `${accent}08` } }}
+            >
+              Refresh
+            </Button>
+          </Box>
+
+          {/* Not-configured state */}
+          {vercelError?.includes('VERCEL_TOKEN') && (
+            <Alert severity="warning" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem' }}>
+              <strong>VERCEL_TOKEN not set.</strong> Add <code>VERCEL_TOKEN=your_token</code> (and optionally <code>VERCEL_TEAM_ID</code>) to the backend <code>.env</code> file to enable Vercel analytics.
+            </Alert>
+          )}
+
+          {/* Generic error */}
+          {vercelError && !vercelError.includes('VERCEL_TOKEN') && (
+            <Alert severity="error" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem' }}>{vercelError}</Alert>
+          )}
+
+          {/* Loading skeleton */}
+          {vercelLoading && !vercel && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 10 }}>
+              <CircularProgress size={28} sx={{ color: accent }} />
+            </Box>
+          )}
+
+          {/* Empty prompt */}
+          {!vercelLoading && !vercel && !vercelError && (
+            <Box sx={{ py: 10, textAlign: 'center' }}>
+              <RocketLaunchIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 2 }} />
+              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem', color: 'text.disabled', mb: 2 }}>
+                Click <strong>Refresh</strong> to load Vercel deployment data.
+              </Typography>
+              <Button variant="contained" onClick={loadVercel} sx={{ bgcolor: 'primary.main', color: 'background.default', fontFamily: '"Raleway", sans-serif', fontWeight: 700, fontSize: '0.72rem' }}>
+                Load Now
+              </Button>
+            </Box>
+          )}
+
+          {/* Data */}
+          {vercel && (() => {
+            const s = vercel.summary
+            const deployStateColor = (st) =>
+              st === 'READY'    ? '#6b8f71' :
+              st === 'ERROR'    ? '#b45050' :
+              st === 'BUILDING' ? accent    :
+              st === 'QUEUED'   ? '#7a7060' : '#7a7060'
+
+            const kpis = [
+              { label: 'Total Deployments', value: s.total_deployments, sub: 'last 30 fetched' },
+              { label: 'Production OK',     value: s.prod_success,      sub: 'READY state',   color: '#6b8f71' },
+              { label: 'Production Errors', value: s.prod_error,        sub: 'ERROR state',   color: s.prod_error > 0 ? '#b45050' : undefined },
+              { label: 'Avg Build Time',    value: s.avg_build_s != null ? `${s.avg_build_s}s` : '—', sub: 'across all deploys' },
+              { label: 'In Progress',       value: s.in_progress,       sub: 'building/queued', color: s.in_progress > 0 ? accent : undefined },
+            ]
+
+            return (
+              <>
+                {/* KPI row */}
+                <Grid container spacing={2.5} sx={{ mb: 3.5 }}>
+                  {kpis.map(({ label, value, sub, color }) => (
+                    <Grid item xs={6} sm={4} md={2.4} key={label}>
+                      <Card sx={{
+                        position: 'relative', overflow: 'hidden',
+                        bgcolor: 'background.paper',
+                        border: `1px solid ${dark ? `${accent}26` : `${accent}32`}`,
+                        borderTop: `3px solid ${(color || accent)}bf`,
+                        p: 0,
+                      }}>
+                        <Box sx={{ p: 2 }}>
+                          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'text.disabled', mb: 1 }}>
+                            {label}
+                          </Typography>
+                          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2.2rem', fontWeight: 700, color: color || accent, lineHeight: 1 }}>
+                            {value}
+                          </Typography>
+                          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.64rem', color: 'text.disabled', mt: 0.5 }}>
+                            {sub}
+                          </Typography>
+                        </Box>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+
+                <Grid container spacing={3}>
+                  {/* Recent deployments */}
+                  <Grid item xs={12} md={8}>
+                    <Card sx={{ bgcolor: 'background.paper', border: `1px solid ${dark ? `${accent}26` : `${accent}32`}` }}>
+                      <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 1, borderBottom: `1px solid ${dark ? `${accent}18` : `${accent}22`}` }}>
+                        <RocketLaunchIcon sx={{ fontSize: 14, color: accent }} />
+                        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'text.secondary', flex: 1 }}>
+                          Recent Deployments
+                        </Typography>
+                        <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>
+                          {vercel.deployments.length} shown
+                        </Typography>
+                      </Box>
+                      <Box sx={{ maxHeight: 440, overflowY: 'auto', '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { bgcolor: `${accent}30`, borderRadius: 2 } }}>
+                        {vercel.deployments.length === 0 ? (
+                          <Box sx={{ py: 6, textAlign: 'center' }}>
+                            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.disabled' }}>No deployments found</Typography>
+                          </Box>
+                        ) : vercel.deployments.map((d, i) => (
+                          <Box key={d.uid} sx={{
+                            display: 'flex', alignItems: 'flex-start', gap: 1.5,
+                            px: 2.5, py: 1.4,
+                            borderBottom: i < vercel.deployments.length - 1 ? `1px solid ${dark ? `${accent}10` : `${accent}14`}` : 'none',
+                            '&:hover': { bgcolor: `${accent}06` },
+                          }}>
+                            <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: deployStateColor(d.state), mt: 0.6, flexShrink: 0 }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', fontWeight: 700, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                                  {d.name}
+                                </Typography>
+                                <Chip label={d.state} size="small" sx={{ height: 18, fontSize: '0.6rem', fontFamily: '"Raleway", sans-serif', fontWeight: 700, bgcolor: `${deployStateColor(d.state)}22`, color: deployStateColor(d.state), letterSpacing: '0.06em' }} />
+                                {d.target === 'production' && (
+                                  <Chip label="PROD" size="small" sx={{ height: 18, fontSize: '0.6rem', fontFamily: '"Raleway", sans-serif', fontWeight: 700, bgcolor: `${accent}1e`, color: accent, letterSpacing: '0.06em' }} />
+                                )}
+                              </Box>
+                              {d.meta.message && (
+                                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', color: 'text.secondary', mt: 0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {d.meta.message}
+                                </Typography>
+                              )}
+                              <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                                {d.meta.branch && <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>{d.meta.branch}</Typography>}
+                                {d.meta.author && <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.64rem', color: 'text.disabled' }}>{d.meta.author}</Typography>}
+                                {d.build_ms && <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>{(d.build_ms / 1000).toFixed(1)}s build</Typography>}
+                                {d.created_at && <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.64rem', color: 'text.disabled' }}>{new Date(d.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Typography>}
+                              </Box>
+                            </Box>
+                            {d.url && (
+                              <Tooltip title={`https://${d.url}`} arrow>
+                                <IconButton size="small" component="a" href={`https://${d.url}`} target="_blank" rel="noopener noreferrer" sx={{ color: 'text.disabled', '&:hover': { color: accent }, flexShrink: 0, p: 0.3 }}>
+                                  <OpenInNewIcon sx={{ fontSize: 13 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Card>
+                  </Grid>
+
+                  {/* Projects sidebar */}
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ bgcolor: 'background.paper', border: `1px solid ${dark ? `${accent}26` : `${accent}32`}` }}>
+                      <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 1, borderBottom: `1px solid ${dark ? `${accent}18` : `${accent}22`}` }}>
+                        <StorageIcon sx={{ fontSize: 14, color: accent }} />
+                        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'text.secondary', flex: 1 }}>
+                          Projects
+                        </Typography>
+                        <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>
+                          {vercel.projects.length}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        {vercel.projects.length === 0 ? (
+                          <Box sx={{ py: 4, textAlign: 'center' }}>
+                            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.disabled' }}>No projects found</Typography>
+                          </Box>
+                        ) : vercel.projects.map((p, i) => (
+                          <Box key={p.id} sx={{
+                            px: 2.5, py: 1.6,
+                            borderBottom: i < vercel.projects.length - 1 ? `1px solid ${dark ? `${accent}10` : `${accent}14`}` : 'none',
+                            '&:hover': { bgcolor: `${accent}06` },
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem', fontWeight: 700, color: 'text.primary', flex: 1 }}>
+                                {p.name}
+                              </Typography>
+                              {p.link.repo && (
+                                <Tooltip title={p.link.repo} arrow>
+                                  <IconButton size="small" component="a" href={p.link.type === 'github' ? `https://github.com/${p.link.repo}` : p.link.repo} target="_blank" rel="noopener noreferrer" sx={{ color: 'text.disabled', '&:hover': { color: accent }, p: 0.25 }}>
+                                    <GitHubIcon sx={{ fontSize: 13 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
+                            <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                              {p.framework && <Chip label={p.framework} size="small" sx={{ height: 18, fontSize: '0.6rem', fontFamily: '"JetBrains Mono", monospace', bgcolor: `${accent}12`, color: accent }} />}
+                              {p.node_ver  && <Chip label={`Node ${p.node_ver}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontFamily: '"JetBrains Mono", monospace', bgcolor: dark ? 'rgba(107,143,113,0.14)' : 'rgba(107,143,113,0.1)', color: '#6b8f71' }} />}
+                            </Box>
+                            {p.updated_at && (
+                              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.4 }}>
+                                Updated {new Date(p.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </>
+            )
+          })()}
+        </Box>
+      )}
 
     </Box>
   )

@@ -393,6 +393,8 @@ export const updatePreferences = (payload, token) => client.put('/v2/preferences
 
 // Engines (v2)
 export const listEngines       = (token)                => client.get('/v2/engines',                        { headers: auth(token) })
+export const getVercelStats    = (token)                => client.get('/v2/admin/vercel/stats',        { headers: auth(token) })
+
 export const listAdminEngines  = (token)                => client.get('/v2/admin/engines',                  { headers: auth(token) })
 export const createEngine      = (payload, token)       => client.post('/v2/admin/engines',        payload, { headers: auth(token) })
 export const updateEngine      = (id, payload, token)   => client.put(`/v2/admin/engines/${id}`,   payload, { headers: auth(token) })
