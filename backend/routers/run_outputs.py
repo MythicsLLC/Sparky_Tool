@@ -4,12 +4,12 @@ import io
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import RunOutput, RunLog, DataQualityResult, User
+from models import RunOutput, RunLog, DataQualityResult, User, AnalysisResult
 from logger import get_logger
 
 log = get_logger("run_outputs")
@@ -78,12 +78,28 @@ def list_run_outputs(
     db:     Session = Depends(get_db),
 ):
     """List current user's saved run outputs, newest first. csv_content excluded."""
+    # Subquery: latest AnalysisResult id per run_output_id, scoped to this user
+    ar_sub = (
+        db.query(
+            AnalysisResult.run_output_id,
+            func.max(AnalysisResult.id).label("ar_id"),
+        )
+        .filter(
+            AnalysisResult.user_id == user.id,
+            AnalysisResult.run_output_id.isnot(None),
+        )
+        .group_by(AnalysisResult.run_output_id)
+        .subquery()
+    )
+
     rows = (
         db.query(
             RunOutput.id, RunOutput.display_name, RunOutput.config_name,
             RunOutput.engine_name, RunOutput.process_name, RunOutput.run_log_id,
             RunOutput.row_count, RunOutput.file_size_bytes, RunOutput.created_at,
+            ar_sub.c.ar_id,
         )
+        .outerjoin(ar_sub, ar_sub.c.run_output_id == RunOutput.id)
         .filter(RunOutput.user_id == user.id)
         .order_by(RunOutput.created_at.desc())
         .offset(offset)
@@ -94,15 +110,16 @@ def list_run_outputs(
     return {
         "items": [
             {
-                "id":              r.id,
-                "display_name":    r.display_name,
-                "config_name":     r.config_name,
-                "engine_name":     r.engine_name,
-                "process_name":    r.process_name,
-                "run_log_id":      r.run_log_id,
-                "row_count":       r.row_count,
-                "file_size_bytes": r.file_size_bytes,
-                "created_at":      r.created_at.isoformat() if r.created_at else None,
+                "id":                 r.id,
+                "display_name":       r.display_name,
+                "config_name":        r.config_name,
+                "engine_name":        r.engine_name,
+                "process_name":       r.process_name,
+                "run_log_id":         r.run_log_id,
+                "row_count":          r.row_count,
+                "file_size_bytes":    r.file_size_bytes,
+                "created_at":         r.created_at.isoformat() if r.created_at else None,
+                "analysis_result_id": r.ar_id,
             }
             for r in rows
         ],

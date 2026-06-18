@@ -19,7 +19,8 @@ import LockIcon          from '@mui/icons-material/Lock'
 import ThumbUpAltIcon    from '@mui/icons-material/ThumbUpAlt'
 import ThumbDownAltIcon  from '@mui/icons-material/ThumbDownAlt'
 import CheckCircleIcon   from '@mui/icons-material/CheckCircle'
-import { analyzeFileWs, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError, submitAnalysisReview } from '../api'
+import RefreshIcon       from '@mui/icons-material/Refresh'
+import { analyzeFileWs, analyzeRunOutput, listRunOutputs, deleteRunOutput, listInsightModels, downloadAnalysisPdf, formatApiError, submitAnalysisReview, getAnalysisResult } from '../api'
 import { useAuth } from '../AuthContext'
 import MythicsLoader from '../components/MythicsLoader'
 import SuccessCheck from '../components/SuccessCheck'
@@ -794,7 +795,7 @@ function DropZone({ onFile, loading, streamingText, streamingStatus, browseRef }
 
 // ── RunOutputHistory ───────────────────────────────────────────────────────────
 
-function RunOutputHistory({ onAnalyze, analysing }) {
+function RunOutputHistory({ onAnalyze, onReanalyze, analysing }) {
   const theme  = useTheme()
   const accent = theme.palette.primary.main
   const { getToken } = useAuth()
@@ -882,18 +883,47 @@ function RunOutputHistory({ onAnalyze, analysing }) {
                 <Button
                   size="small"
                   variant="outlined"
-                  disabled={!!analysing || analysing === o.id}
+                  disabled={!!analysing}
                   onClick={() => onAnalyze(o)}
-                  startIcon={analysing === o.id ? <CircularProgress size={11} /> : <AutoAwesomeIcon sx={{ fontSize: 13 }} />}
+                  startIcon={
+                    analysing === o.id ? <CircularProgress size={11} /> :
+                    o.analysis_result_id ? <CheckCircleIcon sx={{ fontSize: 13 }} /> :
+                    <AutoAwesomeIcon sx={{ fontSize: 13 }} />
+                  }
                   sx={{
-                    borderColor: `${accent}44`, color: accent,
+                    borderColor: o.analysis_result_id ? 'rgba(107,143,113,0.45)' : `${accent}44`,
+                    color: o.analysis_result_id ? '#6b8f71' : accent,
                     fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem',
                     letterSpacing: '0.08em', textTransform: 'uppercase', height: 28,
-                    '&:hover': { borderColor: accent, bgcolor: `${accent}08` },
+                    '&:hover': {
+                      borderColor: o.analysis_result_id ? '#6b8f71' : accent,
+                      bgcolor: o.analysis_result_id ? 'rgba(107,143,113,0.08)' : `${accent}08`,
+                    },
                   }}
                 >
-                  {analysing === o.id ? 'Analysing…' : 'Analyse'}
+                  {analysing === o.id ? 'Loading…' : o.analysis_result_id ? 'View Analysis' : 'Analyse'}
                 </Button>
+
+                {/* Re-analyze — only shown when a cached result exists */}
+                {o.analysis_result_id && (
+                  <Tooltip title="Re-run AI analysis" placement="top" arrow>
+                    <span>
+                      <Button
+                        size="small"
+                        disabled={!!analysing}
+                        onClick={() => onReanalyze(o)}
+                        sx={{
+                          minWidth: 0, width: 28, height: 28, p: 0,
+                          color: 'text.disabled',
+                          '&:hover': { color: accent },
+                        }}
+                      >
+                        <RefreshIcon sx={{ fontSize: 14 }} />
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
                 <Button
                   size="small"
                   disabled={deleting === o.id}
@@ -1026,6 +1056,33 @@ export default function AnalyzeDashboard() {
   }, [selectedModelId, _runAnalysis])
 
   const handleOutputAnalyze = useCallback(async (output) => {
+    setResult(null)
+    setError(null)
+    setFilename(output.display_name)
+    setAnalysingOutput(output.id)
+    setLoading(true)
+    try {
+      const token = await getToken()
+      if (output.analysis_result_id) {
+        // Stored result exists — fetch from DB, skip LLM entirely
+        const { data } = await getAnalysisResult(output.analysis_result_id, token)
+        const stored = data.response_json || {}
+        setResult({ ...stored, meta: { ...(stored.meta || {}), analysis_result_id: data.id } })
+      } else {
+        const { data } = await analyzeRunOutput(output.id, selectedModelId, token)
+        setResult(data)
+      }
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1600)
+    } catch (err) {
+      setError(formatApiError(err, 'Analysis failed — check the server logs.'))
+    } finally {
+      setLoading(false)
+      setAnalysingOutput(null)
+    }
+  }, [selectedModelId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleOutputReanalyze = useCallback(async (output) => {
     setResult(null)
     setError(null)
     setFilename(output.display_name)
@@ -1188,6 +1245,7 @@ export default function AnalyzeDashboard() {
       {!result && !loading && !modelsLoading && !modelsError && (
         <RunOutputHistory
           onAnalyze={handleOutputAnalyze}
+          onReanalyze={handleOutputReanalyze}
           analysing={analysingOutput}
         />
       )}
