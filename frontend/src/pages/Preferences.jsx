@@ -10,6 +10,7 @@ import SaveIcon         from '@mui/icons-material/Save'
 import RestoreIcon      from '@mui/icons-material/Restore'
 import SuccessCheck     from '../components/SuccessCheck'
 import { useAuth } from '../AuthContext'
+import { useThemeContext } from '../ThemeContext'
 import { getPreferences, updatePreferences, getNotificationSettings, updateNotificationSettings, formatApiError } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
 
@@ -35,10 +36,17 @@ const DASHBOARD_VIEWS = ['operational', 'functional', 'analyze']
 const ROW_LIMITS      = [100, 200, 500, 1000, 2000]
 
 function SectionCard({ title, children }) {
+  const { accent } = useThemeContext()
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
+    <Card variant="outlined" sx={{
+      bgcolor: 'background.paper',
+      borderColor: 'divider',
+      borderTop: `2px solid ${accent}44`,
+      transition: 'box-shadow 0.2s ease',
+      '&:hover': { boxShadow: `0 4px 20px ${accent}12` },
+    }}>
       <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'text.secondary', mb: 2 }}>
+        <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.secondary', mb: 2 }}>
           {title}
         </Typography>
         {children}
@@ -49,7 +57,7 @@ function SectionCard({ title, children }) {
 
 function Row({ label, sub, children }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, gap: 2 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.25, gap: 2, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 'none' } }}>
       <Box>
         <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.primary' }}>{label}</Typography>
         {sub && <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.2 }}>{sub}</Typography>}
@@ -67,6 +75,7 @@ const NOTIF_DEFAULTS = {
 
 export default function Preferences() {
   const { token } = useAuth()
+  const { accent } = useThemeContext()
   const [prefs,        setPrefs]        = useState(DEFAULTS)
   const [notif,        setNotif]        = useState(NOTIF_DEFAULTS)
   const [loading,      setLoading]      = useState(true)
@@ -139,14 +148,16 @@ export default function Preferences() {
   if (loading) return <MythicsLoader sx={{ minHeight: '60vh' }} />
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 4 }, py: 4, maxWidth: 760, mx: 'auto' }}>
+    <Box sx={{ px: { xs: 3, sm: 5 }, pt: 4, pb: 6, maxWidth: 820, mx: 'auto' }}>
+      {/* accent sweep line */}
+      <Box sx={{ height: 2, background: `linear-gradient(90deg, ${accent}cc, transparent 70%)`, mb: 4, mx: { xs: -3, sm: -5 } }} />
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.57rem', letterSpacing: '0.3em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.54rem', letterSpacing: '0.32em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
             Account
           </Typography>
-          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2rem', fontWeight: 700, color: 'text.primary' }}>
+          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2.4rem', fontWeight: 700, color: 'text.primary', letterSpacing: '0.02em', lineHeight: 1 }}>
             Preferences
           </Typography>
         </Box>

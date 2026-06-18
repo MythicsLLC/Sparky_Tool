@@ -144,18 +144,25 @@ function StatusChip({ status, sftp_skipped }) {
 // ── StatCard ─────────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, Icon, accent }) {
+  const theme = useTheme()
+  const color = accent || theme.palette.primary.main
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', position: 'relative', overflow: 'hidden' }}>
+      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: color, opacity: 0.55 }} />
       <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: '0.58rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary', mb: 0.75 }}>
+            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.52rem', letterSpacing: '0.22em', textTransform: 'uppercase', color: 'text.disabled', mb: 0.75 }}>
               {label}
             </Typography>
-            <Typography sx={{ fontSize: '1.8rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>{value}</Typography>
-            {sub && <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', mt: 0.75 }}>{sub}</Typography>}
+            <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>{value}</Typography>
+            {sub && <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.disabled', mt: 0.75 }}>{sub}</Typography>}
           </Box>
-          {Icon && <Icon sx={{ fontSize: 22, color: accent || 'primary.main', opacity: 0.7, mt: 0.5 }} />}
+          {Icon && (
+            <Box sx={{ width: 32, height: 32, borderRadius: '4px', bgcolor: `${color}14`, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Icon sx={{ fontSize: 16, color }} />
+            </Box>
+          )}
         </Box>
       </CardContent>
     </Card>
@@ -765,20 +772,23 @@ export default function Admin() {
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
-    <Box sx={{ flex: 1, minHeight: '100%', bgcolor: 'background.default', px: { xs: 2, sm: 4 }, py: 4 }}>
+    <Box sx={{ flex: 1, minHeight: '100%', bgcolor: 'background.default', px: { xs: 3, sm: 5 }, pt: 4, pb: 6 }}>
+
+      {/* accent sweep line */}
+      <Box sx={{ height: 2, background: `linear-gradient(90deg, ${accent}cc, transparent 70%)`, mb: 4, mx: { xs: -3, sm: -5 } }} />
 
       {/* header */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.57rem', letterSpacing: '0.3em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.54rem', letterSpacing: '0.32em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
             System
           </Typography>
-          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2rem', fontWeight: 700, color: 'text.primary' }}>
+          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2.4rem', fontWeight: 700, color: 'text.primary', letterSpacing: '0.02em', lineHeight: 1 }}>
             Admin Console
           </Typography>
         </Box>
         <Tooltip title="Reload all data">
-          <IconButton onClick={load} size="small" sx={{ mt: 1, color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
+          <IconButton onClick={load} size="small" sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: `${accent}12` } }}>
             <RefreshIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -1787,7 +1797,7 @@ export default function Admin() {
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                           <Box>
                             <Typography sx={{ fontSize: '0.58rem', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary', mb: 0.75 }}>{label}</Typography>
-                            <Typography sx={{ fontSize: '1.8rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>{value}</Typography>
+                            <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2rem', fontWeight: 700, color: 'text.primary', lineHeight: 1 }}>{value}</Typography>
                           </Box>
                           <Icon sx={{ fontSize: 22, color: a || 'primary.main', opacity: 0.7, mt: 0.5 }} />
                         </Box>

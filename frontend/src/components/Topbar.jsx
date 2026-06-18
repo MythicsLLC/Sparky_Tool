@@ -811,7 +811,7 @@ export default function Topbar({ route, navigate, user, onSignOut }) {
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, textAlign: 'left', mb: 2.5 }}>
           {[
-            ['Frontend',  'React 18 · MUI v5 · Recharts · Vite'],
+            ['Frontend',  'React 18 · MUI v5 · @mui/x-charts · Vite'],
             ['Backend',   'FastAPI · SQLAlchemy · Neon PostgreSQL'],
             ['Auth',      'Clerk'],
             ['Built by',  'Mythics Inc.'],

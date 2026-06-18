@@ -125,7 +125,7 @@ export default function SchedulesPage() {
 
   return (
     <Box sx={{ px: { xs: 3, sm: 5 }, pt: 4, pb: 6 }}>
-      <Box sx={{ height: 2, background: `linear-gradient(90deg, ${accent}cc, transparent 70%)`, mb: 4, mx: -5 }} />
+      <Box sx={{ height: 2, background: `linear-gradient(90deg, ${accent}cc, transparent 70%)`, mb: 4, mx: { xs: -3, sm: -5 } }} />
 
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mb: 4 }}>
         <Box>
@@ -174,10 +174,17 @@ export default function SchedulesPage() {
 
       <Grid container spacing={2}>
         {schedules.map((s) => (
-          <Grid item xs={12} sm={6} md={4} key={s.id}>
+          <Grid item xs={12} sm={6} md={4} key={s.id} sx={{ display: 'flex' }}>
             <Card variant="outlined" sx={{
-              bgcolor: 'background.paper', borderColor: s.is_active ? `${accent}44` : 'divider',
+              bgcolor: 'background.paper',
+              borderColor: s.is_active ? `${accent}44` : 'divider',
               position: 'relative', overflow: 'hidden',
+              height: '100%',
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+              '&:hover': {
+                borderColor: s.is_active ? `${accent}88` : `${accent}33`,
+                boxShadow: `0 4px 20px ${accent}10`,
+              },
             }}>
               <Box sx={{ height: 2, bgcolor: s.is_active ? accent : 'divider', opacity: 0.6 }} />
               <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
