@@ -83,12 +83,13 @@ function ModuleDonut({ on, off, accent, theme }) {
   const pct   = total ? Math.round(on / total * 100) : 0
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={PieChartIcon} label="Module Adoption" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 200 }}>
           <PieChart
             height={200}
+            skipAnimation={false}
             series={[{
               data: data.map((d, i) => ({ id: i, value: d.value, label: d.name, color: d.color })),
               innerRadius: 58, outerRadius: 82, startAngle: 90, endAngle: -270,
@@ -127,12 +128,12 @@ function AdoptionGauge({ on, off, accent, theme }) {
   const pct   = Math.round(on / total * 100)
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={BarChartIcon} label="Adoption Rate" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 140 }}>
           <Gauge
-            width={220} height={140}
+            height={140}
             startAngle={-90} endAngle={90}
             cx="50%" cy="85%"
             innerRadius="60%" outerRadius="100%"
@@ -180,11 +181,12 @@ function CategoryBar({ modules, accent, theme }) {
   const tickLabelStyle = { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -35, textAnchor: 'end' }
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={CategoryIcon} label="Modules by Category" accent={accent} />
       <Box sx={{ p: 2.5, pt: 2 }}>
         <BarChart
           height={220}
+          skipAnimation={false}
           dataset={cats}
           xAxis={[{ dataKey: 'cat', scaleType: 'band', tickLabelStyle }]}
           yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
@@ -224,6 +226,7 @@ function ModuleBar({ modules, accent, theme }) {
         <Box sx={{ minWidth: 340 }}>
           <BarChart
             height={Math.max(data.length * 22, 300)}
+            skipAnimation={false}
             layout="horizontal"
             dataset={data}
             xAxis={[{ min: 0, max: 1, tickLabelStyle: { fontSize: 0 } }]}
@@ -254,11 +257,12 @@ function CountriesChart({ countries, accent, theme }) {
   const inactiveColor = dark(theme) ? 'rgba(100,149,180,0.2)' : 'rgba(100,149,180,0.18)'
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={PublicIcon} label={`Country Coverage — ${activeCount} Active`} accent={accent} />
       <Box sx={{ p: 2.5 }}>
         <BarChart
           height={210}
+          skipAnimation={false}
           dataset={data}
           xAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle: { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -45, textAnchor: 'end' } }]}
           yAxis={[{ min: 0, max: 1, tickLabelStyle: { fontSize: 0 } }]}
@@ -300,6 +304,7 @@ function NumericParamsChart({ parameters, accent, theme }) {
       <Box sx={{ p: 2.5 }}>
         <BarChart
           height={200}
+          skipAnimation={false}
           dataset={data}
           xAxis={[{ dataKey: 'name', scaleType: 'band', tickLabelStyle: { fontSize: 9.5, fill: tickFill, fontFamily: '"Raleway", sans-serif', angle: -35, textAnchor: 'end' } }]}
           yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
@@ -323,12 +328,13 @@ function CountriesPie({ countries, accent, theme }) {
   ]
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={PublicIcon} label="Country Ratio" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Box sx={{ position: 'relative', width: '100%', height: 160 }}>
           <PieChart
             height={160}
+            skipAnimation={false}
             series={[{
               data: data.map((d, i) => ({ id: i, value: d.value, label: d.name, color: d.color })),
               innerRadius: 45, outerRadius: 65,
@@ -361,7 +367,7 @@ function ParamsPanel({ parameters, accent }) {
   [parameters])
 
   return (
-    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+    <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
       <CardHeader icon={TuneIcon} label="Key Parameters" accent={accent} />
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 320, overflow: 'auto' }}>
         {textParams.map(([key, val]) => (
@@ -528,13 +534,13 @@ export default function FunctionalDashboard({ onDataChange }) {
 
           {/* ══ Row 2: Donut + Adoption gauge + Category bar ════════════════ */}
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
               <ModuleDonut on={kpi.on} off={kpi.off} accent={accent} theme={theme} />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
               <AdoptionGauge on={kpi.on} off={kpi.off} accent={accent} theme={theme} />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12} md={6} sx={{ display: 'flex' }}>
               <CategoryBar modules={data.modules} accent={accent} theme={theme} />
             </Grid>
           </Grid>
@@ -544,13 +550,13 @@ export default function FunctionalDashboard({ onDataChange }) {
 
           {/* ══ Row 4: Countries pie + Country chart + Params ═══════════════ */}
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={4} md={3}>
+            <Grid item xs={12} sm={4} md={3} sx={{ display: 'flex' }}>
               <CountriesPie countries={data.countries} accent={accent} theme={theme} />
             </Grid>
-            <Grid item xs={12} sm={8} md={5}>
+            <Grid item xs={12} sm={8} md={5} sx={{ display: 'flex' }}>
               <CountriesChart countries={data.countries} accent={accent} theme={theme} />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
               <ParamsPanel parameters={data.parameters} accent={accent} />
             </Grid>
           </Grid>

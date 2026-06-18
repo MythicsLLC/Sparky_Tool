@@ -11,6 +11,8 @@ import RefreshIcon            from '@mui/icons-material/Refresh'
 import TrendingUpIcon         from '@mui/icons-material/TrendingUp'
 import SpeedIcon              from '@mui/icons-material/Speed'
 import BarChartIcon           from '@mui/icons-material/BarChart'
+import WifiIcon               from '@mui/icons-material/Wifi'
+import WarningAmberIcon       from '@mui/icons-material/WarningAmber'
 import { useAuth } from '../AuthContext'
 import { listRuns, checkConnectivity } from '../api'
 import MythicsLoader from '../components/MythicsLoader'
@@ -223,12 +225,15 @@ export default function OperationalDashboard() {
 
       <Grid container spacing={3}>
         {/* ── Live health card ──────────────────────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
             <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                🔌 Connection Health
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <WifiIcon sx={{ fontSize: 14, color: accent }} />
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary' }}>
+                  Connection Health
+                </Typography>
+              </Box>
               <Button
                 size="small"
                 startIcon={checking ? <CircularProgress size={12} /> : <RefreshIcon sx={{ fontSize: 14 }} />}
@@ -261,17 +266,19 @@ export default function OperationalDashboard() {
         </Grid>
 
         {/* ── Failures by step ──────────────────────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
+            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <WarningAmberIcon sx={{ fontSize: 14, color: accent }} />
               <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                ⚠ Failures by Step
+                Failures by Step
               </Typography>
             </Box>
             <Box sx={{ p: 2.5 }}>
               {failuresByStep.length ? (
                 <BarChart
-                  height={120}
+                  height={Math.max(failuresByStep.length * 40, 160)}
+                  skipAnimation={false}
                   layout="horizontal"
                   dataset={failuresByStep}
                   xAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
@@ -294,11 +301,12 @@ export default function OperationalDashboard() {
         </Grid>
 
         {/* ── Recent error log ──────────────────────────────────────────── */}
-        <Grid item xs={12} md={4}>
-          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%' }}>
-            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Grid item xs={12} md={4} sx={{ display: 'flex' }}>
+          <Card variant="outlined" sx={{ bgcolor: 'background.paper', borderColor: 'divider', height: '100%', width: '100%' }}>
+            <Box sx={{ px: 2.5, pt: 2, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ErrorOutlineIcon sx={{ fontSize: 14, color: accent }} />
               <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'text.secondary' }}>
-                📋 Recent Errors
+                Recent Errors
               </Typography>
             </Box>
             <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
@@ -343,6 +351,7 @@ export default function OperationalDashboard() {
           </Box>
           <LineChart
             height={200}
+            skipAnimation={false}
             dataset={runsByDay}
             xAxis={[{ dataKey: 'day', scaleType: 'point', valueFormatter: fmtDay, tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
             yAxis={[{ tickLabelStyle: { fontSize: 10, fill: tickFill } }]}
