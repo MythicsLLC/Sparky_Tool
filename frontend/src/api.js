@@ -393,7 +393,82 @@ export const updatePreferences = (payload, token) => client.put('/v2/preferences
 
 // Engines (v2)
 export const listEngines       = (token)                => client.get('/v2/engines',                        { headers: auth(token) })
-export const getVercelStats    = (token)                => client.get('/v2/admin/vercel/stats',        { headers: auth(token) })
+
+// Vercel — called directly from the browser using VITE_VERCEL_TOKEN (no backend proxy)
+export async function fetchVercelStats() {
+  const token  = import.meta.env.VITE_VERCEL_TOKEN
+  const teamId = import.meta.env.VITE_VERCEL_TEAM_ID || ''
+
+  if (!token) {
+    throw new Error('VITE_VERCEL_TOKEN is not configured — add it to the frontend .env file')
+  }
+
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const base    = 'https://api.vercel.com'
+
+  const qs = (extra = {}) => {
+    const p = new URLSearchParams(extra)
+    if (teamId) p.set('teamId', teamId)
+    const s = p.toString()
+    return s ? `?${s}` : ''
+  }
+
+  const [projectsRes, deploysRes] = await Promise.all([
+    fetch(`${base}/v9/projects${qs({ limit: '20' })}`, { headers }),
+    fetch(`${base}/v6/deployments${qs({ limit: '30', state: 'READY,ERROR,CANCELED,BUILDING,QUEUED' })}`, { headers }),
+  ])
+
+  if (!projectsRes.ok) throw new Error(`Vercel projects API error: ${projectsRes.status}`)
+  if (!deploysRes.ok)  throw new Error(`Vercel deployments API error: ${deploysRes.status}`)
+
+  const projectsData   = (await projectsRes.json()).projects   ?? []
+  const deploymentsRaw = (await deploysRes.json()).deployments ?? []
+
+  const deployments = deploymentsRaw.map(d => ({
+    uid:        d.uid,
+    name:       d.name,
+    url:        d.url,
+    state:      d.state,
+    target:     d.target,
+    created_at: d.createdAt,
+    ready_at:   d.ready,
+    meta: {
+      branch:  d.meta?.githubCommitRef   || d.meta?.gitlabCommitRef   || '',
+      message: d.meta?.githubCommitMessage || d.meta?.gitlabCommitMessage || '',
+      author:  d.meta?.githubCommitAuthorName || '',
+    },
+    build_ms: (d.ready && d.buildingAt) ? d.ready - d.buildingAt : null,
+  }))
+
+  const projects = projectsData.map(p => ({
+    id:         p.id,
+    name:       p.name,
+    framework:  p.framework,
+    node_ver:   p.nodeVersion,
+    updated_at: p.updatedAt,
+    link: {
+      type: p.link?.type || '',
+      repo: p.link?.repo || p.link?.projectUrl || '',
+    },
+  }))
+
+  const buildTimes = deployments.filter(d => d.build_ms && d.build_ms > 0).map(d => d.build_ms)
+  const avg_build_s = buildTimes.length
+    ? Math.round(buildTimes.reduce((a, b) => a + b, 0) / buildTimes.length / 100) / 10
+    : null
+
+  return {
+    projects,
+    deployments,
+    summary: {
+      total_deployments: deployments.length,
+      prod_success:      deployments.filter(d => d.state === 'READY' && d.target === 'production').length,
+      prod_error:        deployments.filter(d => d.state === 'ERROR' && d.target === 'production').length,
+      in_progress:       deployments.filter(d => ['BUILDING', 'QUEUED'].includes(d.state)).length,
+      avg_build_s,
+    },
+  }
+}
 
 export const listAdminEngines  = (token)                => client.get('/v2/admin/engines',                  { headers: auth(token) })
 export const createEngine      = (payload, token)       => client.post('/v2/admin/engines',        payload, { headers: auth(token) })

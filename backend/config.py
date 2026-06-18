@@ -36,10 +36,6 @@ class Settings(BaseSettings):
     smtp_from:     str  = ""
     smtp_use_tls:  bool = True
 
-    # Vercel API — for System Analytics admin tab
-    vercel_token:   str = ""
-    vercel_team_id: str = ""
-
     # Allow extra environment variables (e.g. local dev keys) without failing
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "ignore"}
 

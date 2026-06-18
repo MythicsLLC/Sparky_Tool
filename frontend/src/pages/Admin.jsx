@@ -62,7 +62,7 @@ import {
   toggleFeatureFlag, deleteFeatureFlag,
   adminConvStats,
   listAdminEngines, createEngine, updateEngine, deleteEngine,
-  getVercelStats,
+  fetchVercelStats,
   formatApiError,
 } from '../api'
 
@@ -402,14 +402,13 @@ export default function Admin() {
   const [vercelError,   setVercelError]   = useState(null)
 
   const loadVercel = useCallback(() => {
-    if (!token) return
     setVercelLoading(true)
     setVercelError(null)
-    getVercelStats(token)
-      .then(r => setVercel(r.data))
-      .catch(e => setVercelError(formatApiError(e)))
+    fetchVercelStats()
+      .then(data => setVercel(data))
+      .catch(e => setVercelError(e.message || 'Failed to load Vercel data'))
       .finally(() => setVercelLoading(false))
-  }, [token])
+  }, [])
 
   // per-row role loading
   const [roleLoadingId, setRoleLoadingId] = useState(null)
@@ -2335,9 +2334,9 @@ export default function Admin() {
           </Box>
 
           {/* Not-configured state */}
-          {vercelError?.includes('VERCEL_TOKEN') && (
+          {vercelError?.includes('VITE_VERCEL_TOKEN') && (
             <Alert severity="warning" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem' }}>
-              <strong>VERCEL_TOKEN not set.</strong> Add <code>VERCEL_TOKEN=your_token</code> (and optionally <code>VERCEL_TEAM_ID</code>) to the backend <code>.env</code> file to enable Vercel analytics.
+              <strong>VITE_VERCEL_TOKEN not set.</strong> Add <code>VITE_VERCEL_TOKEN=your_token</code> (and optionally <code>VITE_VERCEL_TEAM_ID</code>) to the frontend <code>.env</code> file to enable Vercel analytics.
             </Alert>
           )}
 
