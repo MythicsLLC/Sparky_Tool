@@ -51,7 +51,7 @@ function DeployNode({ position, dep, accent, isHighlighted, onHover, onClick }) 
   const col     = STATE_COLOR[dep.state] || '#3a3a4a'
   const pulsing = dep.state === 'BUILDING' || dep.state === 'QUEUED'
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     if (!mesh.current) return
     const t = clock.getElapsedTime()
     mesh.current.scale.setScalar(
