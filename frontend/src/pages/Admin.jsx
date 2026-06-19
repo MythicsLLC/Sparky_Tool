@@ -425,10 +425,11 @@ export default function Admin() {
   const [aiUsage, setAiUsage] = useState(null)
 
   // ── Vercel Analytics ──────────────────────────────────────────────────────
-  const [vercel,        setVercel]        = useState(null)
-  const [vercelLoading, setVercelLoading] = useState(false)
-  const [vercelError,   setVercelError]   = useState(null)
-  const [highlighted,   setHighlighted]   = useState(null) // deployment uid selected in 3D scene
+  const [vercel,           setVercel]           = useState(null)
+  const [vercelLoading,    setVercelLoading]    = useState(false)
+  const [vercelError,      setVercelError]      = useState(null)
+  const [highlighted,      setHighlighted]      = useState(null)
+  const [selectedProject,  setSelectedProject]  = useState(import.meta.env.VITE_VERCEL_PROJECT_NAME || '')
 
   const loadVercel = useCallback(() => {
     setVercelLoading(true)
@@ -2350,16 +2351,33 @@ export default function Admin() {
                 </Typography>
               </Box>
             </Box>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={vercelLoading ? <CircularProgress size={13} /> : <RefreshOutlinedIcon sx={{ fontSize: 15 }} />}
-              onClick={loadVercel}
-              disabled={vercelLoading}
-              sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', fontWeight: 700, borderColor: `${accent}44`, color: accent, '&:hover': { borderColor: accent, bgcolor: `${accent}08` } }}
-            >
-              Refresh
-            </Button>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {vercel && vercel.projects.length > 0 && (
+                <FormControl size="small" sx={{ minWidth: 170 }}>
+                  <Select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    displayEmpty
+                    sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.74rem', borderColor: `${accent}33`, '& .MuiOutlinedInput-notchedOutline': { borderColor: `${accent}33` } }}
+                  >
+                    <MenuItem value="" sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.74rem' }}>All projects</MenuItem>
+                    {vercel.projects.map(p => (
+                      <MenuItem key={p.id} value={p.name} sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.74rem' }}>{p.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={vercelLoading ? <CircularProgress size={13} /> : <RefreshOutlinedIcon sx={{ fontSize: 15 }} />}
+                onClick={loadVercel}
+                disabled={vercelLoading}
+                sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem', fontWeight: 700, borderColor: `${accent}44`, color: accent, '&:hover': { borderColor: accent, bgcolor: `${accent}08` } }}
+              >
+                Refresh
+              </Button>
+            </Box>
           </Box>
 
           {/* Not-configured state */}
@@ -2396,7 +2414,25 @@ export default function Admin() {
 
           {/* ── Data layer ─────────────────────────────────────────────────── */}
           {vercel && (() => {
-            const s = vercel.summary
+            // Filter to selected project (if any) so the tab only shows Sparky Tool data
+            const filteredProjects    = selectedProject
+              ? vercel.projects.filter(p => p.name === selectedProject)
+              : vercel.projects
+            const filteredDeployments = selectedProject
+              ? vercel.deployments.filter(d => d.name === selectedProject)
+              : vercel.deployments
+
+            const buildTimes = filteredDeployments.filter(d => d.build_ms && d.build_ms > 0).map(d => d.build_ms)
+            const s = {
+              total_deployments: filteredDeployments.length,
+              prod_success:      filteredDeployments.filter(d => d.state === 'READY' && d.target === 'production').length,
+              prod_error:        filteredDeployments.filter(d => d.state === 'ERROR' && d.target === 'production').length,
+              in_progress:       filteredDeployments.filter(d => ['BUILDING', 'QUEUED'].includes(d.state)).length,
+              avg_build_s:       buildTimes.length
+                ? Math.round(buildTimes.reduce((a, b) => a + b, 0) / buildTimes.length / 100) / 10
+                : null,
+            }
+
             const deployStateColor = (st) =>
               st === 'READY'    ? '#6b8f71' :
               st === 'ERROR'    ? '#b45050' :
@@ -2437,8 +2473,8 @@ export default function Admin() {
                       </Box>
                     }>
                       <VercelScene3D
-                        deployments={vercel.deployments}
-                        projects={vercel.projects}
+                        deployments={filteredDeployments}
+                        projects={filteredProjects}
                         accent={accent}
                         highlighted={highlighted}
                         onSelect={handleSceneSelect}
@@ -2500,15 +2536,15 @@ export default function Admin() {
                           Recent Deployments
                         </Typography>
                         <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>
-                          {vercel.deployments.length} shown
+                          {filteredDeployments.length} shown
                         </Typography>
                       </Box>
                       <Box sx={{ maxHeight: 440, overflowY: 'auto', '&::-webkit-scrollbar': { width: 4 }, '&::-webkit-scrollbar-thumb': { bgcolor: `${accent}30`, borderRadius: 2 } }}>
-                        {vercel.deployments.length === 0 ? (
+                        {filteredDeployments.length === 0 ? (
                           <Box sx={{ py: 6, textAlign: 'center' }}>
                             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.disabled' }}>No deployments found</Typography>
                           </Box>
-                        ) : vercel.deployments.map((d, i) => {
+                        ) : filteredDeployments.map((d, i) => {
                           const isHL = highlighted === d.uid
                           return (
                           <Box
@@ -2519,7 +2555,7 @@ export default function Admin() {
                               display: 'flex', alignItems: 'flex-start', gap: 1.5,
                               px: 2.5, py: 1.4,
                               cursor: 'pointer',
-                              borderBottom: i < vercel.deployments.length - 1 ? `1px solid ${accent}10` : 'none',
+                              borderBottom: i < filteredDeployments.length - 1 ? `1px solid ${accent}10` : 'none',
                               outline: isHL ? `1px solid ${accent}55` : 'none',
                               bgcolor: isHL ? `${accent}0e` : 'transparent',
                               transition: 'background-color 0.15s ease, outline 0.15s ease',
@@ -2571,18 +2607,18 @@ export default function Admin() {
                           Projects
                         </Typography>
                         <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.64rem', color: 'text.disabled' }}>
-                          {vercel.projects.length}
+                          {filteredProjects.length}
                         </Typography>
                       </Box>
                       <Box>
-                        {vercel.projects.length === 0 ? (
+                        {filteredProjects.length === 0 ? (
                           <Box sx={{ py: 4, textAlign: 'center' }}>
                             <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.78rem', color: 'text.disabled' }}>No projects found</Typography>
                           </Box>
-                        ) : vercel.projects.map((p, i) => (
+                        ) : filteredProjects.map((p, i) => (
                           <Box key={p.id} sx={{
                             px: 2.5, py: 1.6,
-                            borderBottom: i < vercel.projects.length - 1 ? `1px solid ${accent}10` : 'none',
+                            borderBottom: i < filteredProjects.length - 1 ? `1px solid ${accent}10` : 'none',
                             '&:hover': { bgcolor: `${accent}07` },
                           }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
