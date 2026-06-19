@@ -113,6 +113,16 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=()",
+    )
+    # Prevent browsers and CDNs from caching authenticated API responses.
+    # Static assets (JS/CSS/images) are excluded — they carry content-hash names
+    # and are fine to cache indefinitely.
+    if request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store, no-cache, must-revalidate, private")
+        response.headers.setdefault("Pragma", "no-cache")
     return response
 
 

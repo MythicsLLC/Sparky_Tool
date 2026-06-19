@@ -1,10 +1,11 @@
 import os
+import time as _time
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, text
+from sqlalchemy import func, case, cast, Date
 from sqlalchemy.orm import Session
 
 from auth import require_admin
@@ -17,6 +18,12 @@ from logger import get_logger
 log = get_logger("admin")
 
 router = APIRouter(prefix="/api/v2/admin", tags=["admin"])
+
+# Short-lived in-memory cache for the expensive /stats endpoint.
+# A 30-second TTL prevents repeated DB roundtrips when the Admin dashboard
+# is opened multiple times in quick succession or auto-refreshed.
+_stats_cache: dict = {}
+_STATS_TTL = 30.0  # seconds
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,6 +67,12 @@ def _serialize_model(m: AiModel) -> dict:
 
 @router.get("/stats")
 def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    now = _time.time()
+    cached = _stats_cache.get("data")
+    if cached is not None and (now - _stats_cache.get("ts", 0)) < _STATS_TTL:
+        log.debug("admin stats (cached)  requested_by=%s", user.id[:8])
+        return cached
+
     total_users  = db.query(func.count(User.id)).scalar()
     total_runs   = db.query(func.count(RunLog.id)).scalar()
     success_runs = db.query(func.count(RunLog.id)).filter(RunLog.status == "success").scalar()
@@ -76,31 +89,42 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
         RunLog.status == "success", RunLog.row_count.isnot(None), RunLog.row_count > 0,
     ).scalar()
 
-    step_counts = db.execute(text("""
-        SELECT failed_step, COUNT(*) AS cnt
-        FROM run_logs
-        WHERE status = 'error' AND failed_step != '' AND failed_step IS NOT NULL
-        GROUP BY failed_step
-    """)).fetchall()
+    # ORM equivalents of the former raw SQL queries — fully parameterized,
+    # no risk of SQL injection if filter values ever become user-controlled.
+    step_counts = (
+        db.query(RunLog.failed_step, func.count().label("cnt"))
+        .filter(RunLog.status == "error", RunLog.failed_step != "", RunLog.failed_step.isnot(None))
+        .group_by(RunLog.failed_step)
+        .all()
+    )
 
-    runs_per_day = db.execute(text("""
-        SELECT DATE(started_at) AS day, COUNT(*) AS count,
-               SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS success,
-               SUM(CASE WHEN status='error'   THEN 1 ELSE 0 END) AS errors
-        FROM run_logs
-        WHERE started_at >= NOW() - INTERVAL '30 days'
-        GROUP BY day ORDER BY day
-    """)).fetchall()
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    day_col = cast(RunLog.started_at, Date)
+    runs_per_day = (
+        db.query(
+            day_col.label("day"),
+            func.count().label("count"),
+            func.sum(case((RunLog.status == "success", 1), else_=0)).label("success"),
+            func.sum(case((RunLog.status == "error",   1), else_=0)).label("errors"),
+        )
+        .filter(RunLog.started_at >= thirty_days_ago)
+        .group_by(day_col)
+        .order_by(day_col)
+        .all()
+    )
 
-    recent_runs = db.execute(text("""
-        SELECT r.id, r.status, r.instance_id, r.report_id, r.ps_process_name,
-               r.sftp_skipped, r.failed_step, r.row_count, r.duration_ms, r.started_at,
-               u.email AS user_email, r.config_name
-        FROM run_logs r
-        LEFT JOIN users u ON u.id = r.user_id
-        ORDER BY r.started_at DESC
-        LIMIT 10
-    """)).fetchall()
+    recent_runs = (
+        db.query(
+            RunLog.id, RunLog.status, RunLog.instance_id, RunLog.report_id,
+            RunLog.ps_process_name, RunLog.sftp_skipped, RunLog.failed_step,
+            RunLog.row_count, RunLog.duration_ms, RunLog.started_at,
+            User.email.label("user_email"), RunLog.config_name,
+        )
+        .outerjoin(User, User.id == RunLog.user_id)
+        .order_by(RunLog.started_at.desc())
+        .limit(10)
+        .all()
+    )
 
     # ── AI token / cost stats ─────────────────────────────────────────────────
     total_conversations = db.query(func.count(AiConversation.id)).scalar() or 0
@@ -116,7 +140,7 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
 
     log.debug("admin stats  users=%d  runs=%d  requested_by=%s", total_users, total_runs, user.id[:8])
 
-    return {
+    result = {
         "total_users":          total_users,
         "total_runs":           total_runs,
         "success_runs":         success_runs,
@@ -158,6 +182,9 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
             for r in recent_runs
         ],
     }
+    _stats_cache["data"] = result
+    _stats_cache["ts"]   = now
+    return result
 
 
 # ── users ─────────────────────────────────────────────────────────────────────

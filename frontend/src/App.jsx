@@ -10,13 +10,19 @@ import { useAuth } from './AuthContext'
 
 // Wraps React.lazy so that a stale-deployment 404 on a hashed chunk triggers a
 // one-shot page reload (which fetches fresh HTML + new chunk hashes) instead of
-// crashing the app. The sessionStorage flag prevents infinite reload loops if
-// the module still fails after the reload.
+// crashing the app. The sessionStorage timestamp prevents infinite reload loops
+// while still allowing retries after 5 minutes (so a new deployment can succeed
+// even if a prior one left the flag set).
+const _CHUNK_RELOAD_TTL = 5 * 60 * 1000  // 5 minutes
+
 function lazyWithReload(importFn) {
   return lazy(() =>
     importFn().catch((err) => {
-      if (!sessionStorage.getItem('chunk_reload_attempted')) {
-        sessionStorage.setItem('chunk_reload_attempted', '1')
+      const KEY = 'chunk_reload_ts'
+      const stored = sessionStorage.getItem(KEY)
+      const ts = stored ? parseInt(stored, 10) : 0
+      if (!ts || Date.now() - ts > _CHUNK_RELOAD_TTL) {
+        sessionStorage.setItem(KEY, String(Date.now()))
         window.location.reload()
         return { default: () => null }
       }
