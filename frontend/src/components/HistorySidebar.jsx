@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import {
-  Box, Typography, Tabs, Tab, Tooltip, IconButton,
+  Box, Typography, Tabs, Tab, Tooltip, IconButton, CircularProgress,
 } from '@mui/material'
 import { timeAgo } from '../utils/time'
 import HistoryIcon            from '@mui/icons-material/History'
@@ -10,6 +10,8 @@ import FolderIcon             from '@mui/icons-material/Folder'
 import FolderOpenIcon         from '@mui/icons-material/FolderOpen'
 import KeyboardArrowDownIcon  from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
+import BarChartIcon           from '@mui/icons-material/BarChart'
+import AutoAwesomeIcon        from '@mui/icons-material/AutoAwesome'
 
 const DATE_PERIODS = ['Today', 'Yesterday', 'This Week', 'This Month', 'Older']
 
@@ -40,11 +42,15 @@ function groupItems(items, dateKey, configKey) {
     }))
 }
 
-export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
+export default function HistorySidebar({ runs = [], runOutputs = [], analysisItems = [], onAnalysisSelect, analysisLoadingId = null, accent }) {
   const [collapsed,   setCollapsed]   = useState(true)
   const [tab,         setTab]         = useState(0)
   const [openPeriods, setOpenPeriods] = useState(
-    () => new Set(['Today', 'Yesterday', 'This Week', 'out:Today', 'out:Yesterday', 'out:This Week'])
+    () => new Set([
+      'Today', 'Yesterday', 'This Week',
+      'out:Today', 'out:Yesterday', 'out:This Week',
+      'ai:Today', 'ai:Yesterday', 'ai:This Week',
+    ])
   )
   const [openConfigs, setOpenConfigs] = useState(() => new Set())
 
@@ -185,6 +191,98 @@ export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
     })
   }
 
+  const renderAnalysis = () => {
+    if (!analysisItems.length) {
+      return (
+        <Box sx={{ py: 4, textAlign: 'center' }}>
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.64rem', color: 'text.disabled' }}>
+            No analysis history yet
+          </Typography>
+        </Box>
+      )
+    }
+
+    const groups = {}
+    for (const item of analysisItems) {
+      const p = getPeriod(item.created_at)
+      if (!groups[p]) groups[p] = []
+      groups[p].push(item)
+    }
+    const sortedGroups = DATE_PERIODS.filter((p) => groups[p]).map((p) => ({ period: p, items: groups[p] }))
+
+    return sortedGroups.map(({ period, items }) => {
+      const pKey  = `ai:${period}`
+      const pOpen = openPeriods.has(pKey)
+      return (
+        <Box key={pKey}>
+          <Box
+            onClick={() => togglePeriod(pKey)}
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 0.75,
+              px: 1.5, py: 0.75, cursor: 'pointer', userSelect: 'none',
+              '&:hover': { bgcolor: `${accent}08` },
+            }}
+          >
+            {pOpen
+              ? <KeyboardArrowDownIcon  sx={{ fontSize: 12, color: accent, flexShrink: 0 }} />
+              : <KeyboardArrowRightIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+            }
+            <Typography sx={{
+              fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+              fontSize: '0.68rem', letterSpacing: '0.14em', textTransform: 'uppercase',
+              color: pOpen ? accent : 'text.disabled', flex: 1,
+            }}>
+              {period}
+            </Typography>
+            <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.66rem', color: 'text.disabled' }}>
+              {items.length}
+            </Typography>
+          </Box>
+
+          {pOpen && items.map((item) => {
+            const isLoading = analysisLoadingId === item.id
+            return (
+              <Box
+                key={item.id}
+                onClick={() => !analysisLoadingId && onAnalysisSelect?.(item)}
+                sx={{
+                  pl: 3, pr: 1.5, py: 0.6,
+                  cursor: isLoading ? 'wait' : analysisLoadingId ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'flex-start', gap: 0.75,
+                  '&:hover': !analysisLoadingId ? { bgcolor: `${accent}06` } : {},
+                }}
+              >
+                <AutoAwesomeIcon sx={{ fontSize: 10, color: accent, opacity: 0.6, flexShrink: 0, mt: 0.35 }} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{
+                    fontFamily: '"Raleway", sans-serif', fontSize: '0.62rem', color: 'text.secondary',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {item.filename}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.2, flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.6rem', color: 'text.disabled' }}>
+                      {timeAgo(item.created_at)}
+                    </Typography>
+                    {item.chart_count > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                        <BarChartIcon sx={{ fontSize: 9, color: 'text.disabled' }} />
+                        <Typography sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.58rem', color: 'text.disabled' }}>
+                          {item.chart_count}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+                {isLoading && <CircularProgress size={10} sx={{ color: accent, flexShrink: 0, mt: 0.35 }} />}
+              </Box>
+            )
+          })}
+        </Box>
+      )
+    })
+  }
+
   return (
     <Box
       sx={{
@@ -270,6 +368,7 @@ export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
             >
               <Tab label={`Runs${runs.length ? ` (${runs.length})` : ''}`} />
               <Tab label={`Outputs${runOutputs.length ? ` (${runOutputs.length})` : ''}`} />
+              <Tab label={`Analysis${analysisItems.length ? ` (${analysisItems.length})` : ''}`} />
             </Tabs>
           </Box>
 
@@ -284,6 +383,7 @@ export default function HistorySidebar({ runs = [], runOutputs = [], accent }) {
           >
             {tab === 0 && renderGroups(runGroups,    false)}
             {tab === 1 && renderGroups(outputGroups, true)}
+            {tab === 2 && renderAnalysis()}
           </Box>
         </>
       )}

@@ -17,12 +17,9 @@ import StorageIcon        from '@mui/icons-material/Storage'
 import TaskAltIcon        from '@mui/icons-material/TaskAlt'
 import VerifiedIcon       from '@mui/icons-material/VerifiedUser'
 import BarChartIcon       from '@mui/icons-material/BarChart'
-import HistoryIcon        from '@mui/icons-material/History'
-import ArrowBackIcon      from '@mui/icons-material/ArrowBack'
 import {
   runConfig, analyzeRunOutput, listRuns,
   listInsightModels, listConfigs, formatApiError,
-  listAnalysisResults, getAnalysisResult, reconstructRunOutput,
 } from '../api'
 import { useAuth }         from '../AuthContext'
 import { useThemeContext } from '../ThemeContext'
@@ -650,201 +647,9 @@ function ResultsView({ runResult, analysisResult, accent }) {
   )
 }
 
-// ── History helpers ───────────────────────────────────────────────────────────
-
-function _bucketLabel(isoStr) {
-  if (!isoStr) return 'Older'
-  const d    = new Date(isoStr)
-  const now  = new Date()
-  const diff = now - d
-  const day  = 86_400_000
-  if (diff < day && d.getDate() === now.getDate()) return 'Today'
-  if (diff < 2 * day) return 'Yesterday'
-  if (diff < 7 * day) return 'This Week'
-  if (diff < 30 * day) return 'This Month'
-  return 'Older'
-}
-
-function _bucketOrder(label) {
-  return { Today: 0, Yesterday: 1, 'This Week': 2, 'This Month': 3, Older: 4 }[label] ?? 5
-}
-
-function _groupByDate(items) {
-  const groups = {}
-  for (const item of items) {
-    const label = _bucketLabel(item.created_at)
-    if (!groups[label]) groups[label] = []
-    groups[label].push(item)
-  }
-  return Object.entries(groups).sort(([a], [b]) => _bucketOrder(a) - _bucketOrder(b))
-}
-
-function fmtDate(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-// ── HistoryPanel ──────────────────────────────────────────────────────────────
-
-function HistoryPanel({ accent, onSelect, onClose }) {
-  const { token }              = useAuth()
-  const [items, setItems]      = useState([])
-  const [loading, setLoading]  = useState(true)
-  const [loadingId, setLoadingId] = useState(null)
-  const [error, setError]      = useState(null)
-
-  useEffect(() => {
-    if (!token) return
-    listAnalysisResults(token, { limit: 100 })
-      .then(({ data }) => setItems(data.items || []))
-      .catch(() => setError('Failed to load history'))
-      .finally(() => setLoading(false))
-  }, [token])
-
-  const handleSelect = async (item) => {
-    setLoadingId(item.id)
-    try {
-      const promises = [getAnalysisResult(item.id, token)]
-      if (item.run_output_id) promises.push(reconstructRunOutput(item.run_output_id, token))
-      const [{ data: ar }, runRes] = await Promise.all(promises)
-      onSelect({
-        analysisResult: ar.response_json,
-        runResult:      runRes?.data ?? null,
-      })
-    } catch {
-      setError('Failed to load this analysis. Please try another.')
-    } finally {
-      setLoadingId(null)
-    }
-  }
-
-  const groups = _groupByDate(items)
-
-  return (
-    <Box sx={{
-      '@keyframes fadeUp': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
-      animation: 'fadeUp 0.3s ease both',
-    }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: '3px', height: 20, bgcolor: accent, opacity: 0.7, flexShrink: 0, borderRadius: '2px' }} />
-          <HistoryIcon sx={{ fontSize: 16, color: accent }} />
-          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontWeight: 600, fontSize: '1.1rem', color: 'text.primary' }}>
-            Analysis History
-          </Typography>
-          {!loading && (
-            <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
-              {items.length} {items.length === 1 ? 'result' : 'results'}
-            </Typography>
-          )}
-        </Box>
-      </Box>
-
-      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress size={24} sx={{ color: accent }} />
-        </Box>
-      ) : items.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <HistoryIcon sx={{ fontSize: 36, color: 'text.disabled', mb: 1.5, opacity: 0.4 }} />
-          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem', color: 'text.disabled' }}>
-            No analysis history yet. Run & Analyse a config to get started.
-          </Typography>
-        </Box>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {groups.map(([label, groupItems]) => (
-            <Box key={label}>
-              <Typography sx={{
-                fontSize: '0.7rem', letterSpacing: '0.16em', textTransform: 'uppercase',
-                color: 'text.disabled', fontFamily: '"Raleway", sans-serif',
-                mb: 1.25, pl: 0.5,
-              }}>
-                {label}
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                {groupItems.map((item) => (
-                  <Card
-                    key={item.id}
-                    variant="outlined"
-                    onClick={() => loadingId === null && handleSelect(item)}
-                    sx={{
-                      bgcolor: 'background.paper',
-                      borderColor: 'divider',
-                      cursor: loadingId === item.id ? 'wait' : 'pointer',
-                      transition: 'all 0.18s ease',
-                      '&:hover': loadingId === null ? {
-                        borderColor: `${accent}55`,
-                        bgcolor: `${accent}05`,
-                      } : {},
-                    }}
-                  >
-                    <CardContent sx={{ p: '12px 16px !important', display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{
-                          fontFamily: '"Raleway", sans-serif', fontWeight: 600,
-                          fontSize: '0.78rem', color: 'text.primary',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {item.filename}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.4, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
-                            {fmtDate(item.created_at)}
-                          </Typography>
-                          {item.model_id_str && (
-                            <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"JetBrains Mono", monospace' }}>
-                              {item.model_id_str}
-                            </Typography>
-                          )}
-                          {item.chart_count > 0 && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <BarChartIcon sx={{ fontSize: 10, color: 'text.disabled' }} />
-                              <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
-                                {item.chart_count} charts
-                              </Typography>
-                            </Box>
-                          )}
-                          {item.total_rows > 0 && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <StorageIcon sx={{ fontSize: 10, color: 'text.disabled' }} />
-                              <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontFamily: '"Raleway", sans-serif' }}>
-                                {item.total_rows.toLocaleString()} rows
-                              </Typography>
-                            </Box>
-                          )}
-                          {item.provider && (
-                            <Chip
-                              label={item.provider}
-                              size="small"
-                              sx={{ bgcolor: `${accent}1e`, color: accent, fontSize: '0.68rem', height: 22 }}
-                            />
-                          )}
-                        </Box>
-                      </Box>
-                      {loadingId === item.id ? (
-                        <CircularProgress size={16} sx={{ color: accent, flexShrink: 0 }} />
-                      ) : (
-                        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: `${accent}44`, flexShrink: 0 }} />
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      )}
-    </Box>
-  )
-}
-
 // ── RunAnalyseDashboard ───────────────────────────────────────────────────────
 
-export default function RunAnalyseDashboard() {
+export default function RunAnalyseDashboard({ selectedHistory = null, onClearHistory, onNewAnalysis }) {
   const { token }        = useAuth()
   const { accent, mode } = useThemeContext()
 
@@ -860,13 +665,19 @@ export default function RunAnalyseDashboard() {
   const [models,          setModels]          = useState([])
   const [selectedModelId, setSelectedModelId] = useState(null)
   const [initLoading,     setInitLoading]     = useState(true)
-  // 'list' | 'result' — null means we're in the normal Run & Analyse mode
-  const [historyView,     setHistoryView]     = useState(null)
-  const [historyMeta,     setHistoryMeta]     = useState(null) // {filename, created_at}
 
   const pollRef    = useRef(null)
   const timerRef   = useRef(null)
   const startTsRef = useRef(null)
+
+  // When the sidebar selects a history item, display it (unless a run is active)
+  useEffect(() => {
+    if (!selectedHistory) return
+    if (phase === 'running' || phase === 'analysing') return
+    setRunResult(selectedHistory.runResult)
+    setAnalysisResult(selectedHistory.analysisResult)
+    setPhase('done')
+  }, [selectedHistory])
 
   useEffect(() => {
     if (!token) return
@@ -899,6 +710,7 @@ export default function RunAnalyseDashboard() {
     setAnalysisResult(null)
     setError(null)
     setElapsed(0)
+    onClearHistory?.()
 
     startTsRef.current = Date.now()
 
@@ -968,12 +780,6 @@ export default function RunAnalyseDashboard() {
     }
   }, [activeConfigId, selectedModelId, token, phase])
 
-  const handleHistorySelect = useCallback(({ analysisResult: ar, runResult: rr }) => {
-    setAnalysisResult(ar)
-    setRunResult(rr)
-    setHistoryView('result')
-  }, [])
-
   const inProgress = phase === 'running' || phase === 'analysing'
   const selectedModel = models.find((m) => m.id === selectedModelId)
 
@@ -984,28 +790,8 @@ export default function RunAnalyseDashboard() {
   return (
     <Box>
       {/* Toolbar */}
-      <Box sx={{
-        display: 'flex', alignItems: 'center', gap: 1.5, mb: 4,
-        flexWrap: 'wrap',
-      }}>
-        {/* History: back button when viewing a result */}
-        {historyView === 'result' && (
-          <Button
-            startIcon={<ArrowBackIcon sx={{ fontSize: 15 }} />}
-            onClick={() => { setHistoryView('list'); setRunResult(null); setAnalysisResult(null) }}
-            size="small"
-            sx={{
-              color: 'text.secondary',
-              fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem',
-              textTransform: 'none', mr: 0.5,
-              '&:hover': { color: accent },
-            }}
-          >
-            Back to History
-          </Button>
-        )}
-
-        {historyView === null && !initLoading && (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4, flexWrap: 'wrap' }}>
+        {!initLoading && (
           <>
             <Select
               value={activeConfigId || ''}
@@ -1014,9 +800,7 @@ export default function RunAnalyseDashboard() {
               displayEmpty
               size="small"
               sx={{
-                minWidth: 210,
-                fontFamily: '"Raleway", sans-serif',
-                fontSize: '0.8rem',
+                minWidth: 210, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem',
                 '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
                 '& .MuiSelect-select': { py: 1.15 },
               }}
@@ -1036,9 +820,7 @@ export default function RunAnalyseDashboard() {
                 disabled={inProgress}
                 size="small"
                 sx={{
-                  minWidth: 175,
-                  fontFamily: '"Raleway", sans-serif',
-                  fontSize: '0.8rem',
+                  minWidth: 175, fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem',
                   '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
                   '& .MuiSelect-select': { py: 1.15 },
                 }}
@@ -1059,21 +841,15 @@ export default function RunAnalyseDashboard() {
               onClick={handleRun}
               disabled={inProgress || !activeConfigId}
               sx={{
-                bgcolor: 'primary.main',
-                color: 'background.default',
-                fontFamily: '"Raleway", sans-serif',
-                fontWeight: 700,
-                fontSize: '0.72rem',
-                letterSpacing: '0.14em',
-                px: 3,
-                py: 1.2,
-                borderRadius: '2px',
+                bgcolor: 'primary.main', color: 'background.default',
+                fontFamily: '"Raleway", sans-serif', fontWeight: 700,
+                fontSize: '0.72rem', letterSpacing: '0.14em',
+                px: 3, py: 1.2, borderRadius: '2px',
                 boxShadow: `0 2px 20px ${accent}35`,
                 '&:hover': { bgcolor: 'primary.light', boxShadow: `0 4px 28px ${accent}55` },
                 '&.Mui-disabled': { opacity: 0.45 },
                 transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-                textTransform: 'none',
+                whiteSpace: 'nowrap', textTransform: 'none',
               }}
             >
               {inProgress ? 'Running…' : 'Run & Analyse'}
@@ -1083,7 +859,7 @@ export default function RunAnalyseDashboard() {
               <Tooltip title="Start a new run" placement="right">
                 <IconButton
                   size="small"
-                  onClick={() => { setPhase('idle'); setError(null) }}
+                  onClick={() => { setPhase('idle'); setError(null); setRunResult(null); setAnalysisResult(null); onClearHistory?.() }}
                   sx={{ color: 'text.secondary', '&:hover': { color: accent } }}
                 >
                   <ReplayIcon sx={{ fontSize: 18 }} />
@@ -1093,81 +869,8 @@ export default function RunAnalyseDashboard() {
           </>
         )}
 
-        {initLoading && historyView === null && (
-          <CircularProgress size={20} sx={{ color: accent }} />
-        )}
-
-        {/* History toggle — always visible unless a run is in progress */}
-        {!inProgress && (
-          <Box sx={{ ml: 'auto' }}>
-            {historyView === null ? (
-              <Button
-                startIcon={<HistoryIcon sx={{ fontSize: 15 }} />}
-                onClick={() => setHistoryView('list')}
-                size="small"
-                variant="outlined"
-                sx={{
-                  color: 'text.secondary',
-                  borderColor: 'divider',
-                  fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem',
-                  textTransform: 'none',
-                  '&:hover': { borderColor: accent, color: accent },
-                }}
-              >
-                History
-              </Button>
-            ) : (
-              <Button
-                startIcon={<AutoAwesomeIcon sx={{ fontSize: 15 }} />}
-                onClick={() => { setHistoryView(null); setRunResult(null); setAnalysisResult(null); setPhase('idle') }}
-                size="small"
-                variant="outlined"
-                sx={{
-                  color: 'text.secondary',
-                  borderColor: 'divider',
-                  fontFamily: '"Raleway", sans-serif', fontSize: '0.72rem',
-                  textTransform: 'none',
-                  '&:hover': { borderColor: accent, color: accent },
-                }}
-              >
-                New Run
-              </Button>
-            )}
-          </Box>
-        )}
+        {initLoading && <CircularProgress size={20} sx={{ color: accent }} />}
       </Box>
-
-      {/* History views */}
-      {historyView === 'list' && (
-        <HistoryPanel accent={accent} onSelect={handleHistorySelect} />
-      )}
-
-      {historyView === 'result' && runResult && analysisResult && (
-        <ResultsView runResult={runResult} analysisResult={analysisResult} accent={accent} />
-      )}
-
-      {historyView === 'result' && !runResult && analysisResult && (
-        <Box>
-          <Alert severity="info" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' }}>
-            Run data is not available for this analysis — showing AI insights only.
-          </Alert>
-          <ExecutiveReportHeader runResult={null} analysisResult={analysisResult} accent={accent} />
-          <KPIBar runResult={null} analysisResult={analysisResult} accent={accent} />
-          <ExecutiveSummary analysisResult={analysisResult} accent={accent} />
-          <FindingsAndRecommendations analysisResult={analysisResult} accent={accent} />
-          <RiskAlerts anomalies={analysisResult?.sections?.anomalies} />
-          {(analysisResult?.charts?.length > 0) && (
-            <>
-              <Divider sx={{ my: 4 }} />
-              <BusinessAnalyticsSection charts={analysisResult.charts} accent={accent} />
-            </>
-          )}
-        </Box>
-      )}
-
-      {/* Normal run mode below — only shown when not in history */}
-      {historyView === null && (
-        <>
 
       {/* Error */}
       {phase === 'error' && error && (
@@ -1207,9 +910,29 @@ export default function RunAnalyseDashboard() {
         />
       )}
 
-      {/* Results */}
+      {/* Results (fresh run or loaded from sidebar history) */}
       {phase === 'done' && runResult && analysisResult && (
         <ResultsView runResult={runResult} analysisResult={analysisResult} accent={accent} />
+      )}
+
+      {/* History result with no run data — analysis-only view */}
+      {phase === 'done' && !runResult && analysisResult && (
+        <Box>
+          <Alert severity="info" sx={{ mb: 3, fontFamily: '"Raleway", sans-serif', fontSize: '0.82rem' }}>
+            Run data is not available for this analysis — showing AI insights only.
+          </Alert>
+          <ExecutiveReportHeader runResult={null} analysisResult={analysisResult} accent={accent} />
+          <KPIBar runResult={null} analysisResult={analysisResult} accent={accent} />
+          <ExecutiveSummary analysisResult={analysisResult} accent={accent} />
+          <FindingsAndRecommendations analysisResult={analysisResult} accent={accent} />
+          <RiskAlerts anomalies={analysisResult?.sections?.anomalies} />
+          {analysisResult?.charts?.length > 0 && (
+            <>
+              <Divider sx={{ my: 4 }} />
+              <BusinessAnalyticsSection charts={analysisResult.charts} accent={accent} />
+            </>
+          )}
+        </Box>
       )}
 
       {/* Idle */}
@@ -1236,6 +959,7 @@ export default function RunAnalyseDashboard() {
             }}>
               Triggers a PeopleSoft run, downloads the report via FTP,
               then passes it to the AI model for instant insights.
+              Select a past result from the History sidebar on the right.
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
@@ -1249,8 +973,6 @@ export default function RunAnalyseDashboard() {
             ))}
           </Box>
         </Box>
-      )}
-        </>
       )}
     </Box>
   )

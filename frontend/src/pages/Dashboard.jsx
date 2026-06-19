@@ -33,7 +33,7 @@ import AnalyzeDashboard     from './AnalyzeDashboard'
 import RunAnalyseDashboard  from './RunAnalyseDashboard'
 import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
-import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs } from '../api'
+import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs, listAnalysisResults, getAnalysisResult, reconstructRunOutput } from '../api'
 import { timeAgo } from '../utils/time'
 import RunDiffDialog       from '../components/RunDiffDialog'
 import MultiSectionReport from '../components/MultiSectionReport'
@@ -156,8 +156,11 @@ export default function Dashboard() {
   )
   const [pdfTabLoading,    setPdfTabLoading]    = useState(false)
   const [functionalState,  setFunctionalState]  = useState(null) // {filename, data}
-  const [runOutputs,       setRunOutputs]       = useState([])
-  const [diffOpen,         setDiffOpen]         = useState(false)
+  const [runOutputs,        setRunOutputs]        = useState([])
+  const [diffOpen,          setDiffOpen]          = useState(false)
+  const [analysisItems,     setAnalysisItems]     = useState([])
+  const [analysisLoadingId, setAnalysisLoadingId] = useState(null)
+  const [selectedAnalysis,  setSelectedAnalysis]  = useState(null)
   const tabRef = useRef(null)
 
   const TAB_NAMES = ['Run Dashboard', 'Functional Dashboard', 'Operational Dashboard', 'AI Analysis', 'Run & Analyse']
@@ -240,13 +243,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token) return
     setPageLoading(true)
-    Promise.all([listConfigs(token), listRuns(token), listRunOutputs(token)])
-      .then(([configsRes, runsRes, outputsRes]) => {
+    Promise.all([listConfigs(token), listRuns(token), listRunOutputs(token), listAnalysisResults(token, { limit: 100 })])
+      .then(([configsRes, runsRes, outputsRes, analysisRes]) => {
         const saved = configsRes.data
         setConfigs(saved)
         if (saved.length && !activeConfigId) setActiveConfigId(saved[0].id)
         setRuns(runsRes.data.items)
         setRunOutputs(outputsRes.data.items || [])
+        setAnalysisItems(analysisRes.data.items || [])
       })
       .catch((err) => setError(formatApiError(err, 'Unable to load dashboard data')))
       .finally(() => setPageLoading(false))
@@ -279,6 +283,23 @@ export default function Dashboard() {
       setRunning(false)
     }
   }
+
+  const handleAnalysisSelect = useCallback(async (item) => {
+    setAnalysisLoadingId(item.id)
+    try {
+      const promises = [getAnalysisResult(item.id, token)]
+      if (item.run_output_id) promises.push(reconstructRunOutput(item.run_output_id, token))
+      const [{ data: ar }, runRes] = await Promise.all(promises)
+      setSelectedAnalysis({
+        analysisResult: ar.response_json,
+        runResult:      runRes?.data ?? null,
+      })
+      setDashTab(4)
+      localStorage.setItem('dashboard_tab', '4')
+    } catch { /* non-fatal */ } finally {
+      setAnalysisLoadingId(null)
+    }
+  }, [token])
 
   // ── keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -752,12 +773,27 @@ export default function Dashboard() {
         {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
         {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
         {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
-        {dashTab === 4 && <Box ref={tabRef}><RunAnalyseDashboard /></Box>}
+        {dashTab === 4 && (
+          <Box ref={tabRef}>
+            <RunAnalyseDashboard
+              selectedHistory={selectedAnalysis}
+              onClearHistory={() => setSelectedAnalysis(null)}
+              onNewAnalysis={(item) => setAnalysisItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
+            />
+          </Box>
+        )}
 
       </Box>
 
       </Box>
-      <HistorySidebar runs={runs} runOutputs={runOutputs} accent={accent} />
+      <HistorySidebar
+        runs={runs}
+        runOutputs={runOutputs}
+        analysisItems={analysisItems}
+        onAnalysisSelect={handleAnalysisSelect}
+        analysisLoadingId={analysisLoadingId}
+        accent={accent}
+      />
 
       <LoadingDialog open={running} />
 
