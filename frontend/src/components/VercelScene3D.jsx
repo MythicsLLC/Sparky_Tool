@@ -1,6 +1,10 @@
-import { Component, useRef, useState, useMemo } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Stars, OrbitControls, Html } from '@react-three/drei'
+import { Component, useRef, useState, useMemo, useEffect } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+
+// No @react-three/drei — its module-init code accesses undefined Three.js
+// internals in three@0.184, crashing the entire chunk before any render.
+// Everything here uses only @react-three/fiber + raw Three.js.
 
 const STATE_COLOR = {
   READY:    '#6b8f71',
@@ -10,7 +14,6 @@ const STATE_COLOR = {
   CANCELED: '#3a3a4a',
 }
 
-// Fibonacci spiral layout in XZ plane with slight Y variation
 function spiralPositions(count, center = [0, 0, 0], minR = 1.4, maxR = 3.4) {
   if (count === 0) return []
   const goldenAngle = Math.PI * (3 - Math.sqrt(5))
@@ -23,29 +26,69 @@ function spiralPositions(count, center = [0, 0, 0], minR = 1.4, maxR = 3.4) {
   })
 }
 
-// ── Native connection line ─────────────────────────────────────────────────────
-// Uses Three.js core primitives only — avoids @react-three/drei Line which wraps
-// LineMaterial from three/examples and breaks across Three.js minor versions.
+// ── Orbit controls wired up imperatively (no drei) ────────────────────────────
+function Controls() {
+  const { camera, gl } = useThree()
+  const ref = useRef()
+  useEffect(() => {
+    const ctrl = new OrbitControls(camera, gl.domElement)
+    ctrl.autoRotate      = true
+    ctrl.autoRotateSpeed = 0.4
+    ctrl.enablePan       = false
+    ctrl.minDistance     = 4
+    ctrl.maxDistance     = 18
+    ref.current = ctrl
+    return () => { ctrl.dispose(); ref.current = null }
+  }, [camera, gl])
+  useFrame(() => ref.current?.update())
+  return null
+}
+
+// ── Star field (native Points geometry, no drei Stars) ────────────────────────
+function StarField() {
+  const positions = useMemo(() => {
+    const count = 2500
+    const arr   = new Float32Array(count * 3)
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2
+      const phi   = Math.acos(2 * Math.random() - 1)
+      const r     = 80 + Math.random() * 50
+      arr[i * 3]     = r * Math.sin(phi) * Math.cos(theta)
+      arr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
+      arr[i * 3 + 2] = r * Math.cos(phi)
+    }
+    return arr
+  }, [])
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#ffffff" size={0.15} sizeAttenuation transparent opacity={0.5} />
+    </points>
+  )
+}
+
+// ── Connection line (core Three.js primitives only) ───────────────────────────
 function ConnectionLine({ start, end, color, opacity }) {
   const positions = useMemo(
     () => new Float32Array([start[0], start[1], start[2], end[0], end[1], end[2]]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [start[0], start[1], start[2], end[0], end[1], end[2]],
   )
   return (
     <line>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={2} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <lineBasicMaterial color={color} transparent opacity={opacity} />
     </line>
   )
 }
 
-// ── Project node (wireframe icosahedron, slowly self-rotating) ────────────────
+// ── Project node ──────────────────────────────────────────────────────────────
 function ProjectNode({ position, accent }) {
   const mesh = useRef()
-  useFrame((_, dt) => { if (mesh.current) mesh.current.rotation.y += dt * 0.35 })
+  useFrame((_, dt) => { if (mesh.current) mesh.current.rotation.y += (dt || 0) * 0.35 })
   return (
     <group position={position}>
       <mesh ref={mesh}>
@@ -61,11 +104,10 @@ function ProjectNode({ position, accent }) {
   )
 }
 
-// ── Deployment node (sphere, pulsing if building, highlight ring if selected) ──
+// ── Deployment node ───────────────────────────────────────────────────────────
 function DeployNode({ position, dep, accent, isHighlighted, onHover, onClick }) {
   const mesh = useRef()
   const ring = useRef()
-  const [hovered, setHovered] = useState(false)
   const col     = STATE_COLOR[dep.state] || '#3a3a4a'
   const pulsing = dep.state === 'BUILDING' || dep.state === 'QUEUED'
 
@@ -74,7 +116,7 @@ function DeployNode({ position, dep, accent, isHighlighted, onHover, onClick }) 
     const delta = dt || 0
     const t = clock.getElapsedTime()
     mesh.current.scale.setScalar(
-      hovered || isHighlighted ? 1.5
+      isHighlighted ? 1.5
       : pulsing ? 1 + Math.sin(t * 4) * 0.2
       : 1
     )
@@ -82,7 +124,6 @@ function DeployNode({ position, dep, accent, isHighlighted, onHover, onClick }) 
       mesh.current.material.emissiveIntensity =
         isHighlighted ? 1.2
         : pulsing ? 0.4 + Math.sin(t * 4) * 0.35
-        : hovered ? 0.7
         : 0.25
     }
     if (ring.current) {
@@ -95,74 +136,23 @@ function DeployNode({ position, dep, accent, isHighlighted, onHover, onClick }) 
     <group position={position}>
       <mesh
         ref={mesh}
-        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); onHover(dep) }}
-        onPointerOut={() => { setHovered(false); onHover(null) }}
+        onPointerOver={(e) => { e.stopPropagation(); onHover(dep) }}
+        onPointerOut={() => onHover(null)}
         onClick={(e) => { e.stopPropagation(); onClick(dep) }}
       >
         <sphereGeometry args={[0.18, 16, 12]} />
         <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.25} />
       </mesh>
-
       <mesh ref={ring} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[0.3, 0.02, 8, 32]} />
         <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.5} />
       </mesh>
-
-      {(hovered || isHighlighted) && (
-        <Html center distanceFactor={10} position={[0, 0.42, 0]} style={{ pointerEvents: 'none' }}>
-          <div style={{
-            background: 'rgba(3, 3, 12, 0.92)',
-            border: `1px solid ${col}99`,
-            borderRadius: 4,
-            padding: '5px 10px',
-            fontFamily: '"Raleway", sans-serif',
-            fontSize: 11,
-            color: '#d8d0c8',
-            whiteSpace: 'nowrap',
-            backdropFilter: 'blur(10px)',
-            boxShadow: `0 0 12px ${col}44`,
-          }}>
-            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2 }}>{dep.name}</div>
-            <div style={{ color: col, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{dep.state}</div>
-            {dep.target === 'production' && (
-              <div style={{ color: '#c9a84c', fontSize: 9, letterSpacing: '0.12em', marginTop: 2 }}>PRODUCTION</div>
-            )}
-            {dep.meta?.branch && (
-              <div style={{ color: '#666', fontSize: 9, fontFamily: '"JetBrains Mono", monospace', marginTop: 2 }}>
-                {dep.meta.branch}
-              </div>
-            )}
-          </div>
-        </Html>
-      )}
     </group>
   )
 }
 
-// ── Label floating above project node ─────────────────────────────────────────
-function ProjectLabel({ position, name }) {
-  return (
-    <Html center position={[position[0], position[1] + 0.9, position[2]]} distanceFactor={12} style={{ pointerEvents: 'none' }}>
-      <div style={{
-        fontFamily: '"Raleway", sans-serif',
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
-        color: 'rgba(220,200,160,0.7)',
-        whiteSpace: 'nowrap',
-        textShadow: '0 0 8px rgba(201,168,76,0.5)',
-      }}>
-        {name}
-      </div>
-    </Html>
-  )
-}
-
-// ── Inner scene — must be a child of <Canvas> to use useFrame ─────────────────
-function SceneInner({ deployments, projects, accent, highlighted, onSelect }) {
-  const [, setHoveredDep] = useState(null)
-
+// ── Inner scene (Canvas child) ────────────────────────────────────────────────
+function SceneInner({ deployments, projects, accent, highlighted, onSelect, onHover }) {
   const byProject = useMemo(() => {
     const map = {}
     projects.forEach(p => { map[p.name] = [] })
@@ -192,38 +182,26 @@ function SceneInner({ deployments, projects, accent, highlighted, onSelect }) {
       <ambientLight intensity={0.15} />
       <pointLight position={[10, 8, 10]} intensity={0.6} color="#8090c0" />
       <pointLight position={[-10, -4, -10]} intensity={0.3} color="#4050a0" />
-      <Stars radius={80} depth={50} count={2500} factor={3} saturation={0} fade speed={0.3} />
+      <StarField />
       <gridHelper args={[24, 24, '#0d0d20', '#070715']} position={[0, -2.8, 0]} />
-      <OrbitControls
-        autoRotate
-        autoRotateSpeed={0.4}
-        enablePan={false}
-        minDistance={4}
-        maxDistance={18}
-        makeDefault
-      />
+      <Controls />
 
       {projects.map((project, pi) => {
         const ppos    = projPositions[pi] || [0, 0, 0]
         const deps    = byProject[project.name] || []
         const dposArr = spiralPositions(deps.length, ppos)
-
         return (
           <group key={project.id}>
             <ProjectNode position={ppos} accent={accent} />
-            <ProjectLabel position={ppos} name={project.name} />
-
             {deps.map((dep, di) => {
               const dpos = dposArr[di] || [ppos[0] + 2, 0, ppos[2]]
               const isHL = highlighted === dep.uid
-              const lCol = isHL ? accent : '#1a2233'
-
               return (
                 <group key={dep.uid}>
                   <ConnectionLine
                     start={ppos}
                     end={dpos}
-                    color={lCol}
+                    color={isHL ? accent : '#1a2233'}
                     opacity={isHL ? 0.85 : 0.28}
                   />
                   <DeployNode
@@ -231,7 +209,7 @@ function SceneInner({ deployments, projects, accent, highlighted, onSelect }) {
                     dep={dep}
                     accent={accent}
                     isHighlighted={isHL}
-                    onHover={setHoveredDep}
+                    onHover={onHover}
                     onClick={onSelect}
                   />
                 </group>
@@ -250,7 +228,7 @@ function SceneInner({ deployments, projects, accent, highlighted, onSelect }) {
             dep={dep}
             accent={accent}
             isHighlighted={highlighted === dep.uid}
-            onHover={setHoveredDep}
+            onHover={onHover}
             onClick={onSelect}
           />
         ))
@@ -259,31 +237,18 @@ function SceneInner({ deployments, projects, accent, highlighted, onSelect }) {
   )
 }
 
-// ── Error boundary isolating the Canvas from the rest of Admin ─────────────────
+// ── Canvas error boundary ─────────────────────────────────────────────────────
 class Scene3DErrorBoundary extends Component {
   state = { crashed: false }
-
-  static getDerivedStateFromError() {
-    return { crashed: true }
-  }
-
-  componentDidCatch(err) {
-    console.error('[VercelScene3D]', err)
-  }
-
+  static getDerivedStateFromError() { return { crashed: true } }
+  componentDidCatch(err) { console.error('[VercelScene3D]', err) }
   render() {
     if (this.state.crashed) {
       return (
         <div style={{
-          width: '100%',
-          height: 480,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#030308',
-          borderRadius: 10,
-          gap: 12,
+          width: '100%', height: 480, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#030308', borderRadius: 10, gap: 12,
         }}>
           <div style={{ color: 'rgba(180,80,80,0.7)', fontFamily: '"Raleway", sans-serif', fontSize: 13, letterSpacing: '0.06em' }}>
             3D scene failed to render
@@ -291,15 +256,10 @@ class Scene3DErrorBoundary extends Component {
           <button
             onClick={() => this.setState({ crashed: false })}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(201,168,76,0.4)',
-              color: 'rgba(201,168,76,0.7)',
-              fontFamily: '"Raleway", sans-serif',
-              fontSize: 11,
-              letterSpacing: '0.1em',
-              padding: '4px 14px',
-              cursor: 'pointer',
-              borderRadius: 2,
+              background: 'transparent', border: '1px solid rgba(201,168,76,0.4)',
+              color: 'rgba(201,168,76,0.7)', fontFamily: '"Raleway", sans-serif',
+              fontSize: 11, letterSpacing: '0.1em', padding: '4px 14px',
+              cursor: 'pointer', borderRadius: 2,
             }}
           >
             RETRY
@@ -311,23 +271,53 @@ class Scene3DErrorBoundary extends Component {
   }
 }
 
-// ── Public component — wraps the Canvas ───────────────────────────────────────
+// ── Public component ──────────────────────────────────────────────────────────
 export default function VercelScene3D({ deployments = [], projects = [], accent, highlighted, onSelect }) {
+  const [hoveredDep, setHoveredDep] = useState(null)
+  const col = hoveredDep ? (STATE_COLOR[hoveredDep.state] || '#3a3a4a') : null
+
   return (
     <Scene3DErrorBoundary>
-      <Canvas
-        camera={{ position: [0, 5, 12], fov: 55 }}
-        style={{ width: '100%', height: 480, borderRadius: 10, display: 'block' }}
-        gl={{ antialias: true, alpha: false }}
-      >
-        <SceneInner
-          deployments={deployments}
-          projects={projects}
-          accent={accent}
-          highlighted={highlighted}
-          onSelect={onSelect}
-        />
-      </Canvas>
+      <div style={{ position: 'relative', width: '100%', height: 480 }}>
+        <Canvas
+          camera={{ position: [0, 5, 12], fov: 55 }}
+          style={{ width: '100%', height: 480, borderRadius: 10, display: 'block' }}
+          gl={{ antialias: true, alpha: false }}
+        >
+          <SceneInner
+            deployments={deployments}
+            projects={projects}
+            accent={accent}
+            highlighted={highlighted}
+            onSelect={onSelect}
+            onHover={setHoveredDep}
+          />
+        </Canvas>
+
+        {/* Hover tooltip — plain DOM overlay, no drei Html needed */}
+        {hoveredDep && (
+          <div style={{
+            position: 'absolute', top: 12, right: 16, pointerEvents: 'none',
+            background: 'rgba(3,3,12,0.92)', border: `1px solid ${col}99`,
+            borderRadius: 4, padding: '6px 12px', zIndex: 10,
+            fontFamily: '"Raleway", sans-serif', fontSize: 11, color: '#d8d0c8',
+            backdropFilter: 'blur(10px)', boxShadow: `0 0 12px ${col}44`,
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2 }}>{hoveredDep.name}</div>
+            <div style={{ color: col, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              {hoveredDep.state}
+            </div>
+            {hoveredDep.target === 'production' && (
+              <div style={{ color: '#c9a84c', fontSize: 9, letterSpacing: '0.12em', marginTop: 2 }}>PRODUCTION</div>
+            )}
+            {hoveredDep.meta?.branch && (
+              <div style={{ color: '#666', fontSize: 9, fontFamily: '"JetBrains Mono", monospace', marginTop: 2 }}>
+                {hoveredDep.meta.branch}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </Scene3DErrorBoundary>
   )
 }
