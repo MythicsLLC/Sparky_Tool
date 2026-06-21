@@ -58,10 +58,12 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handler)
   }, [])
 
-  // Keep the Render backend awake while the tab is open
+  // Keep the Render backend awake, but only while the tab is visible.
+  // Skipping hidden-tab pings prevents Render from staying awake all night
+  // when the user leaves the browser open in a background tab.
   useEffect(() => {
     const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-    const ping = () => fetch(`${base}/api/ping`).catch(() => {})
+    const ping = () => { if (!document.hidden) fetch(`${base}/api/ping`).catch(() => {}) }
     const id = setInterval(ping, KEEP_ALIVE_MS)
     return () => clearInterval(id)
   }, [])

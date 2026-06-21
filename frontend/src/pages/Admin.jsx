@@ -434,11 +434,11 @@ export default function Admin() {
   const loadVercel = useCallback(() => {
     setVercelLoading(true)
     setVercelError(null)
-    fetchVercelStats()
+    fetchVercelStats(token)
       .then(data => setVercel(data))
-      .catch(e => setVercelError(e.message || 'Failed to load Vercel data'))
+      .catch(e => setVercelError(formatApiError(e) || 'Failed to load Vercel data'))
       .finally(() => setVercelLoading(false))
-  }, [])
+  }, [token])
 
   // per-row role loading
   const [roleLoadingId, setRoleLoadingId] = useState(null)

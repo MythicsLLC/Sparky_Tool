@@ -266,17 +266,24 @@ export function analyzeFileWs(file, aiModelId, { onStatus, onChunk, onResult, on
 }
 
 export async function analyzeFile(file, aiModelId) {
-  const form = new FormData()
+  const form  = new FormData()
   form.append('file', file)
-  const qs   = aiModelId != null ? `?ai_model_id=${encodeURIComponent(aiModelId)}` : ''
-  const base = _origin ? `${_origin}/api` : '/api'
+  const qs    = aiModelId != null ? `?ai_model_id=${encodeURIComponent(aiModelId)}` : ''
+  const base  = _origin ? `${_origin}/api` : '/api'
   const token = _getToken ? await _getToken().catch(() => null) : null
-  const response = await fetch(`${base}/v2/insights/analyze-file${qs}`, {
-    method:  'POST',
-    body:    form,
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
-  return _consumeSse(response)
+  const ctrl  = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 5 * 60 * 1000)
+  try {
+    const response = await fetch(`${base}/v2/insights/analyze-file${qs}`, {
+      method:  'POST',
+      body:    form,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal:  ctrl.signal,
+    })
+    return await _consumeSse(response)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // Analysis review + prompt reference library (v2)
@@ -300,11 +307,18 @@ export const getAnalysisResult   = (id, token)          => client.get(`/v2/analy
 export async function analyzeRunOutput(id, aiModelId, token) {
   const qs   = aiModelId != null ? `?ai_model_id=${encodeURIComponent(aiModelId)}` : ''
   const base = _origin ? `${_origin}/api` : '/api'
-  const response = await fetch(`${base}/v2/run-outputs/${id}/analyze${qs}`, {
-    method:  'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
-  return _consumeSse(response)
+  const ctrl  = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 5 * 60 * 1000)
+  try {
+    const response = await fetch(`${base}/v2/run-outputs/${id}/analyze${qs}`, {
+      method:  'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal:  ctrl.signal,
+    })
+    return await _consumeSse(response)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // AI Models admin (v2)
@@ -394,35 +408,11 @@ export const updatePreferences = (payload, token) => client.put('/v2/preferences
 // Engines (v2)
 export const listEngines       = (token)                => client.get('/v2/engines',                        { headers: auth(token) })
 
-// Vercel — called directly from the browser using VITE_VERCEL_TOKEN (no backend proxy)
-export async function fetchVercelStats() {
-  const token  = import.meta.env.VITE_VERCEL_TOKEN
-  const teamId = import.meta.env.VITE_VERCEL_TEAM_ID || ''
-
-  if (!token) {
-    throw new Error('VITE_VERCEL_TOKEN is not configured — add it to the frontend .env file')
-  }
-
-  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-  const base    = 'https://api.vercel.com'
-
-  const qs = (extra = {}) => {
-    const p = new URLSearchParams(extra)
-    if (teamId) p.set('teamId', teamId)
-    const s = p.toString()
-    return s ? `?${s}` : ''
-  }
-
-  const [projectsRes, deploysRes] = await Promise.all([
-    fetch(`${base}/v9/projects${qs({ limit: '20' })}`, { headers }),
-    fetch(`${base}/v6/deployments${qs({ limit: '30', state: 'READY,ERROR,CANCELED,BUILDING,QUEUED' })}`, { headers }),
-  ])
-
-  if (!projectsRes.ok) throw new Error(`Vercel projects API error: ${projectsRes.status}`)
-  if (!deploysRes.ok)  throw new Error(`Vercel deployments API error: ${deploysRes.status}`)
-
-  const projectsData   = (await projectsRes.json()).projects   ?? []
-  const deploymentsRaw = (await deploysRes.json()).deployments ?? []
+// Vercel — proxied through the backend so the token never ships in the JS bundle.
+// Server env var: VERCEL_TOKEN (replaces the old client-side VITE_VERCEL_TOKEN).
+export async function fetchVercelStats(token) {
+  const { data } = await client.get('/v2/admin/vercel/stats', { headers: auth(token) })
+  const { projects: projectsData, deployments: deploymentsRaw } = data
 
   const deployments = deploymentsRaw.map(d => ({
     uid:        d.uid,

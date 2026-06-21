@@ -60,21 +60,48 @@ def _serialize_model(m: AiModel) -> dict:
 
 @router.get("/stats")
 def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    total_users  = db.query(func.count(User.id)).scalar()
-    total_runs   = db.query(func.count(RunLog.id)).scalar()
-    success_runs = db.query(func.count(RunLog.id)).filter(RunLog.status == "success").scalar()
-    error_runs   = db.query(func.count(RunLog.id)).filter(RunLog.status == "error").scalar()
-    running_runs = db.query(func.count(RunLog.id)).filter(RunLog.status == "running").scalar()
-    sftp_skipped = db.query(func.count(RunLog.id)).filter(RunLog.sftp_skipped == True).scalar()  # noqa: E712
-    avg_duration = db.query(func.avg(RunLog.duration_ms)).filter(
-        RunLog.status == "success", RunLog.duration_ms.isnot(None),
-    ).scalar()
-    total_rows   = db.query(func.sum(RunLog.row_count)).filter(
-        RunLog.status == "success", RunLog.row_count.isnot(None),
-    ).scalar() or 0
-    avg_rows     = db.query(func.avg(RunLog.row_count)).filter(
-        RunLog.status == "success", RunLog.row_count.isnot(None), RunLog.row_count > 0,
-    ).scalar()
+    # Single pass over run_logs — replaces 8 separate scalar queries
+    run_agg = db.execute(text("""
+        SELECT
+            COUNT(*)                                                                                 AS total_runs,
+            COUNT(*) FILTER (WHERE status = 'success')                                               AS success_runs,
+            COUNT(*) FILTER (WHERE status = 'error')                                                 AS error_runs,
+            COUNT(*) FILTER (WHERE status = 'running')                                               AS running_runs,
+            COUNT(*) FILTER (WHERE sftp_skipped = TRUE)                                              AS sftp_skipped,
+            AVG(duration_ms) FILTER (WHERE status = 'success' AND duration_ms IS NOT NULL)           AS avg_duration,
+            COALESCE(SUM(row_count) FILTER (WHERE status = 'success' AND row_count IS NOT NULL), 0)  AS total_rows,
+            AVG(row_count) FILTER (WHERE status = 'success' AND row_count IS NOT NULL AND row_count > 0) AS avg_rows
+        FROM run_logs
+    """)).fetchone()
+
+    total_users = db.query(func.count(User.id)).scalar()
+
+    # Correlated subqueries bundle four cross-table counts into one round trip
+    misc_agg = db.execute(text("""
+        SELECT
+            (SELECT COUNT(*) FROM ai_conversations)                                          AS total_conversations,
+            (SELECT COALESCE(SUM(total_tokens), 0) FROM ai_conversations)                   AS total_ai_tokens,
+            (SELECT COALESCE(SUM(estimated_cost_usd), 0.0) FROM ai_conversations)           AS total_ai_cost,
+            (SELECT COUNT(*) FROM wide_events)                                               AS total_wide_events,
+            (SELECT COUNT(*) FROM feature_flags WHERE status = 'active')                    AS total_feature_flags,
+            (SELECT COUNT(*) FROM feature_flags WHERE status = 'active' AND enabled = TRUE) AS enabled_flags
+    """)).fetchone()
+
+    total_runs   = run_agg.total_runs   or 0
+    success_runs = run_agg.success_runs or 0
+    error_runs   = run_agg.error_runs   or 0
+    running_runs = run_agg.running_runs or 0
+    sftp_skipped = run_agg.sftp_skipped or 0
+    avg_duration = run_agg.avg_duration
+    total_rows   = run_agg.total_rows   or 0
+    avg_rows     = run_agg.avg_rows
+
+    total_conversations = misc_agg.total_conversations or 0
+    total_ai_tokens     = misc_agg.total_ai_tokens     or 0
+    total_ai_cost       = misc_agg.total_ai_cost       or 0
+    total_wide_events   = misc_agg.total_wide_events   or 0
+    total_feature_flags = misc_agg.total_feature_flags or 0
+    enabled_flags       = misc_agg.enabled_flags       or 0
 
     step_counts = db.execute(text("""
         SELECT failed_step, COUNT(*) AS cnt
@@ -101,18 +128,6 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
         ORDER BY r.started_at DESC
         LIMIT 10
     """)).fetchall()
-
-    # ── AI token / cost stats ─────────────────────────────────────────────────
-    total_conversations = db.query(func.count(AiConversation.id)).scalar() or 0
-    total_ai_tokens     = db.query(func.sum(AiConversation.total_tokens)).scalar() or 0
-    total_ai_cost       = db.query(func.sum(AiConversation.estimated_cost_usd)).scalar() or 0
-
-    # ── Observability ────────────────────────────────────────────────────────
-    total_wide_events   = db.query(func.count(WideEvent.id)).scalar() or 0
-    total_feature_flags = db.query(func.count(FeatureFlag.id)).filter(FeatureFlag.status == "active").scalar() or 0
-    enabled_flags       = db.query(func.count(FeatureFlag.id)).filter(
-        FeatureFlag.status == "active", FeatureFlag.enabled == True  # noqa: E712
-    ).scalar() or 0
 
     log.debug("admin stats  users=%d  runs=%d  requested_by=%s", total_users, total_runs, user.id[:8])
 
@@ -578,3 +593,47 @@ def set_default_ai_model(
     log.info("Default AI model set  id=%d  by=%s", model_id_pk, admin.id[:8])
     return _serialize_model(m)
 
+
+# ── Vercel analytics proxy ────────────────────────────────────────────────────
+
+@router.get("/vercel/stats")
+async def get_vercel_stats(admin: User = Depends(require_admin)):
+    """Proxy Vercel API so the token stays server-side and never ships in the JS bundle."""
+    import asyncio as _aio
+    token   = os.environ.get("VERCEL_TOKEN", "")
+    team_id = os.environ.get("VERCEL_TEAM_ID", "")
+
+    if not token:
+        raise HTTPException(503, "VERCEL_TOKEN is not configured — set it in your server environment variables")
+
+    def _qs(extra: dict) -> str:
+        params = {**extra}
+        if team_id:
+            params["teamId"] = team_id
+        s = "&".join(f"{k}={v}" for k, v in params.items())
+        return f"?{s}" if s else ""
+
+    headers = {"Authorization": f"Bearer {token}"}
+    base    = "https://api.vercel.com"
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            projects_res, deploys_res = await _aio.gather(
+                c.get(f"{base}/v9/projects{_qs({'limit': '20'})}", headers=headers),
+                c.get(f"{base}/v6/deployments{_qs({'limit': '30', 'state': 'READY,ERROR,CANCELED,BUILDING,QUEUED'})}", headers=headers),
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Vercel API timed out")
+    except Exception as exc:
+        raise HTTPException(502, f"Cannot reach Vercel API: {exc}")
+
+    if not projects_res.is_success:
+        raise HTTPException(502, f"Vercel projects API error: {projects_res.status_code}")
+    if not deploys_res.is_success:
+        raise HTTPException(502, f"Vercel deployments API error: {deploys_res.status_code}")
+
+    log.info("vercel stats fetched  by=%s", admin.id[:8])
+    return {
+        "projects":    projects_res.json().get("projects",    []),
+        "deployments": deploys_res.json().get("deployments", []),
+    }
