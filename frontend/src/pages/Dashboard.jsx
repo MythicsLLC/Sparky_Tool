@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import {
   Box, Typography, Button, Alert, CircularProgress,
   Select, MenuItem, Chip, Grid, Card, CardContent,
@@ -27,10 +27,6 @@ import KPICards    from '../components/KPICards'
 import Charts      from '../components/Charts'
 import DataTable   from '../components/DataTable'
 import LoadingDialog         from '../components/LoadingDialog'
-import FunctionalDashboard  from './FunctionalDashboard'
-import OperationalDashboard from './OperationalDashboard'
-import AnalyzeDashboard     from './AnalyzeDashboard'
-import RunAnalyseDashboard  from './RunAnalyseDashboard'
 import HistorySidebar      from '../components/HistorySidebar'
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs, listAnalysisResults, getAnalysisResult, reconstructRunOutput } from '../api'
@@ -39,6 +35,22 @@ import RunDiffDialog       from '../components/RunDiffDialog'
 import MultiSectionReport from '../components/MultiSectionReport'
 import CompareArrows from '@mui/icons-material/CompareArrows'
 import VerifiedIcon  from '@mui/icons-material/VerifiedUser'
+
+// Lazy-load dashboard tabs — they're large and only one is visible at a time.
+// This keeps the initial Dashboard parse budget tight and lets the browser
+// prefetch/cache each tab chunk independently.
+const FunctionalDashboard  = lazy(() => import('./FunctionalDashboard'))
+const OperationalDashboard = lazy(() => import('./OperationalDashboard'))
+const AnalyzeDashboard     = lazy(() => import('./AnalyzeDashboard'))
+const RunAnalyseDashboard  = lazy(() => import('./RunAnalyseDashboard'))
+
+function TabFallback() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+      <CircularProgress size={24} />
+    </Box>
+  )
+}
 
 // ── formatters ────────────────────────────────────────────────────────────────
 
@@ -199,18 +211,15 @@ export default function Dashboard() {
       let blob, filename
 
       if (dashTab === 0) {
-        // Run Dashboard — send KPI + runs to Python backend
         blob     = await downloadRunPdf({ kpi, runs })
         filename = `sparky_run_dashboard_${new Date().toISOString().slice(0, 10)}.pdf`
 
       } else if (dashTab === 1) {
-        // Functional Dashboard — send parsed CoreHR data to Python backend
         if (!functionalState) throw new Error('No Functional Dashboard data loaded yet.')
         blob     = await downloadFunctionalPdf(functionalState)
         filename = `sparky_functional_${new Date().toISOString().slice(0, 10)}.pdf`
 
       } else if (dashTab === 2) {
-        // Operational Dashboard — send run list to Python backend
         blob     = await downloadOperationalPdf({ runs })
         filename = `sparky_operational_${new Date().toISOString().slice(0, 10)}.pdf`
       }
@@ -256,9 +265,6 @@ export default function Dashboard() {
       .finally(() => setPageLoading(false))
   }, [token])
 
-  // Poll the runs list every 2 s while a run is active so instance_id and
-  // report_id surface in the table as soon as the backend commits them —
-  // well before the long-running POST response arrives.
   useEffect(() => {
     if (!running) return
     const id = setInterval(refreshRuns, 2000)
@@ -269,7 +275,6 @@ export default function Dashboard() {
     if (!activeConfigId) { setError('Select a configuration first.'); return }
     setRunning(true)
     setError(null)
-    // Fetch immediately so the new "running" row appears in the table right away.
     refreshRuns()
     try {
       const response = await runConfig(activeConfigId, token)
@@ -770,18 +775,20 @@ export default function Dashboard() {
           </Box>
         )}
 
-        {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
-        {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
-        {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
-        {dashTab === 4 && (
-          <Box ref={tabRef}>
-            <RunAnalyseDashboard
-              selectedHistory={selectedAnalysis}
-              onClearHistory={() => setSelectedAnalysis(null)}
-              onNewAnalysis={(item) => setAnalysisItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
-            />
-          </Box>
-        )}
+        <Suspense fallback={<TabFallback />}>
+          {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
+          {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
+          {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
+          {dashTab === 4 && (
+            <Box ref={tabRef}>
+              <RunAnalyseDashboard
+                selectedHistory={selectedAnalysis}
+                onClearHistory={() => setSelectedAnalysis(null)}
+                onNewAnalysis={(item) => setAnalysisItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
+              />
+            </Box>
+          )}
+        </Suspense>
 
       </Box>
 
