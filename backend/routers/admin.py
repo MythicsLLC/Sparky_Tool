@@ -18,7 +18,7 @@ log = get_logger("admin")
 
 router = APIRouter(prefix="/api/v2/admin", tags=["admin"])
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ── helpers ─────────────────────────────────────────────────────────────────────────────
 
 def _clerk_secret() -> str:
     secret = os.environ.get("CLERK_API_SECRET", "") or getattr(get_settings(), "clerk_api_secret", "")
@@ -56,7 +56,7 @@ def _serialize_model(m: AiModel) -> dict:
     }
 
 
-# ── stats ─────────────────────────────────────────────────────────────────────
+# ── stats ───────────────────────────────────────────────────────────────────────────
 
 @router.get("/stats")
 def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)):
@@ -102,12 +102,12 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
         LIMIT 10
     """)).fetchall()
 
-    # ── AI token / cost stats ─────────────────────────────────────────────────
+    # ── AI token / cost stats ─────────────────────────────────────────────────────
     total_conversations = db.query(func.count(AiConversation.id)).scalar() or 0
     total_ai_tokens     = db.query(func.sum(AiConversation.total_tokens)).scalar() or 0
     total_ai_cost       = db.query(func.sum(AiConversation.estimated_cost_usd)).scalar() or 0
 
-    # ── Observability ────────────────────────────────────────────────────────
+    # ── Observability ────────────────────────────────────────────────────────────────────
     total_wide_events   = db.query(func.count(WideEvent.id)).scalar() or 0
     total_feature_flags = db.query(func.count(FeatureFlag.id)).filter(FeatureFlag.status == "active").scalar() or 0
     enabled_flags       = db.query(func.count(FeatureFlag.id)).filter(
@@ -128,11 +128,11 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
         "total_rows_processed": total_rows,
         "avg_rows_per_run":     round(avg_rows) if avg_rows else 0,
         "failed_by_step":       {row.failed_step: row.cnt for row in step_counts},
-        # ── AI ────────────────────────────────────────────────────────────────
+        # ── AI ───────────────────────────────────────────────────────────────────────────
         "total_conversations":  total_conversations,
         "total_ai_tokens":      int(total_ai_tokens),
         "total_ai_cost_usd":    float(total_ai_cost),
-        # ── Observability ─────────────────────────────────────────────────────
+        # ── Observability ──────────────────────────────────────────────────────────────────
         "total_wide_events":    int(total_wide_events),
         "total_feature_flags":  int(total_feature_flags),
         "enabled_feature_flags": int(enabled_flags),
@@ -160,7 +160,7 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
     }
 
 
-# ── users ─────────────────────────────────────────────────────────────────────
+# ── users ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/users")
 def list_users(
@@ -193,7 +193,7 @@ class InviteUserPayload(BaseModel):
     role:       str = "user"
 
 
-# ── AI model payloads ─────────────────────────────────────────────────────────
+# ── AI model payloads ─────────────────────────────────────────────────────────────────
 
 VALID_PROVIDERS = {"gemini", "openai", "anthropic", "grok", "generic"}
 
@@ -234,7 +234,7 @@ def invite_user(
 
     secret = _clerk_secret()
 
-    # ── Create user in Clerk ─────────────────────────────────────────
+    # ── Create user in Clerk ──────────────────────────────────
     try:
         resp = httpx.post(
             "https://api.clerk.com/v1/users",
@@ -369,7 +369,7 @@ def delete_user(
     return {"status": "deleted"}
 
 
-# ── runs ──────────────────────────────────────────────────────────────────────
+# ── runs ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/runs")
 def list_all_runs(
@@ -418,7 +418,7 @@ def list_all_runs(
     }
 
 
-# ── audit log ─────────────────────────────────────────────────────────────────
+# ── audit log ──────────────────────────────────────────────────────────────────────────
 
 @router.get("/logs")
 def get_audit_logs(
@@ -459,7 +459,7 @@ def get_audit_logs(
     }
 
 
-# ── AI Models ─────────────────────────────────────────────────────────────────
+# ── AI Models ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/ai-models")
 def list_ai_models(
@@ -560,6 +560,28 @@ def delete_ai_model(
     log.info("AI model deleted  id=%d  name=%s  by=%s", model_id_pk, name, admin.id[:8])
 
 
+@router.get("/scheduler-status")
+def get_scheduler_status(admin: User = Depends(require_admin)):
+    """Return APScheduler health and next-run details for all registered jobs."""
+    import scheduler as _sched_mod
+    sched = _sched_mod._scheduler
+
+    if sched is None or not sched.running:
+        return {"status": "not_running", "job_count": 0, "jobs": []}
+
+    jobs = []
+    for job in sched.get_jobs():
+        jobs.append({
+            "id":          job.id,
+            "next_run_at": job.next_run_time.isoformat() if job.next_run_time else None,
+            "trigger":     str(job.trigger),
+        })
+
+    jobs.sort(key=lambda j: j["next_run_at"] or "")
+    log.debug("scheduler_status  running=True  jobs=%d  requested_by=%s", len(jobs), admin.id[:8])
+    return {"status": "running", "job_count": len(jobs), "jobs": jobs}
+
+
 @router.post("/ai-models/{model_id_pk}/set-default")
 def set_default_ai_model(
     model_id_pk: int,
@@ -577,4 +599,3 @@ def set_default_ai_model(
     db.commit()
     log.info("Default AI model set  id=%d  by=%s", model_id_pk, admin.id[:8])
     return _serialize_model(m)
-
