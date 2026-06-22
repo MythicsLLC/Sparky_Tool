@@ -69,8 +69,8 @@ async def lifespan(app: FastAPI):
     try:
         import scheduler as _sched
         _sched.stop()
-    except Exception:
-        pass
+    except Exception as _se:
+        log.warning("Scheduler stop error (non-fatal): %s", _se)
     log.info("Shutdown")
 
 
@@ -113,6 +113,23 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    )
+    return response
+
+
+_V1_DEPRECATED_PATHS = {"/api/run", "/api/results", "/api/settings"}
+
+
+@app.middleware("http")
+async def v1_deprecation_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path in _V1_DEPRECATED_PATHS:
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = "Sat, 01 Jan 2027 00:00:00 GMT"
+        response.headers["Link"] = '</api/v2/run/{config_id}>; rel="successor-version"'
     return response
 
 
