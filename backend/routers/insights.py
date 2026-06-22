@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/v2/insights", tags=["insights"])
 _OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "Output Files")
 
 
-# ── helpers ────────────────────────────────────────────────────────────────────
+# ── helpers ─────────────────────────────────────────────────────────────────────────────
 
 def _list_corehr_files() -> list[dict]:
     """Return metadata for every .csv in Output Files/, newest first."""
@@ -173,7 +173,7 @@ def _parse_corehr_file(filename: str) -> dict:
     }
 
 
-# ── endpoints ──────────────────────────────────────────────────────────────────
+# ── endpoints ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/corehr/files")
 def list_corehr_files(user: User = Depends(get_current_user)):
@@ -217,7 +217,7 @@ def check_health(
 
     result = {}
 
-    # ── PeopleSoft ────────────────────────────────────────────────────────────
+    # ── PeopleSoft ───────────────────────────────────────────────────────────────────────
     ps_url = (config.ps_base_url or "").strip()
     if ps_url:
         t0 = time.time()
@@ -233,7 +233,7 @@ def check_health(
     else:
         result["peoplesoft"] = {"status": "not_configured"}
 
-    # ── Windows Server ────────────────────────────────────────────────────────
+    # ── Windows Server ────────────────────────────────────────────────────────────────────
     win_host = (config.win_host or "").strip()
     if win_host:
         win_pass = decrypt(config.win_password_enc) if config.win_password_enc else ""
@@ -278,7 +278,7 @@ def check_health(
     return result
 
 
-# ── File Analysis via Gemini ───────────────────────────────────────────────────
+# ── File Analysis via Gemini ───────────────────────────────────────────────────────────────────
 
 _GEMINI_COLORS = [
     "#6b8f71", "#6495b4", "#c9a84c", "#b45050",
@@ -405,6 +405,8 @@ def _build_sheet_profile(df: pd.DataFrame, max_sample: int = 100) -> dict:
 
 
 _MAX_SHEETS = 10  # guard against workbooks with dozens of sheets
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB — mirrors the WebSocket limit
+_ALLOWED_EXTENSIONS = {"csv", "xlsx", "xlsm", "xls"}
 
 
 def _build_profile(
@@ -482,7 +484,7 @@ def _classify_ai_error(exc: Exception, provider: str) -> str:
     if "connection" in cls or "connect" in msg or "unreachable" in msg or "network" in msg:
         return (
             f"Cannot reach the {provider} API. "
-            "Check the provider’s service status and try again."
+            "Check the provider's service status and try again."
         )
     if "context" in msg or "token limit" in msg or "too large" in msg or "maximum" in msg:
         return (
@@ -818,8 +820,19 @@ async def analyze_file(
     ai_model_id: int | None = Query(None),
 ):
     """Accept a CSV or Excel upload and stream AI chart specs via Server-Sent Events."""
-    raw   = await file.read()
     fname = file.filename or "upload"
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            415,
+            f"Unsupported file type '.{ext}'. Allowed types: {', '.join(sorted(_ALLOWED_EXTENSIONS))}",
+        )
+    raw = await file.read()
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            413,
+            f"File too large ({len(raw) // (1024 * 1024)} MB). Maximum allowed size is 50 MB.",
+        )
 
     async def event_stream():
         box:  dict = {}
@@ -862,7 +875,7 @@ async def analyze_file(
     )
 
 
-# ── WebSocket streaming analysis ──────────────────────────────────────────────
+# ── WebSocket streaming analysis ───────────────────────────────────────────────────────────────────
 
 _WS_MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB decoded limit
 
@@ -881,7 +894,7 @@ async def ws_analyze(websocket: WebSocket):
     from sqlalchemy.dialects.postgresql import insert as _pg_insert
     from datetime import datetime, timezone
 
-    # ── Origin check — prevent cross-site WebSocket hijacking ────────────────
+    # ── Origin check — prevent cross-site WebSocket hijacking ────────────────────
     allowed_origins = [
         o.strip()
         for o in os.environ.get("ALLOWED_ORIGINS", "").split(",")
@@ -899,7 +912,7 @@ async def ws_analyze(websocket: WebSocket):
     db = _SessionLocal()
     user_id = None
     try:
-        # ── Frame 1: auth (token travels in message body, not URL) ────────────
+        # ── Frame 1: auth (token travels in message body, not URL) ────────────────────
         try:
             auth_msg = await asyncio.wait_for(websocket.receive_json(), timeout=15)
             token    = auth_msg.get("token", "")
@@ -927,7 +940,7 @@ async def ws_analyze(websocket: WebSocket):
             await websocket.send_json({"type": "error", "message": "Authentication failed"})
             return
 
-        # ── Frame 2: file upload ──────────────────────────────────────────────
+        # ── Frame 2: file upload ───────────────────────────────────────────────────────────
         try:
             msg         = await asyncio.wait_for(websocket.receive_json(), timeout=120)
             fname       = msg.get("filename", "upload")
@@ -945,7 +958,7 @@ async def ws_analyze(websocket: WebSocket):
             await websocket.send_json({"type": "error", "message": "Invalid file payload"})
             return
 
-        # ── Phase 1: parse, profile, mask, select model ───────────────────────
+        # ── Phase 1: parse, profile, mask, select model ───────────────────────────────────
         await websocket.send_json({"type": "status", "message": "Profiling data…"})
         try:
             ctx = await asyncio.to_thread(_prepare_for_ai, raw, fname, user, db, ai_model_id)
@@ -963,7 +976,7 @@ async def ws_analyze(websocket: WebSocket):
         base_url = ctx["base_url"]
         prompt   = ctx["prompt"]
 
-        # ── Phase 2: stream AI output ─────────────────────────────────────────
+        # ── Phase 2: stream AI output ─────────────────────────────────────────────────────
         await websocket.send_json({"type": "status", "message": f"Analysing with {provider}…"})
 
         prompt_tokens = completion_tokens = reasoning_tokens = cached_tokens = 0
@@ -1089,7 +1102,7 @@ async def ws_analyze(websocket: WebSocket):
             await websocket.send_json({"type": "error", "message": msg})
             return
 
-        # ── Phase 3: finalize and send result ─────────────────────────────────
+        # ── Phase 3: finalize and send result ───────────────────────────────────────────────
         await websocket.send_json({"type": "status", "message": "Building charts…"})
         try:
             chart_spec = await asyncio.to_thread(
@@ -1118,7 +1131,7 @@ async def ws_analyze(websocket: WebSocket):
         db.close()
 
 
-# ── PDF generation endpoints ──────────────────────────────────────────────────
+# ── PDF generation endpoints ───────────────────────────────────────────────────────────────────────
 
 class AnalysisPdfRequest(BaseModel):
     filename: str = "report"
@@ -1228,7 +1241,7 @@ def generate_operational_pdf_endpoint(
     )
 
 
-# ── Analysis review + prompt reference library ────────────────────────────────
+# ── Analysis review + prompt reference library ─────────────────────────────────────────────
 
 class ReviewRequest(BaseModel):
     status:  str        # "approved" | "rejected"
