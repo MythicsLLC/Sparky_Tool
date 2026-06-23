@@ -13,7 +13,8 @@ def download_csv(remote_path: str | None = None, _settings=None) -> bytes:
              settings.sftp_username, settings.sftp_host, settings.sftp_port, path)
 
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # WarningPolicy logs unknown host keys instead of silently trusting them.
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
     try:
         client.connect(
             hostname=settings.sftp_host,

@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    base: './', // 👈 ADD THIS LINE HERE
+    base: './',
     plugins: [react()],
     server: {
       cors: true,
@@ -16,6 +16,19 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           ws: true,
           headers: { 'Access-Control-Allow-Origin': '*' },
+        },
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-mui': ['@mui/material', '@mui/x-data-grid', '@mui/x-charts', '@emotion/react', '@emotion/styled'],
+            'vendor-3d': ['three', '@react-three/fiber', '@react-three/drei'],
+            'vendor-pdf': ['jspdf', 'html2canvas'],
+          },
         },
       },
     },

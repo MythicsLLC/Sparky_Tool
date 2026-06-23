@@ -99,10 +99,10 @@ log.info("CORS configured — origins=%s  allow_credentials=%s", _origins, _allo
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     allow_credentials=_allow_credentials,
-    expose_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Response-Time", "Content-Disposition"],
 )
 
 
@@ -120,13 +120,18 @@ async def add_security_headers(request: Request, call_next):
 async def log_requests(request: Request, call_next):
     t0 = _time.time()
     request_id = str(_uuid.uuid4())
+    request.state.request_id = request_id
     response = await call_next(request)
     elapsed = round((_time.time() - t0) * 1000)
     path = request.url.path
 
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Response-Time"] = f"{elapsed}ms"
+
     _silent = {"/favicon.ico", "/api/ping", "/api/health"}
     if not path.startswith("/assets/") and path not in _silent:
-        log.info("%-6s %-55s %3d  %d ms", request.method, path, response.status_code, elapsed)
+        log.info("%-6s %-55s %3d  %d ms  rid=%s",
+                 request.method, path, response.status_code, elapsed, request_id[:8])
 
     # Emit wide event for all v2 API calls (fire-and-forget).
     # User identity comes from request.state, set by get_current_user after
@@ -627,7 +632,8 @@ def test_retrieval(body: RetrievalTestPayload):
              body.sftp_username, body.sftp_host, body.sftp_port, body.retrieval_method, body.sftp_remote_path)
 
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # WarningPolicy logs unknown host keys instead of silently trusting them.
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
     try:
         client.connect(hostname=body.sftp_host, port=body.sftp_port,
                        username=body.sftp_username, password=password, timeout=10, banner_timeout=10)

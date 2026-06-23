@@ -27,7 +27,8 @@ def _connect(host: str, username: str, password: str,
              port: int = 22) -> tuple[paramiko.SSHClient, paramiko.SFTPClient]:
     """Open SSH connection and SFTP subsystem; caller must close both."""
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # WarningPolicy logs unknown host keys instead of silently trusting them.
+    ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
     ssh.connect(hostname=host, port=port, username=username, password=password,
                 timeout=30, banner_timeout=30)
     sftp = ssh.open_sftp()
