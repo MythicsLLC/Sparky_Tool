@@ -124,9 +124,11 @@ async def log_requests(request: Request, call_next):
     elapsed = round((_time.time() - t0) * 1000)
     path = request.url.path
 
+    response.headers["X-Request-ID"] = request_id
+
     _silent = {"/favicon.ico", "/api/ping", "/api/health"}
     if not path.startswith("/assets/") and path not in _silent:
-        log.info("%-6s %-55s %3d  %d ms", request.method, path, response.status_code, elapsed)
+        log.info("%-6s %-55s %3d  %d ms  req=%s", request.method, path, response.status_code, elapsed, request_id)
 
     # Emit wide event for all v2 API calls (fire-and-forget).
     # User identity comes from request.state, set by get_current_user after
@@ -303,7 +305,7 @@ def ping():
 
 
 @app.post("/api/run")
-def run():
+def run(user = Depends(get_current_user)):
     from database import _SessionLocal
     from models import Engine as _Engine
     from types import SimpleNamespace as _NS
@@ -387,7 +389,7 @@ def run():
 
 
 @app.get("/api/results")
-def results():
+def results(user = Depends(get_current_user)):
     if "last" not in _cache:
         raise HTTPException(status_code=404, detail="No results yet — run the engine first.")
     return _cache["last"]
@@ -417,7 +419,7 @@ class SettingsPayload(BaseModel):
 
 
 @app.get("/api/settings")
-def get_settings_view():
+def get_settings_view(user = Depends(get_current_user)):
     s = settings
     return {
         "ps_base_url":        s.ps_base_url,
@@ -546,7 +548,7 @@ def test_peoplesoft(
             if body.ps_status_endpoint and instance_id:
                 import re as _re
                 # Strip trailing {InstanceID} placeholders copied verbatim from Postman URLs
-                status_ep = _re.sub(r"/?\{[^}]+\}$", "", body.ps_status_endpoint.strip().rstrip("/"))
+                status_ep = _re.sub(r"/?(\{[^}]+\})$", "", body.ps_status_endpoint.strip().rstrip("/"))
                 if status_ep.startswith(("http://", "https://")):
                     status_url_used = status_ep
                 else:
@@ -621,7 +623,7 @@ class RetrievalTestPayload(BaseModel):
 
 
 @app.post("/api/test-retrieval")
-def test_retrieval(body: RetrievalTestPayload):
+def test_retrieval(body: RetrievalTestPayload, user = Depends(get_current_user)):
     password = body.sftp_password or settings.sftp_password
     log.info("test_retrieval  %s@%s:%d  method=%s  path=%s",
              body.sftp_username, body.sftp_host, body.sftp_port, body.retrieval_method, body.sftp_remote_path)
@@ -641,21 +643,23 @@ def test_retrieval(body: RetrievalTestPayload):
 
     try:
         if body.retrieval_method == "scp":
-            _, stdout, stderr = client.exec_command(f"ls -la '{body.sftp_remote_path}'")
-            exit_code = stdout.channel.recv_exit_status()
-            out = stdout.read().decode().strip()
-            err = stderr.read().decode().strip()
-            if exit_code != 0 or (not out and err):
-                raise HTTPException(400, f"File not accessible: {err or 'no such file'}")
-            size_bytes = None
+            # Use SFTP subsystem for stat — avoids shell injection via exec_command.
             try:
-                size_bytes = int(out.split()[4])
-            except (IndexError, ValueError):
-                pass
-            log.info("test_retrieval SCP file OK  %s  size=%s", body.sftp_remote_path,
-                     f"{size_bytes} bytes" if size_bytes else "unknown")
+                sftp = client.open_sftp()
+                try:
+                    attrs = sftp.stat(body.sftp_remote_path)
+                    size_bytes = attrs.st_size if attrs.st_size is not None else 0
+                finally:
+                    sftp.close()
+            except FileNotFoundError:
+                raise HTTPException(400, f"File not found: {body.sftp_remote_path}")
+            except PermissionError:
+                raise HTTPException(400, "Permission denied accessing the file")
+            except Exception as exc:
+                raise HTTPException(400, f"Cannot access file: {exc}")
+            log.info("test_retrieval SCP file OK  %s  size=%d bytes", body.sftp_remote_path, size_bytes)
             return {"status": "ok", "method": "scp", "file": body.sftp_remote_path,
-                    "size_kb": round(size_bytes / 1024, 1) if size_bytes is not None else None}
+                    "size_kb": round(size_bytes / 1024, 1) if size_bytes else None}
         else:
             try:
                 sftp = client.open_sftp()
@@ -700,7 +704,7 @@ class WinReadFilePayload(WinPayload):
 
 
 @app.post("/api/test-windows")
-def test_windows(body: WinPayload):
+def test_windows(body: WinPayload, user = Depends(get_current_user)):
     log.info("test_windows  %s:%d  user=%s  type=%s",
              body.win_host, body.win_port, body.win_username, body.win_connection_type)
     try:
@@ -730,7 +734,7 @@ def test_windows(body: WinPayload):
 
 
 @app.post("/api/win-browse")
-def win_browse(body: WinBrowsePayload):
+def win_browse(body: WinBrowsePayload, user = Depends(get_current_user)):
     log.info("win_browse  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:
@@ -761,7 +765,7 @@ def win_browse(body: WinBrowsePayload):
 
 
 @app.post("/api/win-read-file")
-def win_read_file(body: WinReadFilePayload):
+def win_read_file(body: WinReadFilePayload, user = Depends(get_current_user)):
     log.info("win_read_file  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:
@@ -1016,12 +1020,12 @@ def ftp_read_file(
 
 
 @app.post("/api/settings")
-def save_settings(body: SettingsPayload):
+def save_settings(body: SettingsPayload, user = Depends(get_current_user)):
     update_env(body.model_dump())
     get_settings.cache_clear()
     global settings
     settings = get_settings()
-    log.info("v1 settings saved and reloaded")
+    log.info("v1 settings saved and reloaded  by=%s", user.id)
     return {"status": "saved"}
 
 

@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { Paper, Typography, Box } from '@mui/material'
 import { BarChart, PieChart } from '@mui/x-charts'
 import { useThemeContext } from '../ThemeContext'
@@ -40,7 +41,7 @@ function SectionLabel({ title, badge }) {
   )
 }
 
-export default function Charts({ kpis = {} }) {
+function Charts({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 
@@ -55,15 +56,15 @@ export default function Charts({ kpis = {} }) {
 
   const PALETTE = [accent, textMuted, textPrimary, `${accent}99`, `${accent}66`, `${accent}44`]
 
-  const numeric     = Object.entries(kpis).filter(([, v]) => v.type === 'numeric')
-  const categorical = Object.entries(kpis).filter(([, v]) => v.type === 'categorical')
+  const numeric     = useMemo(() => Object.entries(kpis).filter(([, v]) => v.type === 'numeric'), [kpis])
+  const categorical = useMemo(() => Object.entries(kpis).filter(([, v]) => v.type === 'categorical'), [kpis])
 
-  const barData = numeric.map(([col, s]) => ({
+  const barData = useMemo(() => numeric.map(([col, s]) => ({
     name: col,
     Mean: parseFloat(s.mean.toFixed(2)),
     Min:  parseFloat(s.min.toFixed(2)),
     Max:  parseFloat(s.max.toFixed(2)),
-  }))
+  })), [numeric])
 
   const cardSx = (delay = 0) => ({
     bgcolor: 'background.paper',
@@ -139,3 +140,5 @@ export default function Charts({ kpis = {} }) {
     </Box>
   )
 }
+
+export default memo(Charts)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Grid, Card, Typography, Box } from '@mui/material'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
@@ -9,7 +10,7 @@ function fmt(n) {
   return n.toFixed(2)
 }
 
-export default function KPICards({ kpis = {} }) {
+function KPICards({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 
@@ -153,3 +154,5 @@ export default function KPICards({ kpis = {} }) {
     </Grid>
   )
 }
+
+export default memo(KPICards)
