@@ -685,6 +685,35 @@ export default function Dashboard() {
               <Box sx={{ flex: 1, height: '1px', bgcolor: 'divider' }} />
             </Box>
 
+            {/* Engine diagnostics — warn when inactive engines were skipped or fallback ran */}
+            {lastResult.skipped_inactive_engines?.length > 0 && (
+              <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+                <strong>Engines skipped (inactive):</strong>{' '}
+                {lastResult.skipped_inactive_engines.join(', ')} — these engines are selected in your config but have been deactivated by an admin. Re-activate them in Admin → Engines, or deselect them in Settings.
+              </Alert>
+            )}
+            {lastResult.used_fallback_process && (
+              <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+                <strong>No active engines found for this config.</strong>{' '}
+                Fell back to the legacy process name (<code>{lastResult.engines_run?.[0]?.process_name}</code>). Go to Settings → select the correct engines → Save.
+              </Alert>
+            )}
+            {lastResult.engines_run?.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'text.disabled' }}>
+                  Engines run:
+                </Typography>
+                {lastResult.engines_run.map((e) => (
+                  <Chip
+                    key={e.process_name}
+                    label={e.name !== e.process_name ? `${e.name} (${e.process_name})` : e.process_name}
+                    size="small"
+                    sx={{ fontFamily: '"JetBrains Mono", monospace', fontSize: '0.62rem', height: 20 }}
+                  />
+                ))}
+              </Box>
+            )}
+
             {/* PS tracking cards */}
             <Grid container spacing={2}>
               {[

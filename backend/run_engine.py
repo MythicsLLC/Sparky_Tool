@@ -296,30 +296,57 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
 
     s = config_to_ns(config)
 
-    engine_rows = (
+    # All engine IDs saved on this config (active or not), used to detect silent skips.
+    all_config_engine_rows = (
         db.query(UserConfigEngine, Engine)
         .join(Engine, UserConfigEngine.engine_id == Engine.id)
-        .filter(UserConfigEngine.config_id == config_id, Engine.is_active == True)  # noqa: E712
+        .filter(UserConfigEngine.config_id == config_id)
         .order_by(UserConfigEngine.sort_order)
         .all()
     )
+    # Only run engines that are currently active.
+    engine_rows = [(uce, e) for uce, e in all_config_engine_rows if e.is_active]
+
+    skipped_inactive = [e.name for _, e in all_config_engine_rows if not e.is_active]
+    if skipped_inactive:
+        log.warning(
+            "Config %d: the following selected engines are INACTIVE and will be skipped: %s — "
+            "re-activate them in Admin → Engines or deselect them in Settings.",
+            config_id, skipped_inactive,
+        )
+
     if engine_rows:
         engines_to_run = [
             (e.process_name, e.name) for _, e in engine_rows
             if e.process_name  # skip engines whose process_name was left blank
         ]
         if not engines_to_run:
-            log.warning("Config %d has engine rows but all have empty process_name — falling back to config ps_process_name", config_id)
+            log.warning(
+                "Config %d: all active selected engines have an empty process_name — "
+                "falling back to config-level ps_process_name=%r",
+                config_id, s.ps_process_name,
+            )
     else:
         engines_to_run = []
 
+    using_fallback = False
     if not engines_to_run and s.ps_process_name:
+        using_fallback = True
+        log.warning(
+            "Config %d: no active engines found — falling back to config-level ps_process_name=%r. "
+            "If this is unexpected, check that the engines you selected in Settings are still active.",
+            config_id, s.ps_process_name,
+        )
         engines_to_run = [(s.ps_process_name, s.ps_process_name)]
     elif not engines_to_run:
         raise HTTPException(400, "No engines configured and no process name set for this configuration.")
 
-    log.info("Run dispatched  config=%d (%s)  user=%s  engines=%s  method=%s",
-             config_id, config.name, user.id[:8], [p for p, _ in engines_to_run], s.retrieval_method)
+    log.info(
+        "Run dispatched  config=%d (%s)  user=%s  engines=%s  fallback=%s  method=%s",
+        config_id, config.name, user.id[:8],
+        [(name, proc) for proc, name in engines_to_run],
+        using_fallback, s.retrieval_method,
+    )
 
     results = []
     last_ok = None
@@ -342,9 +369,13 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
     primary = next((r for r in results if r.get("run_output_id")), None) or last_ok or results[-1]
     base = last_ok or results[-1]
     return {
-        "runs":           results,
-        "total_engines":  len(results),
-        "success_count":  sum(1 for r in results if r.get("status") != "error"),
+        "runs":             results,
+        "total_engines":    len(results),
+        "success_count":    sum(1 for r in results if r.get("status") != "error"),
+        # Which engines actually ran (name + process_name) — useful for diagnostics.
+        "engines_run":      [{"name": name, "process_name": proc} for proc, name in engines_to_run],
+        "used_fallback_process": using_fallback,
+        "skipped_inactive_engines": skipped_inactive,
         "row_count":      sum(r.get("row_count", 0) for r in results),
         "kpis":           primary.get("kpis", {}),
         "chart_data":     primary.get("chart_data", []),
