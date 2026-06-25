@@ -113,6 +113,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     return response
 
 
@@ -403,12 +404,10 @@ class SettingsPayload(BaseModel):
     ps_process_name: str = ""
     retrieval_method: str = "sftp"
     sftp_host: str = ""
-    sftp_port: str = "22"
+    sftp_port: int = 22
     sftp_username: str = ""
     sftp_password: str = ""
     sftp_remote_path: str = ""
-    ps_webserver_path: str = ""
-    cors_origins: str = "http://localhost:3000"
 
     @field_validator("ps_base_url", "ps_endpoint", "ps_status_endpoint", "ps_process_name")
     @classmethod
@@ -417,616 +416,170 @@ class SettingsPayload(BaseModel):
 
 
 @app.get("/api/settings")
-def get_settings_view():
-    s = settings
+def get_settings_endpoint():
     return {
-        "ps_base_url":        s.ps_base_url,
-        "ps_auth_type":       s.ps_auth_type,
-        "ps_username":        s.ps_username,
-        "ps_password":        "***" if s.ps_password else "",
-        "ps_endpoint":        s.ps_endpoint,
-        "ps_status_endpoint": s.ps_status_endpoint,
-        "ps_process_name":    s.ps_process_name,
-        "retrieval_method":   s.retrieval_method,
-        "sftp_host":          s.sftp_host,
-        "sftp_port":          str(s.sftp_port),
-        "sftp_username":      s.sftp_username,
-        "sftp_password":      "***" if s.sftp_password else "",
-        "sftp_remote_path":   s.sftp_remote_path,
-        "ps_webserver_path":  s.ps_webserver_path,
-        "cors_origins":       s.cors_origins,
+        "ps_base_url":        settings.ps_base_url,
+        "ps_auth_type":       settings.ps_auth_type,
+        "ps_username":        settings.ps_username,
+        "ps_endpoint":        settings.ps_endpoint,
+        "ps_status_endpoint": settings.ps_status_endpoint,
+        "ps_process_name":    settings.ps_process_name,
+        "retrieval_method":   settings.retrieval_method,
+        "sftp_host":          settings.sftp_host,
+        "sftp_port":          settings.sftp_port,
+        "sftp_username":      settings.sftp_username,
+        "sftp_remote_path":   settings.sftp_remote_path,
     }
 
 
-class PeoplesoftTestPayload(BaseModel):
-    config_id: int | None = None
-    ps_base_url: str = ""
-    ps_auth_type: str = "basic"
-    ps_username: str = ""
-    ps_password: str = ""
-    ps_endpoint: str = ""
-    ps_status_endpoint: str = ""
-    ps_process_name: str = ""
-
-    @field_validator("ps_base_url", "ps_endpoint", "ps_status_endpoint", "ps_process_name")
-    @classmethod
-    def _no_whitespace(cls, v: str) -> str:
-        return _strip_ws(v)
-
-
-@app.post("/api/test-peoplesoft")
-def test_peoplesoft(
-    body: PeoplesoftTestPayload,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    import json as _json
-    from encrypt import decrypt as _decrypt
-
-    password = body.ps_password
-    username = body.ps_username
-
-    # Config-based credentials take priority: the frontend sends config_id and
-    # strips the "***" sentinel to "" so we know to fetch the real password from DB.
-    if body.config_id is not None:
-        cfg = db.get(UserConfig, body.config_id)
-        if cfg and cfg.user_id == user.id:
-            if not password:
-                password = _decrypt(cfg.ps_password_enc)
-            if not username:
-                username = cfg.ps_username
-
-    # .env fallback only when no config is in use (v1 compatibility)
-    if not password:
-        password = settings.ps_password
-    if not username:
-        username = settings.ps_username
-
-    endpoint = body.ps_endpoint.strip()
-    if endpoint.startswith(("http://", "https://")):
-        url = endpoint
-    else:
-        base = body.ps_base_url.strip().rstrip("/")
-        if endpoint and not endpoint.startswith("/"):
-            endpoint = "/" + endpoint
-        url = base + endpoint
-
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(
-            400,
-            detail=f"Invalid URL — Base URL must start with http:// or https://. Got: '{url}'",
-        )
-
-    log.info("test_peoplesoft  url=%s  auth=%s", url, body.ps_auth_type)
-
-    auth = None
-    extra_headers = {}
-    if body.ps_auth_type == "basic":
-        auth = httpx.BasicAuth(username, password)
-    elif body.ps_auth_type == "bearer":
-        extra_headers = {"Authorization": f"Bearer {password}"}
-
-    request_body = {"processname": body.ps_process_name} if body.ps_process_name else {}
-
-    try:
-        with httpx.Client(timeout=30, follow_redirects=False) as client:
-            response = client.post(url, auth=auth, headers=extra_headers, json=request_body)
-
-            if response.is_redirect:
-                location = response.headers.get("location", "")
-                log.warning("test_peoplesoft redirect → %s", location)
-                raise HTTPException(
-                    400,
-                    detail=f"Authentication failed — PeopleSoft redirected to login. (Location: {location})",
-                )
-            if response.status_code in (401, 403):
-                log.warning("test_peoplesoft auth failure  HTTP %d  body=%r", response.status_code, response.text[:500])
-                raise HTTPException(400, f"Authentication failed (HTTP {response.status_code}) — POST {url}")
-            if response.status_code >= 400:
-                snippet = response.text.strip()
-                log.warning("test_peoplesoft PS error  HTTP %d  body=%r", response.status_code, snippet)
-                raise HTTPException(400, f"PeopleSoft returned HTTP {response.status_code}"
-                                        + (f" — {snippet}" if snippet else "")
-                                        + f"\n\nURL: POST {url}")
-
-            try:
-                trigger_json = response.json()
-                trigger_body_str = _json.dumps(trigger_json, indent=2)
-            except Exception:
-                trigger_json = {}
-                trigger_body_str = response.text
-
-            instance_id = str(trigger_json.get("InstanceID", ""))
-            log.info("test_peoplesoft trigger OK  HTTP %d  instance=%s", response.status_code, instance_id)
-
-            status_http_status = None
-            status_url_used = None
-            status_body_str = None
-
-            if body.ps_status_endpoint and instance_id:
-                import re as _re
-                # Strip trailing {InstanceID} placeholders copied verbatim from Postman URLs
-                status_ep = _re.sub(r"/?\{[^}]+\}$", "", body.ps_status_endpoint.strip().rstrip("/"))
-                if status_ep.startswith(("http://", "https://")):
-                    status_url_used = status_ep
-                else:
-                    sbase = body.ps_base_url.rstrip("/")
-                    if not status_ep.startswith("/"):
-                        status_ep = "/" + status_ep
-                    status_url_used = f"{sbase}{status_ep}"
-
-                if not status_url_used.startswith(("http://", "https://")):
-                    raise HTTPException(
-                        400,
-                        detail=f"Invalid status URL — Base URL must start with http:// or https://. Got: '{status_url_used}'",
-                    )
-
-                status_url_used = f"{status_url_used}/{instance_id}"
-                log.info("test_peoplesoft status GET  url=%s", status_url_used)
-                status_resp = client.get(status_url_used, auth=auth, headers=extra_headers)
-                status_http_status = status_resp.status_code
-                if status_http_status >= 400:
-                    log.warning("test_peoplesoft status error  HTTP %d  url=%s  body=%r",
-                                status_http_status, status_url_used, status_resp.text[:500])
-                else:
-                    log.info("test_peoplesoft status OK  HTTP %d", status_http_status)
-                try:
-                    status_body_str = _json.dumps(status_resp.json(), indent=2)
-                except Exception:
-                    status_body_str = status_resp.text
-
-        return {
-            "status": "ok",
-            "http_status": response.status_code,
-            "url": url,
-            "body": trigger_body_str,
-            "instance_id": instance_id,
-            "status_http_status": status_http_status,
-            "status_url": status_url_used,
-            "status_body": status_body_str,
-        }
-
-    except HTTPException:
-        raise
-    except httpx.UnsupportedProtocol as exc:
-        raise HTTPException(400, detail=f"Invalid URL — {exc}")
-    except httpx.ConnectError as exc:
-        raw = str(exc)
-        if "10061" in raw or "Connection refused" in raw:
-            detail = (
-                f"Connection refused by {url} — the port is not accepting connections. "
-                "Check: (1) the port in your Base URL, (2) that the PeopleSoft service is running, "
-                "(3) HTTP vs HTTPS."
-            )
-        elif "11001" in raw or "getaddrinfo" in raw or "Name or service" in raw:
-            detail = f"Host not found for {url} — verify the Base URL hostname."
-        else:
-            detail = f"Cannot reach PeopleSoft endpoint ({url}) — {exc}"
-        log.warning("test_peoplesoft connect error: %s", exc)
-        raise HTTPException(400, detail=detail)
-    except httpx.TimeoutException:
-        raise HTTPException(400, detail="Request timed out after 30 s")
-    except Exception as exc:
-        log.error("test_peoplesoft unexpected error: %s", exc, exc_info=True)
-        raise HTTPException(400, detail=f"Unexpected error: {exc}")
-
-
-class RetrievalTestPayload(BaseModel):
-    retrieval_method: str = "sftp"
-    sftp_host: str = ""
-    sftp_port: int = 22
-    sftp_username: str = ""
-    sftp_password: str = ""
-    sftp_remote_path: str = ""
+@app.post("/api/settings")
+def save_settings(payload: SettingsPayload):
+    update_env(payload.model_dump())
+    settings.__init__()
+    return {"saved": True}
 
 
 @app.post("/api/test-retrieval")
-def test_retrieval(body: RetrievalTestPayload):
-    password = body.sftp_password or settings.sftp_password
-    log.info("test_retrieval  %s@%s:%d  method=%s  path=%s",
-             body.sftp_username, body.sftp_host, body.sftp_port, body.retrieval_method, body.sftp_remote_path)
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+def test_retrieval(payload: SettingsPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
+    method = s.retrieval_method
     try:
-        client.connect(hostname=body.sftp_host, port=body.sftp_port,
-                       username=body.sftp_username, password=password, timeout=10, banner_timeout=10)
-        log.info("test_retrieval SSH connected to %s:%d", body.sftp_host, body.sftp_port)
-    except paramiko.AuthenticationException:
-        log.warning("test_retrieval auth failed  %s@%s", body.sftp_username, body.sftp_host)
-        raise HTTPException(400, "Authentication failed — check username and password")
-    except Exception as exc:
-        log.warning("test_retrieval connect failed  %s:%d  %s", body.sftp_host, body.sftp_port, exc)
-        raise HTTPException(400, f"Cannot connect to {body.sftp_host}:{body.sftp_port} — {exc}")
-
-    try:
-        if body.retrieval_method == "scp":
-            _, stdout, stderr = client.exec_command(f"ls -la '{body.sftp_remote_path}'")
-            exit_code = stdout.channel.recv_exit_status()
-            out = stdout.read().decode().strip()
-            err = stderr.read().decode().strip()
-            if exit_code != 0 or (not out and err):
-                raise HTTPException(400, f"File not accessible: {err or 'no such file'}")
-            size_bytes = None
-            try:
-                size_bytes = int(out.split()[4])
-            except (IndexError, ValueError):
-                pass
-            log.info("test_retrieval SCP file OK  %s  size=%s", body.sftp_remote_path,
-                     f"{size_bytes} bytes" if size_bytes else "unknown")
-            return {"status": "ok", "method": "scp", "file": body.sftp_remote_path,
-                    "size_kb": round(size_bytes / 1024, 1) if size_bytes is not None else None}
+        if method == "scp":
+            files = scp_client.list_files(_settings=s)
         else:
-            try:
-                sftp = client.open_sftp()
-            except Exception as exc:
-                raise HTTPException(400, f"SFTP subsystem unavailable — try SSH/SCP instead. ({exc})")
-            try:
-                attrs = sftp.stat(body.sftp_remote_path)
-                size_kb = round(attrs.st_size / 1024, 1) if attrs.st_size else 0
-                log.info("test_retrieval SFTP file OK  %s  size=%.1f KB", body.sftp_remote_path, size_kb)
-                return {"status": "ok", "method": "sftp", "file": body.sftp_remote_path, "size_kb": size_kb}
-            except FileNotFoundError:
-                raise HTTPException(400, f"File not found: {body.sftp_remote_path}")
-            except PermissionError:
-                raise HTTPException(400, "Permission denied")
-            except Exception as exc:
-                raise HTTPException(400, f"Cannot access file: {exc}")
-    finally:
-        client.close()
+            files = sftp_client.list_files(_settings=s)
+        return {"ok": True, "files": files}
+    except Exception as exc:
+        label = "SSH/SCP" if method == "scp" else "SFTP"
+        raise HTTPException(status_code=503, detail=f"{label} connection failed: {exc}")
 
 
-# ── Windows Server (WinRM) endpoints ──────────────────────────────────────────
+@app.post("/api/test-peoplesoft")
+def test_peoplesoft(payload: SettingsPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
+    try:
+        result = trigger_engine(_settings=s)
+        return {"ok": True, "result": result}
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"PeopleSoft returned {exc.response.status_code}: {exc}")
+    except httpx.ConnectError as exc:
+        raise HTTPException(status_code=502, detail=f"Cannot reach PeopleSoft: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 class WinPayload(BaseModel):
-    win_host: str
-    win_username: str
-    win_password: str
+    win_host: str = ""
     win_port: int = 5985
+    win_username: str = ""
+    win_password: str = ""
     win_use_ssl: bool = False
     win_auth_type: str = "ntlm"
-    win_connection_type: str = "winrm"   # winrm | smb | ssh
+    win_connection_type: str = "winrm"
     win_share: str = "C$"
     win_domain: str = ""
-
-
-class WinBrowsePayload(WinPayload):
-    path: str
-
-
-class WinReadFilePayload(WinPayload):
-    path: str
+    path: str = ""
 
 
 @app.post("/api/test-windows")
-def test_windows(body: WinPayload):
-    log.info("test_windows  %s:%d  user=%s  type=%s",
-             body.win_host, body.win_port, body.win_username, body.win_connection_type)
+def test_windows(payload: WinPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        if body.win_connection_type == "smb":
-            import smb_client
-            info = smb_client.test_connection(
-                body.win_host, body.win_username, body.win_password,
-                share=body.win_share, domain=body.win_domain, port=body.win_port,
-            )
-        elif body.win_connection_type == "ssh":
-            import win_ssh_client
-            info = win_ssh_client.test_connection(
-                body.win_host, body.win_username, body.win_password, port=body.win_port,
-            )
-        else:  # winrm (default)
-            import windows_client
-            info = windows_client.test_connection(
-                body.win_host, body.win_username, body.win_password,
-                body.win_port, body.win_use_ssl, body.win_auth_type,
-            )
-        return {"status": "ok", **info}
+        from windows_client import test_connection
+        result = test_connection(_settings=s)
+        return {"ok": True, "result": result}
     except Exception as exc:
-        log.warning("test_windows failed  %s  type=%s: %s",
-                    body.win_host, body.win_connection_type, exc)
-        raise HTTPException(400, detail=_win_error_msg(
-            str(exc), body.win_connection_type, body.win_host, body.win_port))
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.post("/api/win-browse")
-def win_browse(body: WinBrowsePayload):
-    log.info("win_browse  %s  path=%s  type=%s",
-             body.win_host, body.path, body.win_connection_type)
+def win_browse(payload: WinPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        if body.win_connection_type == "smb":
-            import smb_client
-            items = smb_client.list_directory(
-                body.win_host, body.win_username, body.win_password,
-                body.path, share=body.win_share, domain=body.win_domain, port=body.win_port,
-            )
-        elif body.win_connection_type == "ssh":
-            import win_ssh_client
-            items = win_ssh_client.list_directory(
-                body.win_host, body.win_username, body.win_password,
-                body.path, port=body.win_port,
-            )
-        else:  # winrm
-            import windows_client
-            items = windows_client.list_directory(
-                body.win_host, body.win_username, body.win_password,
-                body.path, body.win_port, body.win_use_ssl, body.win_auth_type,
-            )
-        return {"path": body.path, "items": items}
+        from windows_client import browse
+        result = browse(_settings=s, path=payload.path)
+        return {"ok": True, "items": result}
     except Exception as exc:
-        log.warning("win_browse failed  %s  path=%s  type=%s: %s",
-                    body.win_host, body.path, body.win_connection_type, exc)
-        raise HTTPException(400, detail=_win_error_msg(
-            str(exc), body.win_connection_type, body.win_host, body.win_port))
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.post("/api/win-read-file")
-def win_read_file(body: WinReadFilePayload):
-    log.info("win_read_file  %s  path=%s  type=%s",
-             body.win_host, body.path, body.win_connection_type)
+def win_read_file(payload: WinPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        if body.win_connection_type == "smb":
-            import smb_client
-            content = smb_client.read_file(
-                body.win_host, body.win_username, body.win_password,
-                body.path, domain=body.win_domain, port=body.win_port,
-            )
-        elif body.win_connection_type == "ssh":
-            import win_ssh_client
-            content = win_ssh_client.read_file(
-                body.win_host, body.win_username, body.win_password,
-                body.path, port=body.win_port,
-            )
-        else:  # winrm
-            import windows_client
-            content = windows_client.read_file(
-                body.win_host, body.win_username, body.win_password,
-                body.path, body.win_port, body.win_use_ssl, body.win_auth_type,
-            )
-        return {"path": body.path, "content": content}
+        from windows_client import read_file
+        content = read_file(_settings=s, path=payload.path)
+        return {"ok": True, "content": content}
     except Exception as exc:
-        log.warning("win_read_file failed  %s  path=%s  type=%s: %s",
-                    body.win_host, body.path, body.win_connection_type, exc)
-        raise HTTPException(400, detail=_win_error_msg(
-            str(exc), body.win_connection_type, body.win_host, body.win_port))
+        raise HTTPException(status_code=503, detail=str(exc))
 
-
-def _winrm_error_msg(raw: str, host: str, port: int) -> str:
-    """Convert low-level WinRM exceptions into actionable user messages."""
-    r = raw.lower()
-
-    if "connection refused" in r or "10061" in r:
-        return (
-            f"Connection refused by {host}:{port}. "
-            "WinRM is not listening on that port. "
-            "Run this in an elevated PowerShell on the remote server to enable it:\n"
-            "  winrm quickconfig\n"
-            f"Default HTTP port is 5985; HTTPS is 5986."
-        )
-    if "timed out" in r or "timeout" in r:
-        return (
-            f"Connection to {host}:{port} timed out. "
-            f"Check that port {port} is open in Windows Firewall on the remote host."
-        )
-    if "rejected" in r or "credential" in r or "401" in r or "unauthorized" in r:
-        return (
-            "Credentials rejected. RDP credentials do not automatically grant WinRM access.\n\n"
-            "RDP into the server and run these commands in an elevated PowerShell (Run as Administrator):\n\n"
-            "STEP 1 — Enable WinRM (if not already done):\n"
-            "  winrm quickconfig -q\n\n"
-            "STEP 2 — Fix UAC token filtering for local accounts (most common cause):\n"
-            "  reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System"
-            " /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f\n\n"
-            "STEP 3 — Enable Basic auth as an alternative (simpler, try this if NTLM still fails):\n"
-            "  winrm set winrm/config/service/auth @{Basic=\"true\"}\n"
-            "  winrm set winrm/config/service @{AllowUnencrypted=\"true\"}\n"
-            "  Then switch Auth Type to 'Basic' in the tool.\n\n"
-            "STEP 4 — Restart WinRM service:\n"
-            "  Restart-Service WinRM"
-        )
-    if "getaddrinfo" in r or "name or service" in r or "11001" in r:
-        return f"Host not found: '{host}'. Verify the IP address or hostname is correct."
-    if "access is denied" in r or "accessdenied" in r:
-        return (
-            "Access denied — the account does not have WinRM permission. "
-            "Add it to 'Remote Management Users' group on the remote server or use an Administrator account."
-        )
-    if "kerberos" in r or "kinit" in r:
-        return (
-            "Kerberos authentication failed. "
-            "Use 'NTLM' or 'Negotiate' auth type instead, or ensure this machine is domain-joined."
-        )
-    return raw
-
-
-def _smb_error_msg(raw: str, host: str, port: int) -> str:
-    """Translate SMB / smbprotocol exceptions into actionable messages."""
-    r = raw.lower()
-    if "connection refused" in r or "10061" in r or "errno 111" in r:
-        return (
-            f"SMB connection refused by {host}:{port}. "
-            "Check that port 445 is open and Windows File Sharing is enabled on the remote server."
-        )
-    if "nt_status_logon_failure" in r or "logon_failure" in r or "rejected" in r or "wrong password" in r:
-        return (
-            "SMB credentials rejected. Verify the username and password. "
-            "For local accounts use just the username (no domain prefix). "
-            "Ensure the account is in the Administrators group to access admin shares (C$, D$)."
-        )
-    if "nt_status_access_denied" in r or "access_denied" in r:
-        return (
-            "SMB access denied. The account must be in the Administrators group "
-            "to browse admin shares (C$, D$, ADMIN$)."
-        )
-    if "nt_status_bad_network_name" in r or "bad_network_name" in r:
-        return (
-            f"SMB share not found on {host}. "
-            "Try 'C$' to access the C drive (requires Administrator rights), "
-            "or ask the server admin which share name to use."
-        )
-    if "timed out" in r or "timeout" in r:
-        return (
-            f"Connection to {host}:{port} timed out. "
-            "Ensure port 445 is open in Windows Firewall on the remote host."
-        )
-    if "getaddrinfo" in r or "name or service" in r or "11001" in r:
-        return f"Host not found: '{host}'. Verify the IP address or hostname."
-    return raw
-
-
-def _ssh_error_msg(raw: str, host: str, port: int) -> str:
-    """Translate SSH / paramiko exceptions into actionable messages."""
-    r = raw.lower()
-    if "connection refused" in r or "10061" in r:
-        return (
-            f"SSH connection refused by {host}:{port}. OpenSSH may not be installed or running.\n"
-            "Install it on the remote server (elevated PowerShell):\n"
-            "  Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0\n"
-            "  Start-Service sshd\n"
-            "  Set-Service -Name sshd -StartupType Automatic"
-        )
-    if "authentication" in r or "auth failed" in r:
-        return (
-            "SSH authentication failed. Verify the username and password. "
-            "Ensure the Windows account is allowed SSH access."
-        )
-    if "timed out" in r or "timeout" in r:
-        return (
-            f"Connection to {host}:{port} timed out. "
-            f"Check that port {port} is open in Windows Firewall."
-        )
-    if "getaddrinfo" in r or "name or service" in r or "11001" in r:
-        return f"Host not found: '{host}'. Verify the IP address or hostname."
-    return raw
-
-
-def _win_error_msg(raw: str, connection_type: str, host: str, port: int) -> str:
-    """Dispatch to the appropriate error formatter based on connection type."""
-    if connection_type == "smb":
-        return _smb_error_msg(raw, host, port)
-    if connection_type == "ssh":
-        return _ssh_error_msg(raw, host, port)
-    return _winrm_error_msg(raw, host, port)
-
-
-# ── FTP / FTPS endpoints ──────────────────────────────────────────────────────
 
 class FtpPayload(BaseModel):
-    config_id: int | None = None
-    ftp_host: str
+    ftp_host: str = ""
     ftp_port: int = 21
     ftp_username: str = ""
     ftp_password: str = ""
-    ftp_connection_type: str = "ftp"   # ftp | ftps
+    ftp_remote_path: str = ""
+    ftp_connection_type: str = "ftp"
     ftp_passive: bool = True
-
-    @field_validator("ftp_username", "ftp_password")
-    @classmethod
-    def _strip(cls, v: str) -> str:
-        return _strip_ws(v)
-
-
-class FtpBrowsePayload(FtpPayload):
-    path: str
-
-
-class FtpReadFilePayload(FtpPayload):
-    path: str
-
-
-def _resolve_ftp_creds(body: FtpPayload, user, db) -> tuple[str, str]:
-    """Return (username, password) for FTP, fetching from DB when config_id is given."""
-    from encrypt import decrypt as _decrypt
-    username = body.ftp_username
-    password = body.ftp_password
-    if body.config_id is not None:
-        cfg = db.get(UserConfig, body.config_id)
-        if cfg and cfg.user_id == user.id:
-            if not username:
-                username = _strip_ws(cfg.ftp_username or "")
-            if not password or password == "***":
-                password = _strip_ws(_decrypt(cfg.ftp_password_enc or ""))
-    return username, password
+    path: str = ""
 
 
 @app.post("/api/test-ftp")
-def test_ftp(
-    body: FtpPayload,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    import ftp_client as _ftp
-    username, password = _resolve_ftp_creds(body, user, db)
-    tls = body.ftp_connection_type == "ftps"
-    log.info("test_ftp  %s:%d  user=%s  tls=%s", body.ftp_host, body.ftp_port, username, tls)
+def test_ftp(payload: FtpPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        info = _ftp.test_connection(
-            body.ftp_host, body.ftp_port,
-            username, password,
-            tls=tls, passive=body.ftp_passive,
-        )
-        return {"status": "ok", **info}
+        from ftp_client import test_connection
+        result = test_connection(_settings=s)
+        return {"ok": True, "result": result}
     except Exception as exc:
-        log.warning("test_ftp failed  %s: %s", body.ftp_host, exc)
-        raise HTTPException(400, str(exc))
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.post("/api/ftp-browse")
-def ftp_browse(
-    body: FtpBrowsePayload,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    import ftp_client as _ftp
-    username, password = _resolve_ftp_creds(body, user, db)
-    tls = body.ftp_connection_type == "ftps"
-    log.info("ftp_browse  %s  path=%s  tls=%s", body.ftp_host, body.path, tls)
+def ftp_browse(payload: FtpPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        items = _ftp.list_directory(
-            body.ftp_host, body.ftp_port,
-            username, password,
-            body.path, tls=tls, passive=body.ftp_passive,
-        )
-        return {"path": body.path, "items": items}
+        from ftp_client import browse
+        result = browse(_settings=s, path=payload.path)
+        return {"ok": True, "items": result}
     except Exception as exc:
-        log.warning("ftp_browse failed  %s  path=%s: %s", body.ftp_host, body.path, exc)
-        raise HTTPException(400, str(exc))
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.post("/api/ftp-read-file")
-def ftp_read_file(
-    body: FtpReadFilePayload,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user),
-):
-    import ftp_client as _ftp
-    username, password = _resolve_ftp_creds(body, user, db)
-    tls = body.ftp_connection_type == "ftps"
-    log.info("ftp_read_file  %s  path=%s  tls=%s", body.ftp_host, body.path, tls)
+def ftp_read_file(payload: FtpPayload):
+    from types import SimpleNamespace as _NS
+    s = _NS(**payload.model_dump())
     try:
-        content = _ftp.read_file(
-            body.ftp_host, body.ftp_port,
-            username, password,
-            body.path, tls=tls, passive=body.ftp_passive,
-        )
-        return {"path": body.path, "content": content}
+        from ftp_client import read_file
+        content = read_file(_settings=s, path=payload.path)
+        return {"ok": True, "content": content}
     except Exception as exc:
-        log.warning("ftp_read_file failed  %s  path=%s: %s", body.ftp_host, body.path, exc)
-        raise HTTPException(400, str(exc))
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.post("/api/settings")
-def save_settings(body: SettingsPayload):
-    update_env(body.model_dump())
-    get_settings.cache_clear()
-    global settings
-    settings = get_settings()
-    log.info("v1 settings saved and reloaded")
-    return {"status": "saved"}
+# Serve the React SPA from /build/frontend/dist when running inside Docker.
+# The Dockerfile copies the Vite build output there; locally this path
+# won't exist and the mount is skipped silently.
+import pathlib as _pathlib
+_spa_dir = _pathlib.Path("/build/frontend/dist")
+if _spa_dir.is_dir():
+    # Serve hashed static assets at /assets/* with far-future cache
+    _assets_dir = _spa_dir / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
 
+    from fastapi.responses import FileResponse
 
-# Static frontend — registered AFTER all API routes
-_frontend_dist = _os.path.join(_os.path.dirname(__file__), "..", "frontend", "dist")
-if _os.path.isdir(_frontend_dist):
-    app.mount("/", StaticFiles(directory=_frontend_dist, html=True), name="static")
-    log.info("Serving static frontend from %s", _frontend_dist)
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        """Catch-all: serve index.html so React Router handles client-side routes."""
+        return FileResponse(str(_spa_dir / "index.html"))

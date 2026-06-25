@@ -1,5 +1,8 @@
+import logging
 import os
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+
+_log = logging.getLogger("sparky.encrypt")
 
 
 def _get_fernet() -> Fernet:
@@ -23,6 +26,24 @@ def encrypt(value: str) -> str:
 
 
 def decrypt(value: str) -> str:
+    """Decrypt a Fernet-encrypted string.
+
+    Returns an empty string (instead of raising) when the ciphertext was
+    encrypted with a different key — e.g. after an ENCRYPTION_KEY rotation
+    without re-encrypting stored credentials.  The caller should treat an
+    empty result as "no credential available" and surface a clear error to
+    the user rather than crashing with an opaque 500.
+    """
     if not value:
         return ""
-    return _get_fernet().decrypt(value.encode()).decode()
+    try:
+        return _get_fernet().decrypt(value.encode()).decode()
+    except InvalidToken:
+        _log.warning(
+            "decrypt: InvalidToken — stored credential may have been encrypted "
+            "with a different ENCRYPTION_KEY; returning empty string"
+        )
+        return ""
+    except Exception as exc:
+        _log.warning("decrypt: unexpected error (%s); returning empty string", exc)
+        return ""

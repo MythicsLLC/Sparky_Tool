@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Paper, Typography, Box } from '@mui/material'
 import { BarChart, PieChart } from '@mui/x-charts'
 import { useThemeContext } from '../ThemeContext'
@@ -40,7 +41,7 @@ function SectionLabel({ title, badge }) {
   )
 }
 
-export default function Charts({ kpis = {} }) {
+function Charts({ kpis = {} }) {
   const { accent, mode } = useThemeContext()
   const dark = mode === 'dark'
 
@@ -139,3 +140,5 @@ export default function Charts({ kpis = {} }) {
     </Box>
   )
 }
+
+export default memo(Charts)

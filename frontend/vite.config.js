@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    base: './', // 👈 ADD THIS LINE HERE
+    base: './',
     plugins: [react()],
     server: {
       cors: true,
@@ -16,6 +16,21 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           ws: true,
           headers: { 'Access-Control-Allow-Origin': '*' },
+        },
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Split heavy vendor libraries into separate cached chunks
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+            'vendor-mui-x': ['@mui/x-charts', '@mui/x-data-grid'],
+            'vendor-three': ['three'],
+            'vendor-clerk': ['@clerk/clerk-react'],
+          },
         },
       },
     },
