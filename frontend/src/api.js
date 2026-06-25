@@ -297,12 +297,15 @@ export const reconstructRunOutput  = (id, token)            => client.get(`/v2/r
 // Analysis Results (v2)
 export const listAnalysisResults = (token, params = {}) => client.get('/v2/analysis-results/',        { headers: auth(token), params })
 export const getAnalysisResult   = (id, token)          => client.get(`/v2/analysis-results/${id}`,   { headers: auth(token) })
-export async function analyzeRunOutput(id, aiModelId, token) {
-  const qs   = aiModelId != null ? `?ai_model_id=${encodeURIComponent(aiModelId)}` : ''
-  const base = _origin ? `${_origin}/api` : '/api'
+export async function analyzeRunOutput(id, aiModelId, _unused) {
+  const qs        = aiModelId != null ? `?ai_model_id=${encodeURIComponent(aiModelId)}` : ''
+  const base      = _origin ? `${_origin}/api` : '/api'
+  // Always call Clerk's live getter so we never send an expired token on a
+  // long-running SSE request (the axios interceptor doesn't cover fetch()).
+  const freshToken = _getToken ? await _getToken().catch(() => null) : null
   const response = await fetch(`${base}/v2/run-outputs/${id}/analyze${qs}`, {
     method:  'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: freshToken ? { Authorization: `Bearer ${freshToken}` } : {},
   })
   return _consumeSse(response)
 }
