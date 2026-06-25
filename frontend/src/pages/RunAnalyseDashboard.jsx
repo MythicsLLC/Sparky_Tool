@@ -760,7 +760,12 @@ export default function RunAnalyseDashboard({ selectedHistory = null, onClearHis
       setActiveStep(3)
       setPhase('analysing')
 
-      const runOutputId = runData.run_output_id
+      // Prefer the first engine's output (primary data source); fall back to whatever was returned.
+      const runOutputId =
+        (runData.run_output_ids ?? []).find(Boolean) ??
+        runData.runs?.find((r) => r.run_output_id)?.run_output_id ??
+        runData.run_output_id
+
       if (!runOutputId) {
         throw new Error('No run output available for analysis — FTP download may have been skipped.')
       }

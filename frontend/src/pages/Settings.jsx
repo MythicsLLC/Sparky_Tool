@@ -475,7 +475,8 @@ export default function Settings() {
     trimmed.engine_ids = form.engine_ids.map(Number)
     try {
       if (selectedConfigId) {
-        await updateConfig(selectedConfigId, trimmed, token)
+        const { data: updatedConfig } = await updateConfig(selectedConfigId, trimmed, token)
+        setConfigs((prev) => prev.map((c) => c.id === selectedConfigId ? updatedConfig : c))
       } else {
         const response = await createConfig(trimmed, token)
         setSelectedConfigId(response.data.id)

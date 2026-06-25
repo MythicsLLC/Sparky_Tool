@@ -39,6 +39,7 @@ def _migrate_columns(engine) -> None:
     """Add columns/tables introduced after initial deployment (idempotent — safe to run on every startup)."""
     stmts = [
         # ── run_logs ─────────────────────────────────────────────────────────
+        "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS config_name VARCHAR DEFAULT ''",
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS ps_process_name VARCHAR DEFAULT ''",
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS sftp_skipped BOOLEAN DEFAULT FALSE",
         "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS skip_reason TEXT DEFAULT ''",

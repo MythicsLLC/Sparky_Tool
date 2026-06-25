@@ -294,15 +294,23 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
     engine_rows = (
         db.query(UserConfigEngine, Engine)
         .join(Engine, UserConfigEngine.engine_id == Engine.id)
-        .filter(UserConfigEngine.config_id == config_id)
+        .filter(UserConfigEngine.config_id == config_id, Engine.is_active == True)  # noqa: E712
         .order_by(UserConfigEngine.sort_order)
         .all()
     )
     if engine_rows:
-        engines_to_run = [(e.process_name, e.name) for _, e in engine_rows]
-    elif s.ps_process_name:
-        engines_to_run = [(s.ps_process_name, s.ps_process_name)]
+        engines_to_run = [
+            (e.process_name, e.name) for _, e in engine_rows
+            if e.process_name  # skip engines whose process_name was left blank
+        ]
+        if not engines_to_run:
+            log.warning("Config %d has engine rows but all have empty process_name — falling back to config ps_process_name", config_id)
     else:
+        engines_to_run = []
+
+    if not engines_to_run and s.ps_process_name:
+        engines_to_run = [(s.ps_process_name, s.ps_process_name)]
+    elif not engines_to_run:
         raise HTTPException(400, "No engines configured and no process name set for this configuration.")
 
     log.info("Run dispatched  config=%d (%s)  user=%s  engines=%s  method=%s",
@@ -323,19 +331,24 @@ def run_config_engines(config_id: int, user, db, request=None) -> dict:
     except Exception as exc:
         log.warning("notify_run_complete failed (non-fatal): %s", exc)
 
+    # Collect all saved output IDs in engine order so the frontend can analyse
+    # each one; the first successful output is used as the primary.
+    run_output_ids = [r["run_output_id"] for r in results if r.get("run_output_id")]
+    primary = next((r for r in results if r.get("run_output_id")), None) or last_ok or results[-1]
     base = last_ok or results[-1]
     return {
-        "runs":          results,
-        "total_engines": len(results),
-        "success_count": sum(1 for r in results if r.get("status") != "error"),
-        "row_count":     sum(r.get("row_count", 0) for r in results),
-        "kpis":          base.get("kpis", {}),
-        "chart_data":    base.get("chart_data", []),
-        "instance_id":   base.get("instance_id", ""),
-        "report_id":     base.get("report_id", ""),
-        "sftp_skipped":  all(r.get("sftp_skipped") for r in results),
-        "dq_results":    [item for r in results for item in r.get("dq_results", [])],
-        "rows":          base.get("rows", []),
-        "columns":       base.get("columns", []),
-        "run_output_id": base.get("run_output_id"),
+        "runs":           results,
+        "total_engines":  len(results),
+        "success_count":  sum(1 for r in results if r.get("status") != "error"),
+        "row_count":      sum(r.get("row_count", 0) for r in results),
+        "kpis":           primary.get("kpis", {}),
+        "chart_data":     primary.get("chart_data", []),
+        "instance_id":    primary.get("instance_id", ""),
+        "report_id":      primary.get("report_id", ""),
+        "sftp_skipped":   all(r.get("sftp_skipped") for r in results),
+        "dq_results":     [item for r in results for item in r.get("dq_results", [])],
+        "rows":           primary.get("rows", []),
+        "columns":        primary.get("columns", []),
+        "run_output_id":  run_output_ids[0] if run_output_ids else base.get("run_output_id"),
+        "run_output_ids": run_output_ids,
     }
