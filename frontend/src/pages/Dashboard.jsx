@@ -331,80 +331,13 @@ export default function Dashboard() {
       <Box sx={{ px: { xs: 3, sm: 5 }, pt: 4, pb: 6 }}>
 
         {/* ── header ────────────────────────────────────────────────────────── */}
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2.5 }}>
-          <Box>
-            <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.28em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
-              Sparky Platform
-            </Typography>
-            <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2.6rem', fontWeight: 700, color: 'text.primary', letterSpacing: '0.02em', lineHeight: 1 }}>
-              Dashboard
-            </Typography>
-          </Box>
-
-          {/* config selector + run button */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            {configs.length > 0 ? (
-              <Select
-                value={activeConfigId || ''}
-                onChange={(e) => setActiveConfigId(e.target.value)}
-                size="small"
-                disabled={running}
-                displayEmpty
-                sx={{
-                  minWidth: 190,
-                  fontFamily: '"Raleway", sans-serif',
-                  fontSize: '0.8rem',
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
-                  '& .MuiSelect-select': { py: 1.15 },
-                }}
-              >
-                {configs.map((c) => (
-                  <MenuItem key={c.id} value={c.id} sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.8rem' }}>
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            ) : (
-              !pageLoading && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
-                  onClick={() => { window.location.hash = 'settings' }}
-                  sx={{ borderColor: 'divider', color: 'text.secondary', fontFamily: '"Raleway", sans-serif', fontSize: '0.7rem' }}
-                >
-                  Add config
-                </Button>
-              )
-            )}
-
-            <Button
-              startIcon={running
-                ? <CircularProgress size={13} sx={{ color: 'background.default' }} />
-                : <MythicsLogo width={24} />
-              }
-              onClick={handleRun}
-              disabled={running || pageLoading || !configs.length}
-              sx={{
-                bgcolor: 'primary.main',
-                color:   'background.default',
-                fontFamily: '"Raleway", sans-serif',
-                fontWeight: 700,
-                fontSize: '0.72rem',
-                letterSpacing: '0.14em',
-                px: 3,
-                py: 1.2,
-                borderRadius: '2px',
-                boxShadow: `0 2px 20px ${accent}35`,
-                '&:hover': { bgcolor: 'primary.light', boxShadow: `0 4px 28px ${accent}55` },
-                '&:disabled': { opacity: 0.45 },
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {running ? 'Running…' : 'Run'}
-            </Button>
-          </Box>
+        <Box sx={{ mb: 4 }}>
+          <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.28em', color: 'text.disabled', textTransform: 'uppercase', mb: 0.5 }}>
+            Sparky Platform
+          </Typography>
+          <Typography sx={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '2.6rem', fontWeight: 700, color: 'text.primary', letterSpacing: '0.02em', lineHeight: 1 }}>
+            Dashboard
+          </Typography>
         </Box>
 
         {/* ── Sub-tabs: Run | Functional | Operational | Analyse ─────────── */}
