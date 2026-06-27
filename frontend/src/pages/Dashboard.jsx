@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react'
 import {
   Box, Typography, Button, Alert, CircularProgress,
   Select, MenuItem, Chip, Grid, Card, CardContent,
@@ -27,11 +27,22 @@ import KPICards    from '../components/KPICards'
 import Charts      from '../components/Charts'
 import DataTable   from '../components/DataTable'
 import LoadingDialog         from '../components/LoadingDialog'
-import FunctionalDashboard  from './FunctionalDashboard'
-import OperationalDashboard from './OperationalDashboard'
-import AnalyzeDashboard     from './AnalyzeDashboard'
-import RunAnalyseDashboard  from './RunAnalyseDashboard'
 import HistorySidebar      from '../components/HistorySidebar'
+
+// Lazy-load heavy sub-dashboards — each is only needed when the user switches
+// to that tab, so we avoid bundling them into the initial JS payload.
+const FunctionalDashboard  = lazy(() => import('./FunctionalDashboard'))
+const OperationalDashboard = lazy(() => import('./OperationalDashboard'))
+const AnalyzeDashboard     = lazy(() => import('./AnalyzeDashboard'))
+const RunAnalyseDashboard  = lazy(() => import('./RunAnalyseDashboard'))
+
+function TabFallback() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 10 }}>
+      <CircularProgress size={24} />
+    </Box>
+  )
+}
 import { useAuth } from '../AuthContext'
 import { listConfigs, listRuns, runConfig, downloadRunPdf, downloadFunctionalPdf, downloadOperationalPdf, formatApiError, listRunOutputs, listAnalysisResults, getAnalysisResult, reconstructRunOutput } from '../api'
 import { timeAgo } from '../utils/time'
@@ -732,16 +743,18 @@ export default function Dashboard() {
           </Box>
         )}
 
-        {dashTab === 1 && <Box ref={tabRef}><FunctionalDashboard onDataChange={setFunctionalState} /></Box>}
-        {dashTab === 2 && <Box ref={tabRef}><OperationalDashboard /></Box>}
-        {dashTab === 3 && <Box ref={tabRef}><AnalyzeDashboard /></Box>}
+        {dashTab === 1 && <Box ref={tabRef}><Suspense fallback={<TabFallback />}><FunctionalDashboard onDataChange={setFunctionalState} /></Suspense></Box>}
+        {dashTab === 2 && <Box ref={tabRef}><Suspense fallback={<TabFallback />}><OperationalDashboard /></Suspense></Box>}
+        {dashTab === 3 && <Box ref={tabRef}><Suspense fallback={<TabFallback />}><AnalyzeDashboard /></Suspense></Box>}
         {dashTab === 4 && (
           <Box ref={tabRef}>
-            <RunAnalyseDashboard
-              selectedHistory={selectedAnalysis}
-              onClearHistory={() => setSelectedAnalysis(null)}
-              onNewAnalysis={(item) => setAnalysisItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
-            />
+            <Suspense fallback={<TabFallback />}>
+              <RunAnalyseDashboard
+                selectedHistory={selectedAnalysis}
+                onClearHistory={() => setSelectedAnalysis(null)}
+                onNewAnalysis={(item) => setAnalysisItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])}
+              />
+            </Suspense>
           </Box>
         )}
 

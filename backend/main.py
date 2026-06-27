@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
@@ -105,6 +106,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Compress JSON/text responses ≥ 1 KB — reduces bandwidth ~60-80% for large
+# API payloads (run history, admin stats, analysis results).
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -113,6 +118,21 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    # API responses don't need a permissive CSP; static assets served from the
+    # OCI bucket carry their own headers. This header is only relevant when the
+    # backend serves the bundled frontend directly.
+    if not request.url.path.startswith("/api/"):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.accounts.dev https://*.clerk.accounts.dev; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: blob: https:; "
+            "connect-src 'self' https: wss:; "
+            "frame-ancestors 'none'",
+        )
     return response
 
 
@@ -639,9 +659,20 @@ def test_retrieval(body: RetrievalTestPayload):
         log.warning("test_retrieval connect failed  %s:%d  %s", body.sftp_host, body.sftp_port, exc)
         raise HTTPException(400, f"Cannot connect to {body.sftp_host}:{body.sftp_port} — {exc}")
 
+    # Validate remote path to prevent shell injection via single-quote escape.
+    # Remote paths must not contain shell-special characters outside the
+    # printable ASCII range that would break out of the quoted ls argument.
+    _SAFE_PATH_CHARS = frozenset(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789/_.-: "
+    )
+
     try:
         if body.retrieval_method == "scp":
-            _, stdout, stderr = client.exec_command(f"ls -la '{body.sftp_remote_path}'")
+            remote_path = body.sftp_remote_path
+            if not all(c in _SAFE_PATH_CHARS for c in remote_path):
+                raise HTTPException(400, "Remote path contains invalid characters")
+            _, stdout, stderr = client.exec_command(f"ls -la '{remote_path}'")
             exit_code = stdout.channel.recv_exit_status()
             out = stdout.read().decode().strip()
             err = stderr.read().decode().strip()
