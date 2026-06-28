@@ -149,10 +149,9 @@ def get_current_user(
     email, first_name, last_name = _extract_user_info(payload)
 
     # Upsert: INSERT … ON CONFLICT (id) DO UPDATE last_seen_at.
-    # This is atomic and handles concurrent first-logins without a race condition.
-    existing = db.query(User).filter(User.id == user_id).first()
-    is_new = existing is None
-
+    # Atomic; handles concurrent first-logins without a race condition.
+    # Single upsert + single post-commit SELECT = 2 DB ops per request
+    # (previously 3: pre-check SELECT + upsert + post-commit SELECT).
     stmt = (
         pg_insert(User)
         .values(
@@ -182,10 +181,7 @@ def get_current_user(
     request.state.auth_user_id   = user.id
     request.state.auth_user_name = f"{user.first_name} {user.last_name}".strip() or user.email
 
-    if is_new:
-        log.info("New user registered: %s (%s)", user.email, user_id)
-    else:
-        log.debug("User login: %s (%s)", user.email, user_id)
+    log.debug("User session: %s (%s)", user.email, user_id)
 
     return user
 

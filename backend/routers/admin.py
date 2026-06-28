@@ -60,21 +60,31 @@ def _serialize_model(m: AiModel) -> dict:
 
 @router.get("/stats")
 def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    total_users  = db.query(func.count(User.id)).scalar()
-    total_runs   = db.query(func.count(RunLog.id)).scalar()
-    success_runs = db.query(func.count(RunLog.id)).filter(RunLog.status == "success").scalar()
-    error_runs   = db.query(func.count(RunLog.id)).filter(RunLog.status == "error").scalar()
-    running_runs = db.query(func.count(RunLog.id)).filter(RunLog.status == "running").scalar()
-    sftp_skipped = db.query(func.count(RunLog.id)).filter(RunLog.sftp_skipped == True).scalar()  # noqa: E712
-    avg_duration = db.query(func.avg(RunLog.duration_ms)).filter(
-        RunLog.status == "success", RunLog.duration_ms.isnot(None),
-    ).scalar()
-    total_rows   = db.query(func.sum(RunLog.row_count)).filter(
-        RunLog.status == "success", RunLog.row_count.isnot(None),
-    ).scalar() or 0
-    avg_rows     = db.query(func.avg(RunLog.row_count)).filter(
-        RunLog.status == "success", RunLog.row_count.isnot(None), RunLog.row_count > 0,
-    ).scalar()
+    # Consolidate per-table metrics into one query each (was 18 individual queries).
+
+    total_users = db.query(func.count(User.id)).scalar()
+
+    # All run metrics in one pass over run_logs.
+    _rs = db.execute(text("""
+        SELECT
+            COUNT(*) AS total_runs,
+            COUNT(*) FILTER (WHERE status = 'success') AS success_runs,
+            COUNT(*) FILTER (WHERE status = 'error')   AS error_runs,
+            COUNT(*) FILTER (WHERE status = 'running') AS running_runs,
+            COUNT(*) FILTER (WHERE sftp_skipped = TRUE) AS sftp_skipped,
+            AVG(duration_ms) FILTER (WHERE status = 'success' AND duration_ms IS NOT NULL) AS avg_duration,
+            COALESCE(SUM(row_count) FILTER (WHERE status = 'success' AND row_count IS NOT NULL), 0) AS total_rows,
+            AVG(row_count) FILTER (WHERE status = 'success' AND row_count IS NOT NULL AND row_count > 0) AS avg_rows
+        FROM run_logs
+    """)).fetchone()
+    total_runs   = _rs.total_runs   or 0
+    success_runs = _rs.success_runs or 0
+    error_runs   = _rs.error_runs   or 0
+    running_runs = _rs.running_runs or 0
+    sftp_skipped = _rs.sftp_skipped or 0
+    avg_duration = _rs.avg_duration
+    total_rows   = _rs.total_rows   or 0
+    avg_rows     = _rs.avg_rows
 
     step_counts = db.execute(text("""
         SELECT failed_step, COUNT(*) AS cnt
@@ -102,17 +112,28 @@ def get_stats(user: User = Depends(require_admin), db: Session = Depends(get_db)
         LIMIT 10
     """)).fetchall()
 
-    # ── AI token / cost stats ─────────────────────────────────────────────────
-    total_conversations = db.query(func.count(AiConversation.id)).scalar() or 0
-    total_ai_tokens     = db.query(func.sum(AiConversation.total_tokens)).scalar() or 0
-    total_ai_cost       = db.query(func.sum(AiConversation.estimated_cost_usd)).scalar() or 0
+    # AI token / cost stats — one query for all three metrics.
+    _ai = db.execute(text("""
+        SELECT
+            COUNT(*) AS total_conversations,
+            COALESCE(SUM(total_tokens), 0) AS total_ai_tokens,
+            COALESCE(SUM(estimated_cost_usd), 0) AS total_ai_cost
+        FROM ai_conversations
+    """)).fetchone()
+    total_conversations = _ai.total_conversations or 0
+    total_ai_tokens     = int(_ai.total_ai_tokens or 0)
+    total_ai_cost       = float(_ai.total_ai_cost or 0)
 
-    # ── Observability ────────────────────────────────────────────────────────
-    total_wide_events   = db.query(func.count(WideEvent.id)).scalar() or 0
-    total_feature_flags = db.query(func.count(FeatureFlag.id)).filter(FeatureFlag.status == "active").scalar() or 0
-    enabled_flags       = db.query(func.count(FeatureFlag.id)).filter(
-        FeatureFlag.status == "active", FeatureFlag.enabled == True  # noqa: E712
-    ).scalar() or 0
+    # Observability — wide events count + feature flag counts in two queries.
+    total_wide_events = db.execute(text("SELECT COUNT(*) FROM wide_events")).scalar() or 0
+    _ff = db.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'active') AS total_feature_flags,
+            COUNT(*) FILTER (WHERE status = 'active' AND enabled = TRUE) AS enabled_flags
+        FROM feature_flags
+    """)).fetchone()
+    total_feature_flags = int(_ff.total_feature_flags or 0)
+    enabled_flags       = int(_ff.enabled_flags or 0)
 
     log.debug("admin stats  users=%d  runs=%d  requested_by=%s", total_users, total_runs, user.id[:8])
 

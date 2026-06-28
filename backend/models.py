@@ -93,10 +93,11 @@ class UserConfigEngine(Base):
 class RunLog(Base):
     __tablename__ = "run_logs"
     __table_args__ = (
-        Index("idx_run_logs_user_id",   "user_id"),
-        Index("idx_run_logs_started",   "started_at"),
-        Index("idx_run_logs_status",    "status"),
-        Index("idx_run_logs_config_id", "config_id"),
+        Index("idx_run_logs_user_id",      "user_id"),
+        Index("idx_run_logs_started",      "started_at"),
+        Index("idx_run_logs_status",       "status"),
+        Index("idx_run_logs_config_id",    "config_id"),
+        Index("idx_run_logs_user_started", "user_id", "started_at"),
     )
     id              = Column(Integer, primary_key=True, autoincrement=True)
     user_id         = Column(String, ForeignKey("users.id"), nullable=False)

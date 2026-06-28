@@ -113,6 +113,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-XSS-Protection", "1; mode=block")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 
 
@@ -621,7 +623,7 @@ class RetrievalTestPayload(BaseModel):
 
 
 @app.post("/api/test-retrieval")
-def test_retrieval(body: RetrievalTestPayload):
+def test_retrieval(body: RetrievalTestPayload, user = Depends(get_current_user)):
     password = body.sftp_password or settings.sftp_password
     log.info("test_retrieval  %s@%s:%d  method=%s  path=%s",
              body.sftp_username, body.sftp_host, body.sftp_port, body.retrieval_method, body.sftp_remote_path)
@@ -700,7 +702,7 @@ class WinReadFilePayload(WinPayload):
 
 
 @app.post("/api/test-windows")
-def test_windows(body: WinPayload):
+def test_windows(body: WinPayload, user = Depends(get_current_user)):
     log.info("test_windows  %s:%d  user=%s  type=%s",
              body.win_host, body.win_port, body.win_username, body.win_connection_type)
     try:
@@ -730,7 +732,7 @@ def test_windows(body: WinPayload):
 
 
 @app.post("/api/win-browse")
-def win_browse(body: WinBrowsePayload):
+def win_browse(body: WinBrowsePayload, user = Depends(get_current_user)):
     log.info("win_browse  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:
@@ -761,7 +763,7 @@ def win_browse(body: WinBrowsePayload):
 
 
 @app.post("/api/win-read-file")
-def win_read_file(body: WinReadFilePayload):
+def win_read_file(body: WinReadFilePayload, user = Depends(get_current_user)):
     log.info("win_read_file  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:

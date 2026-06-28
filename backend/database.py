@@ -263,6 +263,9 @@ def _migrate_columns(engine) -> None:
         # ── analysis_results ──────────────────────────────────────────────────────
         "ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS run_output_id INTEGER",
         "CREATE INDEX IF NOT EXISTS idx_analysis_results_run_output ON analysis_results (run_output_id)",
+        # Composite index covering the most common run list query pattern:
+        # WHERE user_id = ? ORDER BY started_at DESC LIMIT n
+        "CREATE INDEX IF NOT EXISTS idx_run_logs_user_started ON run_logs (user_id, started_at DESC)",
         # ── pg_notify trigger for wide_events (supports future LISTEN-based SSE) ──
         """CREATE OR REPLACE FUNCTION notify_wide_events_inserted()
         RETURNS trigger AS $$

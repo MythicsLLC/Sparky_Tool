@@ -79,8 +79,9 @@ def _sync_engines(config_id: int, engine_ids: list[int], db: Session) -> None:
         db.add(UserConfigEngine(config_id=config_id, engine_id=eid, sort_order=order))
 
 
-def _serialize(config: UserConfig, db: Session) -> dict:
-    engines = _get_engines(config.id, db)
+def _serialize(config: UserConfig, db: Session, engines: list | None = None) -> dict:
+    if engines is None:
+        engines = _get_engines(config.id, db)
     return {
         "id":                 config.id,
         "name":               config.name,
@@ -125,8 +126,26 @@ def _serialize(config: UserConfig, db: Session) -> dict:
 @router.get("/")
 def list_configs(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     configs = db.query(UserConfig).filter(UserConfig.user_id == user.id).all()
+    if not configs:
+        return []
+
+    # Batch-fetch engines for all configs in one query (avoids N+1).
+    config_ids = [c.id for c in configs]
+    engine_rows = (
+        db.query(UserConfigEngine, Engine)
+        .join(Engine, UserConfigEngine.engine_id == Engine.id)
+        .filter(UserConfigEngine.config_id.in_(config_ids))
+        .order_by(UserConfigEngine.sort_order)
+        .all()
+    )
+    engines_by_config: dict = {}
+    for uce, e in engine_rows:
+        engines_by_config.setdefault(uce.config_id, []).append(
+            {"id": e.id, "name": e.name, "process_name": e.process_name, "sort_order": uce.sort_order}
+        )
+
     log.debug("list_configs  user=%s  count=%d", user.id[:8], len(configs))
-    return [_serialize(c, db) for c in configs]
+    return [_serialize(c, db, engines_by_config.get(c.id, [])) for c in configs]
 
 
 @router.post("/")
