@@ -150,6 +150,14 @@ activemq-data/
 node_modules/
 frontend/dist/
 
+# Generated run output (may contain customer discovery data) — never commit
+backend/Output Files/*
+!backend/Output Files/.gitkeep
+
+# Vite build logs
+frontend/vite-err.txt
+frontend/vite-out.txt
+
 # Environments
 .env
 .envrc
