@@ -1,6 +1,7 @@
 import asyncio as _asyncio
 import httpx
 import os as _os
+import shlex as _shlex
 import time as _time
 import uuid as _uuid
 import paramiko
@@ -641,7 +642,7 @@ def test_retrieval(body: RetrievalTestPayload):
 
     try:
         if body.retrieval_method == "scp":
-            _, stdout, stderr = client.exec_command(f"ls -la '{body.sftp_remote_path}'")
+            _, stdout, stderr = client.exec_command(f"ls -la {_shlex.quote(body.sftp_remote_path)}")
             exit_code = stdout.channel.recv_exit_status()
             out = stdout.read().decode().strip()
             err = stderr.read().decode().strip()
