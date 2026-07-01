@@ -1119,7 +1119,7 @@ export default function AnalyzeDashboard() {
       setPdfSuccess(true)
       setTimeout(() => setPdfSuccess(false), 2200)
     } catch (err) {
-      console.error('PDF download failed', err)
+      setError(formatApiError(err, 'PDF download failed — please try again.'))
     } finally {
       setPdfLoading(false)
     }

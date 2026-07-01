@@ -249,6 +249,7 @@ export default function FtpBrowser({
           <Tooltip title="Back" arrow>
             <span>
               <IconButton size="small" onClick={goBack} disabled={history.length === 0}
+                aria-label="Back"
                 sx={{ color: history.length ? accent : 'text.disabled' }}>
                 <ArrowBackIcon sx={{ fontSize: 16 }} />
               </IconButton>
@@ -257,18 +258,19 @@ export default function FtpBrowser({
           <Tooltip title="Parent directory" arrow>
             <span>
               <IconButton size="small" onClick={goUp} disabled={!canGoUp}
+                aria-label="Parent directory"
                 sx={{ color: canGoUp ? accent : 'text.disabled' }}>
                 <ArrowUpwardIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="Home (/)" arrow>
-            <IconButton size="small" onClick={() => { setHistory([]); browse('/') }} sx={{ color: accent }}>
+            <IconButton size="small" onClick={() => { setHistory([]); browse('/') }} aria-label="Home" sx={{ color: accent }}>
               <HomeIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Refresh" arrow>
-            <IconButton size="small" onClick={() => browse(currentPath)} sx={{ color: accent }}>
+            <IconButton size="small" onClick={() => browse(currentPath)} aria-label="Refresh" sx={{ color: accent }}>
               <RefreshIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
@@ -310,6 +312,7 @@ export default function FtpBrowser({
             />
             <Tooltip title={copied === currentPath ? 'Copied!' : 'Copy path'} arrow>
               <IconButton size="small" onClick={(e) => { e.stopPropagation(); copyPath(currentPath) }}
+                aria-label="Copy path"
                 sx={{ color: copied === currentPath ? '#6b8f71' : 'text.disabled', p: 0.25, '&:hover': { color: accent } }}>
                 <ContentCopyIcon sx={{ fontSize: 13 }} />
               </IconButton>
@@ -341,6 +344,7 @@ export default function FtpBrowser({
             />
             {search && (
               <IconButton size="small" onClick={() => setSearch('')}
+                aria-label="Clear search"
                 sx={{ color: 'text.disabled', p: 0.25, '&:hover': { color: accent } }}>
                 <CloseIcon sx={{ fontSize: 12 }} />
               </IconButton>
@@ -369,7 +373,7 @@ export default function FtpBrowser({
           <Typography sx={{ fontFamily: '"Raleway", sans-serif', fontSize: '0.58rem', color: 'text.disabled', letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>
             {ftpHost}
           </Typography>
-          <IconButton size="small" onClick={onClose} sx={{ color: 'text.disabled', '&:hover': { color: accent } }}>
+          <IconButton size="small" onClick={onClose} aria-label="Close" sx={{ color: 'text.disabled', '&:hover': { color: accent } }}>
             <CloseIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Box>
@@ -484,6 +488,7 @@ export default function FtpBrowser({
                                 className="copy-btn"
                                 size="small"
                                 onClick={(e) => { e.stopPropagation(); copyPath(itemPath) }}
+                                aria-label="Copy path"
                                 sx={{ opacity: 0, color: copied === itemPath ? '#6b8f71' : 'text.disabled', p: 0.4, transition: 'opacity 0.15s', '&:hover': { color: accent } }}
                               >
                                 <ContentCopyIcon sx={{ fontSize: 12 }} />
@@ -529,11 +534,12 @@ export default function FtpBrowser({
                 </Typography>
                 <Tooltip title={copied === viewFile.path ? 'Copied!' : 'Copy path'} arrow>
                   <IconButton size="small" onClick={() => copyPath(viewFile.path)}
+                    aria-label="Copy path"
                     sx={{ color: copied === viewFile.path ? '#6b8f71' : 'text.disabled', p: 0.4, '&:hover': { color: accent } }}>
                     <ContentCopyIcon sx={{ fontSize: 13 }} />
                   </IconButton>
                 </Tooltip>
-                <IconButton size="small" onClick={() => setViewFile(null)} sx={{ color: 'text.disabled', '&:hover': { color: accent } }}>
+                <IconButton size="small" onClick={() => setViewFile(null)} aria-label="Close file viewer" sx={{ color: 'text.disabled', '&:hover': { color: accent } }}>
                   <CloseIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Box>
