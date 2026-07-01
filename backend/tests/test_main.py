@@ -1,9 +1,27 @@
+import asyncio
+import inspect
+
 import pytest
 import httpx
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 CSV_BYTES = b"name,age\nAlice,30\nBob,25"
+
+
+def test_emit_wide_event_is_sync_and_runs_off_thread():
+    # _emit_wide_event does synchronous SQLAlchemy I/O and is scheduled via
+    # asyncio.to_thread from the request middleware — it must stay a plain
+    # function (not `async def`), otherwise it blocks the event loop for the
+    # duration of the DB round trip on every /api/v2/* request.
+    from main import _emit_wide_event
+    assert not inspect.iscoroutinefunction(_emit_wide_event)
+
+    with patch("database._SessionLocal", None):
+        # Runs cleanly on a worker thread with no event loop of its own.
+        asyncio.run(asyncio.to_thread(
+            _emit_wide_event, "/api/v2/users/me", "GET", 200, 5, "user-1", "req-1",
+        ))
 
 
 @pytest.fixture()

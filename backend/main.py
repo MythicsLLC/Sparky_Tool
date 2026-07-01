@@ -133,7 +133,8 @@ async def log_requests(request: Request, call_next):
     # full JWT signature verification — never from an unverified token decode.
     if _v2_enabled and path.startswith("/api/v2/"):
         user_id = getattr(request.state, "auth_user_id", None)
-        _asyncio.create_task(_emit_wide_event(
+        _asyncio.create_task(_asyncio.to_thread(
+            _emit_wide_event,
             path, request.method, response.status_code, elapsed, user_id, request_id,
         ))
 
@@ -181,11 +182,16 @@ def _path_to_event(method: str, path: str) -> str:
     return "api.request"
 
 
-async def _emit_wide_event(
+def _emit_wide_event(
     path: str, method: str, http_status: int, duration_ms: int,
     user_id: str | None, request_id: str,
 ) -> None:
-    """Fire-and-forget wide event writer. Session is always closed via try/finally."""
+    """Fire-and-forget wide event writer, run off the event loop via to_thread.
+
+    Session/query/commit are all synchronous SQLAlchemy calls — this must not
+    run directly on the event loop or it blocks every concurrent request for
+    the duration of the DB round trip.
+    """
     from routers.wide_events import get_event_tier, _should_write
     tier = get_event_tier(_path_to_event(method, path))
     if not _should_write(tier):
