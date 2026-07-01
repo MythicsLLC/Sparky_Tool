@@ -1,3 +1,5 @@
+import shlex
+
 import paramiko
 from config import get_settings
 from logger import get_logger
@@ -24,7 +26,7 @@ def download_csv(remote_path: str | None = None, _settings=None) -> bytes:
             banner_timeout=30,
         )
         log.info("SSH authenticated — executing cat %s", path)
-        _, stdout, stderr = client.exec_command(f"cat {path}")
+        _, stdout, stderr = client.exec_command(f"cat {shlex.quote(path)}")
         data = stdout.read()
         err = stderr.read()
         if not data and err:

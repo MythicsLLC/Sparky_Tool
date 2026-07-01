@@ -225,7 +225,7 @@ try:
     from routers import company as _company
     from database import get_db
     from models import UserConfig
-    from auth import get_current_user
+    from auth import get_current_user, require_admin
     from run_engine import run_config_engines
 
     app.include_router(_u.router)
@@ -417,7 +417,7 @@ class SettingsPayload(BaseModel):
 
 
 @app.get("/api/settings")
-def get_settings_view():
+def get_settings_view(admin=Depends(require_admin)):
     s = settings
     return {
         "ps_base_url":        s.ps_base_url,
@@ -700,7 +700,7 @@ class WinReadFilePayload(WinPayload):
 
 
 @app.post("/api/test-windows")
-def test_windows(body: WinPayload):
+def test_windows(body: WinPayload, user=Depends(get_current_user)):
     log.info("test_windows  %s:%d  user=%s  type=%s",
              body.win_host, body.win_port, body.win_username, body.win_connection_type)
     try:
@@ -730,7 +730,7 @@ def test_windows(body: WinPayload):
 
 
 @app.post("/api/win-browse")
-def win_browse(body: WinBrowsePayload):
+def win_browse(body: WinBrowsePayload, user=Depends(get_current_user)):
     log.info("win_browse  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:
@@ -761,7 +761,7 @@ def win_browse(body: WinBrowsePayload):
 
 
 @app.post("/api/win-read-file")
-def win_read_file(body: WinReadFilePayload):
+def win_read_file(body: WinReadFilePayload, user=Depends(get_current_user)):
     log.info("win_read_file  %s  path=%s  type=%s",
              body.win_host, body.path, body.win_connection_type)
     try:
@@ -1016,7 +1016,7 @@ def ftp_read_file(
 
 
 @app.post("/api/settings")
-def save_settings(body: SettingsPayload):
+def save_settings(body: SettingsPayload, admin=Depends(require_admin)):
     update_env(body.model_dump())
     get_settings.cache_clear()
     global settings

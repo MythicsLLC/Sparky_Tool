@@ -70,6 +70,18 @@ def test_download_csv_raises_on_stderr():
             download_csv()
 
 
+def test_download_csv_quotes_path_against_shell_injection():
+    with patch("paramiko.SSHClient") as mock_ssh_cls:
+        mock_ssh = MagicMock()
+        mock_ssh_cls.return_value = mock_ssh
+        mock_ssh.exec_command.return_value = _make_channel(TEST_CSV)
+
+        from scp_client import download_csv
+        download_csv(remote_path="/tmp/report.csv; rm -rf ~")
+        cmd = mock_ssh.exec_command.call_args[0][0]
+        assert cmd == "cat '/tmp/report.csv; rm -rf ~'"
+
+
 def test_download_csv_closes_connection():
     with patch("paramiko.SSHClient") as mock_ssh_cls:
         mock_ssh = MagicMock()

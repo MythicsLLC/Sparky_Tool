@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -36,7 +38,15 @@ def client():
         mock_settings.sftp_password = "sftppass"
         mock_settings.sftp_remote_path = "/output.csv"
         from main import app
-        yield TestClient(app)
+        from auth import require_admin
+
+        # /api/settings is admin-only; simulate an authenticated admin so these
+        # tests exercise the settings logic without needing a real database.
+        app.dependency_overrides[require_admin] = lambda: SimpleNamespace(id="test-admin", role="admin")
+        try:
+            yield TestClient(app)
+        finally:
+            app.dependency_overrides.pop(require_admin, None)
 
 
 def test_get_settings_returns_masked_passwords(client):
@@ -57,3 +67,31 @@ def test_post_settings_calls_update_env(client):
     assert response.status_code == 200
     assert response.json()["status"] == "saved"
     mock_update.assert_called_once()
+
+
+def test_get_settings_requires_auth():
+    from main import app
+    from database import get_db
+
+    # Stub out the DB dependency so the auth check (which runs after FastAPI
+    # resolves get_db) is exercised without needing a real DATABASE_URL.
+    app.dependency_overrides[get_db] = lambda: iter([None])
+    try:
+        with patch("main.settings"):
+            response = TestClient(app).get("/api/settings")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+    assert response.status_code == 401
+
+
+def test_post_settings_requires_auth():
+    from main import app
+    from database import get_db
+
+    app.dependency_overrides[get_db] = lambda: iter([None])
+    try:
+        with patch("main.settings"):
+            response = TestClient(app).post("/api/settings", json=SETTINGS_PAYLOAD)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+    assert response.status_code == 401
